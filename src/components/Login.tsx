@@ -22,7 +22,7 @@ export default function Login({ setRole }: Props) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-blue-900 p-6">
+    <div className="fixed inset-0 h-screen w-screen flex flex-col items-center justify-center bg-blue-900 p-6 overflow-hidden">
       <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm text-center">
         <div className="flex items-center justify-center gap-3 mb-2">
           <img src="/NCOA_Logo.png" alt="NCOA Logo" className="w-12 h-12 object-contain" />
