@@ -11,6 +11,23 @@ function App() {
   const [schedules, setSchedules] = useState<DailySchedule[]>(mockSchedules); // 캘린더 전체 데이터 상태
   const [selectedDateId, setSelectedDateId] = useState<string | null>(null);
 
+  // 위치 및 복장 옵션 상태 (초기값 설정)
+  const [locations, setLocations] = useState<string[]>(['MPR', 'CR', 'DFC', 'AUD', 'ACA', 'FLD', 'HMP']);
+  const [uniforms, setUniforms] = useState<string[]>(['PT', 'ACU', 'ASU']);
+
+  // 새로운 위치/복장 추가 함수
+  const addLocation = (loc: string) => {
+    if (loc && !locations.includes(loc)) {
+      setLocations([...locations, loc]);
+    }
+  };
+
+  const addUniform = (uni: string) => {
+    if (uni && !uniforms.includes(uni)) {
+      setUniforms([...uniforms, uni]);
+    }
+  };
+
   // 관리자가 이벤트를 수정했을 때 호출되는 함수
   const handleSaveEvent = (dateStr: string, updatedEvent: TrainingEvent) => {
     setSchedules(prevSchedules => 
@@ -39,6 +56,10 @@ function App() {
         role={role}
         onBack={() => setSelectedDateId(null)}
         onSave={handleSaveEvent}
+        locations={locations}
+        uniforms={uniforms}
+        onAddLocation={addLocation}
+        onAddUniform={addUniform}
       />
     );
   }
