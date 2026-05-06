@@ -15,6 +15,25 @@ function App() {
   const [locations, setLocations] = useState<string[]>(['MPR', 'CR', 'DFC', 'AUD', 'ACA', 'FLD', 'HMP']);
   const [uniforms, setUniforms] = useState<string[]>(['PT', 'ACU', 'ASU']);
 
+  // 로그인 시 오늘 날짜 자동 선택
+  const handleSetRole = (newRole: UserRole) => {
+    setRole(newRole);
+    if (newRole) {
+      // 오늘 날짜 구하기 (YYYY-MM-DD 형식)
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
+      
+      // 해당 날짜의 스케줄이 있는지 확인 후 선택
+      const hasSchedule = schedules.some(s => s.date === todayStr);
+      if (hasSchedule) {
+        setSelectedDateId(todayStr);
+      }
+    }
+  };
+
   // 새로운 위치/복장 추가 함수
   const addLocation = (loc: string) => {
     if (loc && !locations.includes(loc)) {
@@ -44,7 +63,7 @@ function App() {
   };
 
   if (!role) {
-    return <Login setRole={setRole} />;
+    return <Login setRole={handleSetRole} />;
   }
 
   const selectedSchedule = schedules.find(s => s.date === selectedDateId);
