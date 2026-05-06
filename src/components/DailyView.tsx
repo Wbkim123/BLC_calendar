@@ -29,13 +29,49 @@ export default function DailyView({
 }: Props) {
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
 
+  // --- 스와이프 기능 구현 ---
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  // 최소 스와이프 거리 (픽셀 단위)
+  const minSwipeDistance = 50;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe && onNext) {
+      onNext();
+    } else if (isRightSwipe && onPrev) {
+      onPrev();
+    }
+  };
+  // -------------------------
+
   const handleSave = (updated: TrainingEvent) => {
     onSave(schedule.date, updated);
     setEditingEvent(null); // 저장 후 모달 닫기
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col relative">
+    <div 
+      className="min-h-screen bg-gray-100 flex flex-col relative"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* 상단 헤더 */}
       <div className="bg-blue-900 text-white p-4 sticky top-0 shadow-md z-10 flex items-center justify-between">
         <div className="flex items-center">
