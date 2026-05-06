@@ -69,6 +69,13 @@ function App() {
   const selectedSchedule = schedules.find(s => s.date === selectedDateId);
 
   if (selectedSchedule) {
+    const currentIndex = schedules.findIndex(s => s.date === selectedDateId);
+    const hasPrev = currentIndex > 0;
+    const hasNext = currentIndex < schedules.length - 1;
+
+    const handlePrev = hasPrev ? () => setSelectedDateId(schedules[currentIndex - 1].date) : undefined;
+    const handleNext = hasNext ? () => setSelectedDateId(schedules[currentIndex + 1].date) : undefined;
+
     return (
       <DailyView 
         schedule={selectedSchedule} 
@@ -79,6 +86,8 @@ function App() {
         uniforms={uniforms}
         onAddLocation={addLocation}
         onAddUniform={addUniform}
+        onPrev={handlePrev}
+        onNext={handleNext}
       />
     );
   }

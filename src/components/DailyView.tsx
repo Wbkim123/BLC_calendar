@@ -11,9 +11,22 @@ interface Props {
   uniforms: string[];
   onAddLocation: (loc: string) => void;
   onAddUniform: (uni: string) => void;
+  onPrev?: () => void;
+  onNext?: () => void;
 }
 
-export default function DailyView({ schedule, role, onBack, onSave, locations, uniforms, onAddLocation, onAddUniform }: Props) {
+export default function DailyView({ 
+  schedule, 
+  role, 
+  onBack, 
+  onSave, 
+  locations, 
+  uniforms, 
+  onAddLocation, 
+  onAddUniform,
+  onPrev,
+  onNext 
+}: Props) {
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
 
   const handleSave = (updated: TrainingEvent) => {
@@ -24,13 +37,33 @@ export default function DailyView({ schedule, role, onBack, onSave, locations, u
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col relative">
       {/* 상단 헤더 */}
-      <div className="bg-blue-900 text-white p-4 sticky top-0 shadow-md z-10 flex items-center">
-        <button onClick={onBack} className="mr-4 p-2 bg-blue-800 rounded-lg active:bg-blue-700">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-        </button>
-        <div>
-          <h1 className="text-xl font-black">{schedule.date}</h1>
-          <p className="text-sm text-blue-200">{schedule.dayLabel}</p>
+      <div className="bg-blue-900 text-white p-4 sticky top-0 shadow-md z-10 flex items-center justify-between">
+        <div className="flex items-center">
+          <button onClick={onBack} className="mr-4 p-2 bg-blue-800 rounded-lg active:bg-blue-700">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <div>
+            <h1 className="text-xl font-black">{schedule.date}</h1>
+            <p className="text-sm text-blue-200">{schedule.dayLabel}</p>
+          </div>
+        </div>
+
+        {/* 이전/다음 날짜 이동 버튼 */}
+        <div className="flex gap-2">
+          <button 
+            onClick={onPrev} 
+            disabled={!onPrev}
+            className={`p-2 rounded-lg ${onPrev ? 'bg-blue-800 active:bg-blue-700' : 'bg-blue-900 opacity-30 cursor-not-allowed'}`}
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <button 
+            onClick={onNext} 
+            disabled={!onNext}
+            className={`p-2 rounded-lg ${onNext ? 'bg-blue-800 active:bg-blue-700' : 'bg-blue-900 opacity-30 cursor-not-allowed'}`}
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
         </div>
       </div>
       
