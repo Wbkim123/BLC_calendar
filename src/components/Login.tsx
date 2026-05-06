@@ -39,7 +39,7 @@ export default function Login({ setRole }: Props) {
           className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 mb-4 text-center text-lg tracking-widest focus:border-blue-500 focus:outline-none"
         />
         
-        {error && <p className="text-red-500 text-sm mb-4 font-bold">Invalid code. Try 001 or 002.</p>}
+        {error && <p className="text-red-500 text-sm mb-4 font-bold">Invalid code. Try again.</p>}
 
         <button 
           onClick={handleEnter}
