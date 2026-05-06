@@ -31,6 +31,7 @@ export default function Login({ setRole }: Props) {
           type="password"
           value={code}
           onChange={(e) => setCode(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleEnter()}
           placeholder="Enter Access Code"
           className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 mb-4 text-center text-lg tracking-widest focus:border-blue-500 focus:outline-none"
         />
