@@ -12,5 +12,10 @@ const firebaseConfig = {
   measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
 
+// Validate config
+if (!firebaseConfig.apiKey) {
+  console.error("Firebase API Key is missing. Check your .env file.");
+}
+
 const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);

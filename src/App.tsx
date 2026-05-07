@@ -15,6 +15,7 @@ function App() {
   const [uniforms, setUniforms] = useState<string[]>([]);
   const [selectedDateId, setSelectedDateId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // 1. Firebase에서 실시간 데이터 불러오기
   useEffect(() => {
@@ -29,8 +30,15 @@ function App() {
         setSchedules(data);
       } else {
         // 데이터가 없으면 초기값(mockData)으로 설정
-        set(schedulesRef, mockSchedules);
+        set(schedulesRef, mockSchedules).catch(err => {
+          console.error("Error setting initial schedules:", err);
+          setApiError("Failed to initialize schedules.");
+        });
       }
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Schedules sync error:", error);
+      setApiError("Permission denied or database error. Please check your connection.");
       setIsLoading(false);
     });
 
@@ -41,8 +49,10 @@ function App() {
         setLocations(data);
       } else {
         const defaultLocs = ['MPR', 'CR', 'DFC', 'AUD', 'ACA', 'FLD', 'HMP'];
-        set(locationsRef, defaultLocs);
+        set(locationsRef, defaultLocs).catch(err => console.error("Error setting locations:", err));
       }
+    }, (error) => {
+      console.error("Locations sync error:", error);
     });
 
     // 복장 데이터 감시
@@ -52,8 +62,10 @@ function App() {
         setUniforms(data);
       } else {
         const defaultUnis = ['PT', 'ACU', 'ASU'];
-        set(uniformsRef, defaultUnis);
+        set(uniformsRef, defaultUnis).catch(err => console.error("Error setting uniforms:", err));
       }
+    }, (error) => {
+      console.error("Uniforms sync error:", error);
     });
 
     return () => {
@@ -83,14 +95,18 @@ function App() {
   // 새로운 위치 추가 함수 (Firebase에 직접 반영)
   const addLocation = (loc: string) => {
     if (loc && !locations.includes(loc)) {
-      set(ref(db, 'locations'), [...locations, loc]);
+      set(ref(db, 'locations'), [...locations, loc]).catch(err => {
+        alert("Failed to add location: " + err.message);
+      });
     }
   };
 
   // 새로운 복장 추가 함수 (Firebase에 직접 반영)
   const addUniform = (uni: string) => {
     if (uni && !uniforms.includes(uni)) {
-      set(ref(db, 'uniforms'), [...uniforms, uni]);
+      set(ref(db, 'uniforms'), [...uniforms, uni]).catch(err => {
+        alert("Failed to add uniform: " + err.message);
+      });
     }
   };
 
@@ -103,7 +119,9 @@ function App() {
         // 특정 경로의 데이터만 업데이트
         const updates: any = {};
         updates[`/schedules/${dayIndex}/events/${eventIndex}`] = updatedEvent;
-        update(ref(db), updates);
+        update(ref(db), updates).catch(err => {
+          alert("Failed to save changes: " + err.message);
+        });
       }
     }
   };
@@ -112,6 +130,21 @@ function App() {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-blue-900 text-white font-bold">
         Loading Data...
+      </div>
+    );
+  }
+
+  if (apiError) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-red-900 text-white p-6 text-center">
+        <h1 className="text-2xl font-bold mb-4">API Connection Error</h1>
+        <p className="mb-6">{apiError}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="bg-white text-red-900 px-6 py-2 rounded-lg font-bold"
+        >
+          RETRY
+        </button>
       </div>
     );
   }
