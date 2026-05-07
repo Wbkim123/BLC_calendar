@@ -5,53 +5,74 @@ import Calendar from './components/Calendar';
 import DailyView from './components/DailyView';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
 import { mockSchedules } from './data/mockData';
+import { db } from './firebase';
+import { ref, onValue, set, update } from 'firebase/database';
 
 function App() {
   const [role, setRole] = useState<UserRole>(null);
-  
-  // 1. 초기 상태를 localStorage에서 불러오기 (없으면 mockData 사용)
-  const [schedules, setSchedules] = useState<DailySchedule[]>(() => {
-    const saved = localStorage.getItem('blc_schedules');
-    return saved ? JSON.parse(saved) : mockSchedules;
-  });
-
-  const [locations, setLocations] = useState<string[]>(() => {
-    const saved = localStorage.getItem('blc_locations');
-    return saved ? JSON.parse(saved) : ['MPR', 'CR', 'DFC', 'AUD', 'ACA', 'FLD', 'HMP'];
-  });
-
-  const [uniforms, setUniforms] = useState<string[]>(() => {
-    const saved = localStorage.getItem('blc_uniforms');
-    return saved ? JSON.parse(saved) : ['PT', 'ACU', 'ASU'];
-  });
-
+  const [schedules, setSchedules] = useState<DailySchedule[]>([]);
+  const [locations, setLocations] = useState<string[]>([]);
+  const [uniforms, setUniforms] = useState<string[]>([]);
   const [selectedDateId, setSelectedDateId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // 2. 상태가 변경될 때마다 localStorage에 저장
+  // 1. Firebase에서 실시간 데이터 불러오기
   useEffect(() => {
-    localStorage.setItem('blc_schedules', JSON.stringify(schedules));
-  }, [schedules]);
+    const schedulesRef = ref(db, 'schedules');
+    const locationsRef = ref(db, 'locations');
+    const uniformsRef = ref(db, 'uniforms');
 
-  useEffect(() => {
-    localStorage.setItem('blc_locations', JSON.stringify(locations));
-  }, [locations]);
+    // 스케줄 감시
+    const unsubSchedules = onValue(schedulesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setSchedules(data);
+      } else {
+        // 데이터가 없으면 초기값(mockData)으로 설정
+        set(schedulesRef, mockSchedules);
+      }
+      setIsLoading(false);
+    });
 
-  useEffect(() => {
-    localStorage.setItem('blc_uniforms', JSON.stringify(uniforms));
-  }, [uniforms]);
+    // 위치 데이터 감시
+    const unsubLocations = onValue(locationsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setLocations(data);
+      } else {
+        const defaultLocs = ['MPR', 'CR', 'DFC', 'AUD', 'ACA', 'FLD', 'HMP'];
+        set(locationsRef, defaultLocs);
+      }
+    });
+
+    // 복장 데이터 감시
+    const unsubUniforms = onValue(uniformsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setUniforms(data);
+      } else {
+        const defaultUnis = ['PT', 'ACU', 'ASU'];
+        set(uniformsRef, defaultUnis);
+      }
+    });
+
+    return () => {
+      unsubSchedules();
+      unsubLocations();
+      unsubUniforms();
+    };
+  }, []);
 
   // 로그인 시 오늘 날짜 자동 선택
   const handleSetRole = (newRole: UserRole) => {
     setRole(newRole);
     if (newRole) {
-      // 오늘 날짜 구하기 (YYYY-MM-DD 형식)
       const today = new Date();
       const year = today.getFullYear();
       const month = String(today.getMonth() + 1).padStart(2, '0');
       const day = String(today.getDate()).padStart(2, '0');
       const todayStr = `${year}-${month}-${day}`;
       
-      // 해당 날짜의 스케줄이 있는지 확인 후 선택
       const hasSchedule = schedules.some(s => s.date === todayStr);
       if (hasSchedule) {
         setSelectedDateId(todayStr);
@@ -59,33 +80,41 @@ function App() {
     }
   };
 
-  // 새로운 위치/복장 추가 함수
+  // 새로운 위치 추가 함수 (Firebase에 직접 반영)
   const addLocation = (loc: string) => {
     if (loc && !locations.includes(loc)) {
-      setLocations([...locations, loc]);
+      set(ref(db, 'locations'), [...locations, loc]);
     }
   };
 
+  // 새로운 복장 추가 함수 (Firebase에 직접 반영)
   const addUniform = (uni: string) => {
     if (uni && !uniforms.includes(uni)) {
-      setUniforms([...uniforms, uni]);
+      set(ref(db, 'uniforms'), [...uniforms, uni]);
     }
   };
 
-  // 관리자가 이벤트를 수정했을 때 호출되는 함수
+  // 관리자가 이벤트를 수정했을 때 호출되는 함수 (Firebase 업데이트)
   const handleSaveEvent = (dateStr: string, updatedEvent: TrainingEvent) => {
-    setSchedules(prevSchedules => 
-      prevSchedules.map(day => {
-        if (day.date === dateStr) {
-          return {
-            ...day,
-            events: day.events.map(ev => ev.id === updatedEvent.id ? updatedEvent : ev)
-          };
-        }
-        return day;
-      })
-    );
+    const dayIndex = schedules.findIndex(day => day.date === dateStr);
+    if (dayIndex !== -1) {
+      const eventIndex = schedules[dayIndex].events.findIndex(ev => ev.id === updatedEvent.id);
+      if (eventIndex !== -1) {
+        // 특정 경로의 데이터만 업데이트
+        const updates: any = {};
+        updates[`/schedules/${dayIndex}/events/${eventIndex}`] = updatedEvent;
+        update(ref(db), updates);
+      }
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-blue-900 text-white font-bold">
+        Loading Data...
+      </div>
+    );
+  }
 
   if (!role) {
     return <Login setRole={handleSetRole} />;
