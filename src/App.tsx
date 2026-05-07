@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
 import Calendar from './components/Calendar';
 import DailyView from './components/DailyView';
@@ -8,12 +8,37 @@ import { mockSchedules } from './data/mockData';
 
 function App() {
   const [role, setRole] = useState<UserRole>(null);
-  const [schedules, setSchedules] = useState<DailySchedule[]>(mockSchedules); // 캘린더 전체 데이터 상태
+  
+  // 1. 초기 상태를 localStorage에서 불러오기 (없으면 mockData 사용)
+  const [schedules, setSchedules] = useState<DailySchedule[]>(() => {
+    const saved = localStorage.getItem('blc_schedules');
+    return saved ? JSON.parse(saved) : mockSchedules;
+  });
+
+  const [locations, setLocations] = useState<string[]>(() => {
+    const saved = localStorage.getItem('blc_locations');
+    return saved ? JSON.parse(saved) : ['MPR', 'CR', 'DFC', 'AUD', 'ACA', 'FLD', 'HMP'];
+  });
+
+  const [uniforms, setUniforms] = useState<string[]>(() => {
+    const saved = localStorage.getItem('blc_uniforms');
+    return saved ? JSON.parse(saved) : ['PT', 'ACU', 'ASU'];
+  });
+
   const [selectedDateId, setSelectedDateId] = useState<string | null>(null);
 
-  // 위치 및 복장 옵션 상태 (초기값 설정)
-  const [locations, setLocations] = useState<string[]>(['MPR', 'CR', 'DFC', 'AUD', 'ACA', 'FLD', 'HMP']);
-  const [uniforms, setUniforms] = useState<string[]>(['PT', 'ACU', 'ASU']);
+  // 2. 상태가 변경될 때마다 localStorage에 저장
+  useEffect(() => {
+    localStorage.setItem('blc_schedules', JSON.stringify(schedules));
+  }, [schedules]);
+
+  useEffect(() => {
+    localStorage.setItem('blc_locations', JSON.stringify(locations));
+  }, [locations]);
+
+  useEffect(() => {
+    localStorage.setItem('blc_uniforms', JSON.stringify(uniforms));
+  }, [uniforms]);
 
   // 로그인 시 오늘 날짜 자동 선택
   const handleSetRole = (newRole: UserRole) => {
