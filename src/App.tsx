@@ -28,14 +28,17 @@ function App() {
       const data = snapshot.val();
       if (data) {
         setSchedules(data);
+        setIsLoading(false);
       } else {
         // 데이터가 없으면 초기값(mockData)으로 설정
-        set(schedulesRef, mockSchedules).catch(err => {
-          console.error("Error setting initial schedules:", err);
-          setApiError("Failed to initialize schedules.");
-        });
+        set(schedulesRef, mockSchedules)
+          .then(() => setIsLoading(false))
+          .catch(err => {
+            console.error("Error setting initial schedules:", err);
+            setApiError("Failed to initialize schedules.");
+            setIsLoading(false);
+          });
       }
-      setIsLoading(false);
     }, (error) => {
       console.error("Schedules sync error:", error);
       setApiError("Permission denied or database error. Please check your connection.");
