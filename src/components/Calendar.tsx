@@ -79,9 +79,9 @@ export default function Calendar({ schedules, onSelectDate }: Props) {
           </div>
 
           {/* 날짜 그리드 */}
-          <div className="grid grid-cols-7 gap-1 lg:gap-3 lg:flex-1 min-h-0">
+          <div className="grid grid-cols-7 gap-1 lg:gap-3 lg:auto-rows-fr lg:flex-1 min-h-0">
             {calendarDays.map((day, idx) => {
-              if (day === null) return <div key={`empty-${idx}`} className="aspect-square lg:h-full lg:aspect-auto" />;
+              if (day === null) return <div key={`empty-${idx}`} className="aspect-square lg:aspect-auto lg:h-full" />;
               
               const schedule = isScheduled(day);
               const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
@@ -91,7 +91,7 @@ export default function Calendar({ schedules, onSelectDate }: Props) {
                   key={day}
                   onClick={() => schedule && onSelectDate(schedule.date)}
                   disabled={!schedule}
-                  className={`aspect-square lg:h-full rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all border-2 ${
+                  className={`aspect-square lg:aspect-auto lg:h-full rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all border-2 ${
                     schedule 
                       ? 'bg-blue-50 text-blue-900 font-bold border-blue-100 active:scale-95 hover:bg-blue-100 shadow-sm' 
                       : 'text-gray-300 pointer-events-none border-transparent'
