@@ -1,5 +1,5 @@
 // src/components/Calendar.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { DailySchedule } from '../types/schedule';
 
 interface Props {
@@ -8,34 +8,113 @@ interface Props {
 }
 
 export default function Calendar({ schedules, onSelectDate }: Props) {
+  // 현재 보고 있는 달 (초기값은 스케줄의 첫 날짜 기준)
+  const [viewDate, setViewDate] = useState(() => {
+    if (schedules.length > 0) return new Date(schedules[0].date);
+    return new Date();
+  });
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  // 달력 계산 로직
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  
+  const calendarDays = [];
+  // 이전 달 빈칸
+  for (let i = 0; i < firstDayOfMonth; i++) {
+    calendarDays.push(null);
+  }
+  // 이번 달 날짜
+  for (let i = 1; i <= daysInMonth; i++) {
+    calendarDays.push(i);
+  }
+
+  const changeMonth = (offset: number) => {
+    setViewDate(new Date(year, month + offset, 1));
+  };
+
+  const isScheduled = (day: number) => {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return schedules.find(s => s.date === dateStr);
+  };
+
+  const dayLabels = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
   return (
-    <div className="min-h-screen bg-gray-100 p-4 font-sans">
-      <div className="bg-blue-900 text-white rounded-xl p-6 mb-6 shadow-lg text-center flex flex-col items-center">
+    <div className="min-h-screen bg-gray-100 p-4 font-sans flex flex-col">
+      {/* 상단 헤더 */}
+      <div className="bg-blue-900 text-white rounded-xl p-6 mb-4 shadow-lg text-center">
         <div className="flex items-center justify-center gap-3 mb-1">
           <img src="/NCOA_Logo.png" alt="NCOA Logo" className="w-10 h-10 object-contain" />
           <h2 className="text-2xl font-black tracking-wider">BLC CLASS 06-26</h2>
         </div>
-        <p className="text-blue-200 text-sm font-medium">Training Schedule</p>
+        <p className="text-blue-200 text-sm font-medium uppercase">Cycle Calendar</p>
       </div>
-      
-      <div className="space-y-3 pb-8">
-        {schedules.map((daySchedule) => (
-          <button
-            key={daySchedule.date}
-            onClick={() => onSelectDate(daySchedule.date)}
-            className="w-full bg-white p-4 rounded-xl shadow-sm border-l-8 border-blue-800 flex justify-between items-center active:bg-gray-50 transition-colors text-left"
-          >
-            <div>
-              <p className="text-xs font-bold text-gray-500 mb-1">{daySchedule.dayLabel}</p>
-              <p className="text-lg font-bold text-gray-900">{daySchedule.date}</p>
-            </div>
-            <div className="bg-blue-100 p-2 rounded-full text-blue-800">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
+
+      {/* 달력 컨트롤 */}
+      <div className="bg-white rounded-xl shadow-sm p-4 flex-1 flex flex-col">
+        <div className="flex justify-between items-center mb-6">
+          <button onClick={() => changeMonth(-1)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
+            <svg className="w-6 h-6 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
-        ))}
+          <h3 className="text-xl font-black text-blue-900 tracking-tight">
+            {viewDate.toLocaleString('default', { month: 'long', year: 'numeric' }).toUpperCase()}
+          </h3>
+          <button onClick={() => changeMonth(1)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
+            <svg className="w-6 h-6 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+
+        {/* 요일 헤더 */}
+        <div className="grid grid-cols-7 mb-2">
+          {dayLabels.map(label => (
+            <div key={label} className={`text-center text-[10px] font-black ${label === 'SUN' ? 'text-red-500' : label === 'SAT' ? 'text-blue-500' : 'text-gray-400'}`}>
+              {label}
+            </div>
+          ))}
+        </div>
+
+        {/* 날짜 그리드 */}
+        <div className="grid grid-cols-7 gap-1 flex-1">
+          {calendarDays.map((day, idx) => {
+            if (day === null) return <div key={`empty-${idx}`} className="aspect-square" />;
+            
+            const schedule = isScheduled(day);
+            const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+
+            return (
+              <button
+                key={day}
+                onClick={() => schedule && onSelectDate(schedule.date)}
+                disabled={!schedule}
+                className={`aspect-square rounded-lg flex flex-col items-center justify-center relative transition-all ${
+                  schedule 
+                    ? 'bg-blue-50 text-blue-900 font-bold border-2 border-blue-100 active:scale-95' 
+                    : 'text-gray-300 pointer-events-none'
+                } ${isToday ? 'ring-2 ring-blue-900 ring-offset-1' : ''}`}
+              >
+                <span className="text-sm">{day}</span>
+                {schedule && (
+                  <span className="text-[8px] font-black text-blue-500 mt-1 leading-none">
+                    {schedule.dayLabel.split(' ')[0]}
+                  </span>
+                )}
+                {schedule && (
+                  <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-yellow-500 rounded-full" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-4 p-3 bg-blue-50 rounded-lg flex items-start gap-2 border border-blue-100">
+        <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <p className="text-[11px] text-blue-700 font-medium leading-tight">
+          Dates with <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full mx-0.5" /> mark scheduled training days. Tap any highlighted date to view details.
+        </p>
       </div>
     </div>
   );
