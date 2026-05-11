@@ -170,22 +170,32 @@ function App() {
     const handleNext = hasNext ? () => setSelectedDateId(schedules[currentIndex + 1].date) : undefined;
 
     return (
-      <DailyView 
-        schedule={selectedSchedule} 
-        role={role}
-        onBack={() => setSelectedDateId(null)}
-        onSave={handleSaveEvent}
-        locations={locations}
-        uniforms={uniforms}
-        onAddLocation={addLocation}
-        onAddUniform={addUniform}
-        onPrev={handlePrev}
-        onNext={handleNext}
-      />
+      <div className="min-h-screen bg-gray-200 flex justify-center">
+        <div className="w-full max-w-md bg-gray-100 shadow-2xl min-h-screen relative">
+          <DailyView 
+            schedule={selectedSchedule} 
+            role={role}
+            onBack={() => setSelectedDateId(null)}
+            onSave={handleSaveEvent}
+            locations={locations}
+            uniforms={uniforms}
+            onAddLocation={addLocation}
+            onAddUniform={addUniform}
+            onPrev={handlePrev}
+            onNext={handleNext}
+          />
+        </div>
+      </div>
     );
   }
 
-  return <Calendar schedules={schedules} onSelectDate={(date) => setSelectedDateId(date)} />;
+  return (
+    <div className="min-h-screen bg-gray-200 flex justify-center">
+      <div className="w-full max-w-md bg-gray-100 shadow-2xl min-h-screen relative">
+        <Calendar schedules={schedules} onSelectDate={(date) => setSelectedDateId(date)} />
+      </div>
+    </div>
+  );
 }
 
 export default App;
