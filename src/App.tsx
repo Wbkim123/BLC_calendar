@@ -185,7 +185,13 @@ function App() {
     );
   }
 
-  return <Calendar schedules={schedules} onSelectDate={(date) => setSelectedDateId(date)} />;
+  return (
+    <div className="min-h-screen bg-gray-100 flex justify-center lg:items-center lg:bg-gray-200 lg:p-8">
+      <div className="w-full lg:max-w-6xl lg:bg-white lg:shadow-2xl lg:rounded-3xl lg:overflow-hidden lg:h-[880px]">
+        <Calendar schedules={schedules} onSelectDate={(date) => setSelectedDateId(date)} />
+      </div>
+    </div>
+  );
 }
 
 export default App;

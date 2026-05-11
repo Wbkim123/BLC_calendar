@@ -43,41 +43,41 @@ export default function Calendar({ schedules, onSelectDate }: Props) {
   const dayLabels = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 font-sans flex flex-col">
+    <div className="min-h-screen lg:min-h-0 lg:h-full bg-gray-100 p-4 lg:p-10 font-sans flex flex-col">
       {/* 상단 헤더 */}
-      <div className="bg-blue-900 text-white rounded-xl p-6 mb-4 shadow-lg text-center">
-        <div className="flex items-center justify-center gap-3 mb-1">
-          <img src="/NCOA_Logo.png" alt="NCOA Logo" className="w-10 h-10 object-contain" />
-          <h2 className="text-2xl font-black tracking-wider">BLC CLASS 06-26</h2>
+      <div className="bg-blue-900 text-white rounded-xl p-6 lg:p-10 mb-4 lg:mb-8 shadow-lg text-center">
+        <div className="flex items-center justify-center gap-3 lg:gap-6 mb-1">
+          <img src="/NCOA_Logo.png" alt="NCOA Logo" className="w-10 h-10 lg:w-16 lg:h-16 object-contain" />
+          <h2 className="text-2xl lg:text-5xl font-black tracking-wider">BLC CLASS 06-26</h2>
         </div>
-        <p className="text-blue-200 text-sm font-medium uppercase">Cycle Calendar</p>
+        <p className="text-blue-200 text-sm lg:text-lg font-medium uppercase tracking-widest">Cycle Calendar</p>
       </div>
 
       {/* 달력 컨트롤 */}
-      <div className="bg-white rounded-xl shadow-sm p-4 flex-1 flex flex-col">
-        <div className="flex justify-between items-center mb-6">
-          <button onClick={() => changeMonth(-1)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
-            <svg className="w-6 h-6 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+      <div className="bg-white rounded-xl shadow-sm p-4 lg:p-8 flex-1 flex flex-col">
+        <div className="flex justify-between items-center mb-6 lg:mb-10">
+          <button onClick={() => changeMonth(-1)} className="p-2 lg:p-4 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
+            <svg className="w-6 h-6 lg:w-8 lg:h-8 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
-          <h3 className="text-xl font-black text-blue-900 tracking-tight">
+          <h3 className="text-xl lg:text-4xl font-black text-blue-900 tracking-tight">
             {viewDate.toLocaleString('default', { month: 'long', year: 'numeric' }).toUpperCase()}
           </h3>
-          <button onClick={() => changeMonth(1)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
-            <svg className="w-6 h-6 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          <button onClick={() => changeMonth(1)} className="p-2 lg:p-4 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
+            <svg className="w-6 h-6 lg:w-8 lg:h-8 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
 
         {/* 요일 헤더 */}
-        <div className="grid grid-cols-7 mb-2">
+        <div className="grid grid-cols-7 mb-2 lg:mb-6">
           {dayLabels.map(label => (
-            <div key={label} className={`text-center text-[10px] font-black ${label === 'SUN' ? 'text-red-500' : label === 'SAT' ? 'text-blue-500' : 'text-gray-400'}`}>
+            <div key={label} className={`text-center text-[10px] lg:text-sm font-black ${label === 'SUN' ? 'text-red-500' : label === 'SAT' ? 'text-blue-500' : 'text-gray-400'}`}>
               {label}
             </div>
           ))}
         </div>
 
         {/* 날짜 그리드 */}
-        <div className="grid grid-cols-7 gap-1 flex-1">
+        <div className="grid grid-cols-7 gap-1 lg:gap-3 flex-1">
           {calendarDays.map((day, idx) => {
             if (day === null) return <div key={`empty-${idx}`} className="aspect-square" />;
             
@@ -89,20 +89,20 @@ export default function Calendar({ schedules, onSelectDate }: Props) {
                 key={day}
                 onClick={() => schedule && onSelectDate(schedule.date)}
                 disabled={!schedule}
-                className={`aspect-square rounded-lg flex flex-col items-center justify-center relative transition-all ${
+                className={`aspect-square rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all ${
                   schedule 
-                    ? 'bg-blue-50 text-blue-900 font-bold border-2 border-blue-100 active:scale-95' 
+                    ? 'bg-blue-50 text-blue-900 font-bold border-2 border-blue-100 active:scale-95 hover:bg-blue-100' 
                     : 'text-gray-300 pointer-events-none'
-                } ${isToday ? 'ring-2 ring-blue-900 ring-offset-1' : ''}`}
+                } ${isToday ? 'ring-2 lg:ring-4 ring-blue-900 ring-offset-1' : ''}`}
               >
-                <span className="text-sm">{day}</span>
+                <span className="text-sm lg:text-2xl">{day}</span>
                 {schedule && (
-                  <span className="text-[8px] font-black text-blue-500 mt-1 leading-none">
+                  <span className="text-[8px] lg:text-xs font-black text-blue-500 mt-1 lg:mt-2 leading-none">
                     {schedule.dayLabel.split(' ')[0]}
                   </span>
                 )}
                 {schedule && (
-                  <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-yellow-500 rounded-full" />
+                  <div className="absolute top-1 right-1 lg:top-3 lg:right-3 w-1.5 h-1.5 lg:w-3 lg:h-3 bg-yellow-500 rounded-full shadow-sm" />
                 )}
               </button>
             );
@@ -110,10 +110,10 @@ export default function Calendar({ schedules, onSelectDate }: Props) {
         </div>
       </div>
 
-      <div className="mt-4 p-3 bg-blue-50 rounded-lg flex items-start gap-2 border border-blue-100">
-        <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        <p className="text-[11px] text-blue-700 font-medium leading-tight">
-          Dates with <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full mx-0.5" /> mark scheduled training days. Tap any highlighted date to view details.
+      <div className="mt-4 lg:mt-8 p-3 lg:p-6 bg-blue-50 rounded-lg lg:rounded-2xl flex items-start gap-2 lg:gap-4 border border-blue-100">
+        <svg className="w-5 h-5 lg:w-8 lg:h-8 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <p className="text-[11px] lg:text-lg text-blue-700 font-medium leading-tight">
+          Dates with <span className="inline-block w-2 h-2 lg:w-4 lg:h-4 bg-yellow-500 rounded-full mx-0.5" /> mark scheduled training days. Tap any highlighted date to view details.
         </p>
       </div>
     </div>
