@@ -116,7 +116,7 @@ export default function DailyView({
       </div>
       
       {/* 스케줄 리스트 */}
-      <div className="flex-1 p-4 space-y-3 overflow-y-auto pb-10">
+      <div className="flex-1 p-4 lg:p-8 space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4 overflow-y-auto pb-10">
         {schedule.events.map((ev) => {
           // --- 현재 시각 기준 상태 계산 ---
           const now = new Date();

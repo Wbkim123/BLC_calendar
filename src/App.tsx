@@ -170,8 +170,8 @@ function App() {
     const handleNext = hasNext ? () => setSelectedDateId(schedules[currentIndex + 1].date) : undefined;
 
     return (
-      <div className="min-h-screen bg-gray-200 flex justify-center">
-        <div className="w-full max-w-md bg-gray-100 shadow-2xl min-h-screen relative">
+      <div className="min-h-screen bg-gray-300 flex justify-center lg:items-center lg:p-6">
+        <div className="w-full max-w-md lg:max-w-5xl bg-gray-100 shadow-2xl lg:rounded-3xl lg:h-[850px] overflow-hidden flex flex-col relative">
           <DailyView 
             schedule={selectedSchedule} 
             role={role}
@@ -190,8 +190,8 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-200 flex justify-center">
-      <div className="w-full max-w-md bg-gray-100 shadow-2xl min-h-screen relative">
+    <div className="min-h-screen bg-gray-300 flex justify-center lg:items-center lg:p-6">
+      <div className="w-full max-w-md lg:max-w-5xl bg-gray-100 shadow-2xl lg:rounded-3xl lg:h-[850px] overflow-hidden flex flex-col relative">
         <Calendar schedules={schedules} onSelectDate={(date) => setSelectedDateId(date)} />
       </div>
     </div>
