@@ -78,6 +78,7 @@ export default function DailyView({
           <button onClick={onBack} className="mr-4 p-2 bg-blue-800 rounded-lg active:bg-blue-700">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
+          <img src="/NCOA_Logo.png" alt="NCOA Logo" className="w-10 h-10 object-contain mr-3" />
           <div>
             <h1 className="text-xl font-black">{schedule.date}</h1>
             <p className="text-sm text-blue-200">{schedule.dayLabel}</p>
