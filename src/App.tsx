@@ -25,23 +25,26 @@ function App() {
 
     // 스케줄 감시
     const unsubSchedules = onValue(schedulesRef, (snapshot) => {
+      console.log("Schedules snapshot received:", snapshot.val());
       const data = snapshot.val();
       if (data) {
-        setSchedules(data);
+        // Firebase might return an object if keys are non-sequential, ensure it's an array
+        const schedulesArray = Array.isArray(data) ? data : Object.values(data);
+        setSchedules(schedulesArray as DailySchedule[]);
         setIsLoading(false);
       } else {
-        // 데이터가 없으면 초기값(mockData)으로 설정
+        console.log("No schedules data, setting initial...");
         set(schedulesRef, mockSchedules)
           .then(() => setIsLoading(false))
           .catch(err => {
             console.error("Error setting initial schedules:", err);
-            setApiError("Failed to initialize schedules.");
+            setApiError("Failed to initialize schedules: " + err.message);
             setIsLoading(false);
           });
       }
     }, (error) => {
       console.error("Schedules sync error:", error);
-      setApiError("Permission denied or database error. Please check your connection.");
+      setApiError("Permission denied or database error: " + error.message);
       setIsLoading(false);
     });
 
@@ -49,20 +52,20 @@ function App() {
     const unsubLocations = onValue(locationsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        setLocations(data);
+        const locsArray = Array.isArray(data) ? data : Object.values(data);
+        setLocations(locsArray as string[]);
       } else {
         const defaultLocs = ['MPR', 'CR', 'DFC', 'AUD', 'ACA', 'FLD', 'HMP'];
         set(locationsRef, defaultLocs).catch(err => console.error("Error setting locations:", err));
       }
-    }, (error) => {
-      console.error("Locations sync error:", error);
     });
 
     // 복장 데이터 감시
     const unsubUniforms = onValue(uniformsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        setUniforms(data);
+        const unisArray = Array.isArray(data) ? data : Object.values(data);
+        setUniforms(unisArray as string[]);
       } else {
         const defaultUnis = ['PT', 'ACU', 'ASU'];
         set(uniformsRef, defaultUnis).catch(err => console.error("Error setting uniforms:", err));
