@@ -105,32 +105,69 @@ export default function DailyView({
       
       {/* 스케줄 리스트 */}
       <div className="flex-1 p-4 space-y-3 overflow-y-auto pb-10">
-        {schedule.events.map((ev) => (
-          <div key={ev.id} className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-yellow-500">
-            <div className="flex justify-between items-start">
-              <div className="flex-1 pr-4">
-                <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs font-bold rounded mb-2">
-                  {ev.time}
-                </span>
-                <p className="text-base font-bold text-gray-900 leading-tight mb-2">{ev.eventName}</p>
-                <div className="flex gap-3 text-xs font-medium text-gray-500">
-                  <span className="flex items-center gap-1">📍 LOC: <span className="text-gray-800">{ev.location}</span></span>
-                  <span className="flex items-center gap-1">👕 UNI: <span className="text-gray-800">{ev.uniform}</span></span>
+        {schedule.events.map((ev) => {
+          // --- 현재 시각 기준 상태 계산 ---
+          const now = new Date();
+          const [startTimeStr, endTimeStr] = ev.time.split('-');
+          
+          const getEventDate = (timeStr: string) => {
+            const [hours, mins] = [parseInt(timeStr.slice(0, 2)), parseInt(timeStr.slice(2, 4))];
+            const d = new Date(schedule.date);
+            d.setHours(hours, mins, 0, 0);
+            return d;
+          };
+
+          const startTime = getEventDate(startTimeStr);
+          const endTime = getEventDate(endTimeStr);
+
+          const isPast = now > endTime;
+          const isOngoing = now >= startTime && now <= endTime;
+          // ----------------------------
+
+          return (
+            <div 
+              key={ev.id} 
+              className={`p-4 rounded-xl shadow-sm border-l-4 transition-colors ${
+                isPast 
+                  ? 'bg-gray-200 border-gray-400 opacity-60' 
+                  : isOngoing 
+                    ? 'bg-white border-green-500 ring-2 ring-green-100' 
+                    : 'bg-white border-yellow-500'
+              }`}
+            >
+              <div className="flex justify-between items-start">
+                <div className="flex-1 pr-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`inline-block px-2 py-1 text-xs font-bold rounded ${
+                      isOngoing ? 'bg-green-500 text-white animate-pulse' : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {ev.time}
+                    </span>
+                    {isOngoing && <span className="text-[10px] font-bold text-green-600 uppercase tracking-tighter">● Ongoing</span>}
+                    {isPast && <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Completed</span>}
+                  </div>
+                  <p className={`text-base font-bold leading-tight mb-2 ${isPast ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                    {ev.eventName}
+                  </p>
+                  <div className="flex gap-3 text-xs font-medium text-gray-500">
+                    <span className="flex items-center gap-1">📍 LOC: <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.location}</span></span>
+                    <span className="flex items-center gap-1">👕 UNI: <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.uniform}</span></span>
+                  </div>
                 </div>
+                
+                {/* 관리자에게만 보이는 ✏️ 수정 버튼 */}
+                {role === 'ADMIN' && (
+                  <button 
+                    onClick={() => setEditingEvent(ev)}
+                    className="bg-blue-50 text-blue-700 p-2 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  </button>
+                )}
               </div>
-              
-              {/* 관리자에게만 보이는 ✏️ 수정 버튼 */}
-              {role === 'ADMIN' && (
-                <button 
-                  onClick={() => setEditingEvent(ev)}
-                  className="bg-blue-50 text-blue-700 p-2 rounded-lg hover:bg-blue-100 transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                </button>
-              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* 수정 모달창 (editingEvent가 있을 때만 렌더링) */}
