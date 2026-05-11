@@ -8,11 +8,8 @@ interface Props {
 }
 
 export default function Calendar({ schedules, onSelectDate }: Props) {
-  // 현재 보고 있는 달 (초기값은 스케줄의 첫 날짜 기준)
-  const [viewDate, setViewDate] = useState(() => {
-    if (schedules.length > 0) return new Date(schedules[0].date);
-    return new Date();
-  });
+  // 현재 보고 있는 달 (초기값은 오늘 날짜 기준)
+  const [viewDate, setViewDate] = useState(new Date());
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
