@@ -97,7 +97,7 @@ export default function Calendar({ schedules, onSelectDate }: Props) {
                   <span className="text-sm lg:text-2xl">{day}</span>
                   {schedule && (
                     <span className="text-[8px] lg:text-xs font-black text-blue-500 mt-1 lg:mt-2 leading-none">
-                      {schedule.dayLabel.split(' ')[0]}
+                      {schedule.dayLabel}
                     </span>
                   )}
                   {schedule && (
