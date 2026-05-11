@@ -30,32 +30,43 @@ export default function DailyView({
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
 
   // --- 스와이프 기능 구현 ---
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [touchStart, setTouchStart] = useState<{ x: number, y: number } | null>(null);
+  const [touchEnd, setTouchEnd] = useState<{ x: number, y: number } | null>(null);
 
-  // 최소 스와이프 거리 (픽셀 단위)
-  const minSwipeDistance = 50;
+  // 최소 스와이프 거리 (픽셀 단위) - 감도 조절 (기존 50 -> 100)
+  const minSwipeDistance = 100;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
+    setTouchStart({
+      x: e.targetTouches[0].clientX,
+      y: e.targetTouches[0].clientY
+    });
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
+    setTouchEnd({
+      x: e.targetTouches[0].clientX,
+      y: e.targetTouches[0].clientY
+    });
   };
 
   const handleTouchEnd = () => {
     if (!touchStart || !touchEnd) return;
 
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
+    const distanceX = touchStart.x - touchEnd.x;
+    const distanceY = touchStart.y - touchEnd.y;
+    
+    const isLeftSwipe = distanceX > minSwipeDistance;
+    const isRightSwipe = distanceX < -minSwipeDistance;
 
-    if (isLeftSwipe && onNext) {
-      onNext();
-    } else if (isRightSwipe && onPrev) {
-      onPrev();
+    // 수평 이동 거리가 수직 이동 거리보다 클 때만 스와이프로 간주 (수직 스크롤 방해 방지)
+    if (Math.abs(distanceX) > Math.abs(distanceY)) {
+      if (isLeftSwipe && onNext) {
+        onNext();
+      } else if (isRightSwipe && onPrev) {
+        onPrev();
+      }
     }
   };
   // -------------------------
