@@ -166,7 +166,7 @@ export default function DailyView({
           return (
             <div 
               key={ev.id} 
-              className={`p-4 rounded-xl shadow-sm border-l-4 transition-colors relative ${
+              className={`py-2 px-3 lg:py-3 lg:px-4 rounded-xl shadow-sm border-l-4 transition-colors relative ${
                 isPast 
                   ? 'bg-gray-200 border-gray-400 opacity-60' 
                   : isOngoing 
@@ -174,24 +174,22 @@ export default function DailyView({
                     : 'bg-white border-yellow-500'
               }`}
             >
-              <div className="flex justify-between items-start">
-                <div className="flex-1 pr-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={`inline-block px-2 py-1 text-xs font-bold rounded ${
+              <div className="flex justify-between items-center">
+                <div className="flex-1 pr-2 lg:pr-4">
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className={`inline-block px-2 py-0.5 text-[10px] lg:text-xs font-bold rounded ${
                       isOngoing ? 'bg-green-500 text-white animate-pulse' : 'bg-gray-100 text-gray-700'
                     }`}>
                       {ev.time}
                     </span>
-                    {isOngoing && <span className="text-[10px] font-bold text-green-600 uppercase tracking-tighter">● Ongoing</span>}
-                    {isPast && <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Completed</span>}
+                    <div className="flex gap-3 text-[10px] lg:text-xs font-bold text-gray-500">
+                      <span className="flex items-center gap-1">📍 <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.location}</span></span>
+                      <span className="flex items-center gap-1">👕 <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.uniform}</span></span>
+                    </div>
                   </div>
-                  <p className={`text-base font-bold leading-tight mb-2 ${isPast ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                  <p className={`text-sm lg:text-base font-bold leading-tight ${isPast ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
                     {ev.eventName}
                   </p>
-                  <div className="flex gap-3 text-xs font-medium text-gray-500">
-                    <span className="flex items-center gap-1">📍 LOC: <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.location}</span></span>
-                    <span className="flex items-center gap-1">👕 UNI: <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.uniform}</span></span>
-                  </div>
                 </div>
                 
                 {/* 관리자에게만 보이는 ✏️ 수정 버튼 */}
@@ -201,9 +199,9 @@ export default function DailyView({
                       setEditingEvent(ev);
                       setIsCreating(false);
                     }}
-                    className="bg-blue-50 text-blue-700 p-2 rounded-lg hover:bg-blue-100 transition-colors"
+                    className="bg-blue-50 text-blue-700 p-1.5 lg:p-2 rounded-lg hover:bg-blue-100 transition-colors shrink-0"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    <svg className="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                   </button>
                 )}
               </div>
