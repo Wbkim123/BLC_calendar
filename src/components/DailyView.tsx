@@ -213,9 +213,9 @@ export default function DailyView({
         {role === 'ADMIN' && (
           <button 
             onClick={openCreateModal}
-            className="w-full p-6 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all active:scale-[0.98]"
+            className="w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all active:scale-[0.98]"
           >
-            <span className="text-4xl font-light">+</span>
+            <span className="text-2xl lg:text-3xl font-light">+</span>
           </button>
         )}
       </div>
