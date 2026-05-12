@@ -33,29 +33,19 @@ export default function DailyView({
 }: Props) {
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [longPressedId, setLongPressedId] = useState<string | null>(null);
-  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
 
-  // --- 스와이프 기능 및 롱프레스 구현 ---
+  // --- 스와이프 기능 구현 ---
   const [touchStart, setTouchStart] = useState<{ x: number, y: number } | null>(null);
   const [touchEnd, setTouchEnd] = useState<{ x: number, y: number } | null>(null);
 
   const minSwipeDistance = 100;
 
-  const handleTouchStart = (e: React.TouchEvent, eventId?: string) => {
+  const handleTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
     setTouchStart({
       x: e.targetTouches[0].clientX,
       y: e.targetTouches[0].clientY
     });
-
-    // 롱프레스 타이머 시작 (관리자일 때만)
-    if (role === 'ADMIN' && eventId) {
-      const timer = setTimeout(() => {
-        setLongPressedId(eventId);
-      }, 600); // 0.6초간 누르면 롱프레스
-      setLongPressTimer(timer);
-    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -63,21 +53,9 @@ export default function DailyView({
       x: e.targetTouches[0].clientX,
       y: e.targetTouches[0].clientY
     });
-    
-    // 움직임이 크면 롱프레스 취소
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    }
   };
 
   const handleTouchEnd = () => {
-    // 롱프레스 타이머 취소
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    }
-
     if (!touchStart || !touchEnd) return;
 
     const distanceX = touchStart.x - touchEnd.x;
@@ -196,31 +174,7 @@ export default function DailyView({
                     ? 'bg-white border-green-500 ring-2 ring-green-100' 
                     : 'bg-white border-yellow-500'
               }`}
-              onTouchStart={(e) => handleTouchStart(e, ev.id)}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              onContextMenu={(e) => {
-                if (role === 'ADMIN') {
-                  e.preventDefault();
-                  setLongPressedId(ev.id);
-                }
-              }}
             >
-              {/* 모바일 롱프레스 삭제 메뉴 */}
-              {longPressedId === ev.id && role === 'ADMIN' && (
-                <div className="absolute right-2 top-2 z-20 animate-fade-in">
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(ev.id);
-                    }}
-                    className="bg-red-600 text-white px-4 py-2 rounded-lg shadow-xl font-bold text-sm active:bg-red-700"
-                  >
-                    Delete Event
-                  </button>
-                </div>
-              )}
-
               <div className="flex justify-between items-start">
                 <div className="flex-1 pr-4">
                   <div className="flex items-center gap-2 mb-2">
