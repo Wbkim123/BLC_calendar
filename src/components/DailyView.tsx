@@ -183,8 +183,8 @@ export default function DailyView({
                       {ev.time}
                     </span>
                     <div className="flex gap-3 text-[10px] lg:text-xs font-bold text-gray-500">
-                      <span className="flex items-center gap-1">📍 <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.location}</span></span>
-                      <span className="flex items-center gap-1">👕 <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.uniform}</span></span>
+                      <span className="flex items-center gap-1">📍 LOC: <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.location}</span></span>
+                      <span className="flex items-center gap-1">👕 UNI: <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.uniform}</span></span>
                     </div>
                   </div>
                   <p className={`text-sm lg:text-base font-bold leading-tight ${isPast ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
