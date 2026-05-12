@@ -106,11 +106,33 @@ export default function DailyView({
   // --- 시간순 정렬 및 겹침 감지 로직 ---
   const sortedEvents = [...(schedule.events || [])].sort((a, b) => a.time.localeCompare(b.time));
 
-  const hasConflict = sortedEvents.some((ev, idx) => {
+  // 각 이벤트가 충돌하는지 여부를 판단하는 함수
+  const checkConflict = (idx: number) => {
+    if (sortedEvents.length <= 1) return false;
+    
+    const curr = sortedEvents[idx];
+    const [currStart, currEnd] = curr.time.split('-').map(t => parseInt(t));
+
+    // 이전 이벤트와 겹치는지 확인
+    if (idx > 0) {
+      const prevEnd = parseInt(sortedEvents[idx - 1].time.split('-')[1]);
+      if (currStart < prevEnd) return true;
+    }
+
+    // 다음 이벤트와 겹치는지 확인
+    if (idx < sortedEvents.length - 1) {
+      const nextStart = parseInt(sortedEvents[idx + 1].time.split('-')[0]);
+      if (currEnd > nextStart) return true;
+    }
+
+    return false;
+  };
+
+  const hasGlobalConflict = sortedEvents.some((_, idx) => {
     if (idx === 0) return false;
-    const prevEndTimeStr = sortedEvents[idx - 1].time.split('-')[1];
-    const currStartTimeStr = ev.time.split('-')[0];
-    return parseInt(currStartTimeStr) < parseInt(prevEndTimeStr);
+    const prevEndTime = parseInt(sortedEvents[idx - 1].time.split('-')[1]);
+    const currStartTime = parseInt(sortedEvents[idx].time.split('-')[0]);
+    return currStartTime < prevEndTime;
   });
 
   return (
@@ -155,16 +177,16 @@ export default function DailyView({
       {/* 스케줄 리스트 */}
       <div className="flex-1 p-4 space-y-3 overflow-y-auto pb-10">
         {/* 시간 중복 경고 메시지 */}
-        {hasConflict && (
-          <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-2 rounded-r-lg flex items-center gap-3 animate-pulse">
+        {hasGlobalConflict && (
+          <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-2 rounded-r-lg flex items-center gap-3">
             <span className="text-xl">⚠️</span>
             <p className="text-xs lg:text-sm text-yellow-800 font-bold">
-              Warning: Some events have overlapping times. Please check the schedule.
+              Conflict detected: Overlapping schedule.
             </p>
           </div>
         )}
 
-        {sortedEvents.map((ev) => {
+        {sortedEvents.map((ev, idx) => {
           // --- 현재 시각 기준 상태 계산 ---
           const now = new Date();
           const [startTimeStr, endTimeStr] = ev.time.split('-');
@@ -181,6 +203,7 @@ export default function DailyView({
 
           const isPast = now > endTime;
           const isOngoing = now >= startTime && now <= endTime;
+          const isConflicting = checkConflict(idx);
           // ----------------------------
 
           return (
@@ -191,17 +214,22 @@ export default function DailyView({
                   ? 'bg-gray-200 border-gray-400 opacity-60' 
                   : isOngoing 
                     ? 'bg-white border-green-500 ring-2 ring-green-100' 
-                    : 'bg-white border-yellow-500'
+                    : isConflicting
+                      ? 'bg-yellow-50 border-yellow-500 ring-2 ring-yellow-100'
+                      : 'bg-white border-yellow-500'
               }`}
             >
               <div className="flex justify-between items-center">
                 <div className="flex-1 pr-2 lg:pr-4">
                   <div className="flex items-center gap-3 mb-1">
-                    <span className={`inline-block px-2 py-0.5 text-[10px] lg:text-xs font-bold rounded ${
-                      isOngoing ? 'bg-green-500 text-white animate-pulse' : 'bg-gray-100 text-gray-700'
-                    }`}>
-                      {ev.time}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`inline-block px-2 py-0.5 text-[10px] lg:text-xs font-bold rounded ${
+                        isOngoing ? 'bg-green-500 text-white animate-pulse' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {ev.time}
+                      </span>
+                      {isConflicting && <span className="text-sm animate-bounce" title="Time Conflict">⚠️</span>}
+                    </div>
                     <div className="flex gap-3 text-[10px] lg:text-xs font-bold text-gray-500">
                       <span className="flex items-center gap-1">📍 LOC: <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.location}</span></span>
                       <span className="flex items-center gap-1">👕 UNI: <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.uniform}</span></span>
