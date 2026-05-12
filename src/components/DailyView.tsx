@@ -88,7 +88,6 @@ export default function DailyView({
     if (window.confirm("Are you sure you want to delete this event?")) {
       onDeleteEvent(schedule.date, eventId);
       setEditingEvent(null);
-      setLongPressedId(null);
     }
   };
 
