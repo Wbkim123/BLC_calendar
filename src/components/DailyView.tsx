@@ -103,6 +103,16 @@ export default function DailyView({
     setIsCreating(true);
   };
 
+  // --- 시간순 정렬 및 겹침 감지 로직 ---
+  const sortedEvents = [...(schedule.events || [])].sort((a, b) => a.time.localeCompare(b.time));
+
+  const hasConflict = sortedEvents.some((ev, idx) => {
+    if (idx === 0) return false;
+    const prevEndTimeStr = sortedEvents[idx - 1].time.split('-')[1];
+    const currStartTimeStr = ev.time.split('-')[0];
+    return parseInt(currStartTimeStr) < parseInt(prevEndTimeStr);
+  });
+
   return (
     <div 
       className="min-h-screen bg-gray-100 flex flex-col relative"
@@ -144,7 +154,17 @@ export default function DailyView({
       
       {/* 스케줄 리스트 */}
       <div className="flex-1 p-4 space-y-3 overflow-y-auto pb-10">
-        {schedule.events.map((ev) => {
+        {/* 시간 중복 경고 메시지 */}
+        {hasConflict && (
+          <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-2 rounded-r-lg flex items-center gap-3 animate-pulse">
+            <span className="text-xl">⚠️</span>
+            <p className="text-xs lg:text-sm text-yellow-800 font-bold">
+              Warning: Some events have overlapping times. Please check the schedule.
+            </p>
+          </div>
+        )}
+
+        {sortedEvents.map((ev) => {
           // --- 현재 시각 기준 상태 계산 ---
           const now = new Date();
           const [startTimeStr, endTimeStr] = ev.time.split('-');
