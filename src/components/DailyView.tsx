@@ -7,6 +7,8 @@ interface Props {
   role: UserRole;
   onBack: () => void;
   onSave: (dateStr: string, updatedEvent: TrainingEvent) => void;
+  onCreateEvent: (dateStr: string, newEvent: TrainingEvent) => void;
+  onDeleteEvent: (dateStr: string, eventId: string) => void;
   locations: string[];
   uniforms: string[];
   onAddLocation: (loc: string) => void;
@@ -20,6 +22,8 @@ export default function DailyView({
   role, 
   onBack, 
   onSave, 
+  onCreateEvent,
+  onDeleteEvent,
   locations, 
   uniforms, 
   onAddLocation, 
@@ -28,20 +32,30 @@ export default function DailyView({
   onNext 
 }: Props) {
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [longPressedId, setLongPressedId] = useState<string | null>(null);
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
 
-  // --- 스와이프 기능 구현 ---
+  // --- 스와이프 기능 및 롱프레스 구현 ---
   const [touchStart, setTouchStart] = useState<{ x: number, y: number } | null>(null);
   const [touchEnd, setTouchEnd] = useState<{ x: number, y: number } | null>(null);
 
-  // 최소 스와이프 거리 (픽셀 단위) - 감도 조절 (기존 50 -> 100)
   const minSwipeDistance = 100;
 
-  const handleTouchStart = (e: React.TouchEvent) => {
+  const handleTouchStart = (e: React.TouchEvent, eventId?: string) => {
     setTouchEnd(null);
     setTouchStart({
       x: e.targetTouches[0].clientX,
       y: e.targetTouches[0].clientY
     });
+
+    // 롱프레스 타이머 시작 (관리자일 때만)
+    if (role === 'ADMIN' && eventId) {
+      const timer = setTimeout(() => {
+        setLongPressedId(eventId);
+      }, 600); // 0.6초간 누르면 롱프레스
+      setLongPressTimer(timer);
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -49,9 +63,21 @@ export default function DailyView({
       x: e.targetTouches[0].clientX,
       y: e.targetTouches[0].clientY
     });
+    
+    // 움직임이 크면 롱프레스 취소
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
   };
 
   const handleTouchEnd = () => {
+    // 롱프레스 타이머 취소
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+
     if (!touchStart || !touchEnd) return;
 
     const distanceX = touchStart.x - touchEnd.x;
@@ -60,7 +86,6 @@ export default function DailyView({
     const isLeftSwipe = distanceX > minSwipeDistance;
     const isRightSwipe = distanceX < -minSwipeDistance;
 
-    // 수평 이동 거리가 수직 이동 거리보다 클 때만 스와이프로 간주 (수직 스크롤 방해 방지)
     if (Math.abs(distanceX) > Math.abs(distanceY)) {
       if (isLeftSwipe && onNext) {
         onNext();
@@ -72,8 +97,33 @@ export default function DailyView({
   // -------------------------
 
   const handleSave = (updated: TrainingEvent) => {
-    onSave(schedule.date, updated);
-    setEditingEvent(null); // 저장 후 모달 닫기
+    if (isCreating) {
+      onCreateEvent(schedule.date, updated);
+      setIsCreating(false);
+    } else {
+      onSave(schedule.date, updated);
+    }
+    setEditingEvent(null);
+  };
+
+  const handleDelete = (eventId: string) => {
+    if (window.confirm("Are you sure you want to delete this event?")) {
+      onDeleteEvent(schedule.date, eventId);
+      setEditingEvent(null);
+      setLongPressedId(null);
+    }
+  };
+
+  const openCreateModal = () => {
+    const newEvent: TrainingEvent = {
+      id: Date.now().toString(),
+      time: "0900-1000",
+      eventName: "",
+      location: locations[0] || "MPR",
+      uniform: uniforms[0] || "PT"
+    };
+    setEditingEvent(newEvent);
+    setIsCreating(true);
   };
 
   return (
@@ -116,7 +166,7 @@ export default function DailyView({
       </div>
       
       {/* 스케줄 리스트 */}
-      <div className="flex-1 p-4 space-y-3 overflow-y-auto pb-10">
+      <div className="flex-1 p-4 space-y-3 overflow-y-auto pb-10" onClick={() => setLongPressedId(null)}>
         {schedule.events.map((ev) => {
           // --- 현재 시각 기준 상태 계산 ---
           const now = new Date();
@@ -139,14 +189,38 @@ export default function DailyView({
           return (
             <div 
               key={ev.id} 
-              className={`p-4 rounded-xl shadow-sm border-l-4 transition-colors ${
+              className={`p-4 rounded-xl shadow-sm border-l-4 transition-colors relative ${
                 isPast 
                   ? 'bg-gray-200 border-gray-400 opacity-60' 
                   : isOngoing 
                     ? 'bg-white border-green-500 ring-2 ring-green-100' 
                     : 'bg-white border-yellow-500'
               }`}
+              onTouchStart={(e) => handleTouchStart(e, ev.id)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onContextMenu={(e) => {
+                if (role === 'ADMIN') {
+                  e.preventDefault();
+                  setLongPressedId(ev.id);
+                }
+              }}
             >
+              {/* 모바일 롱프레스 삭제 메뉴 */}
+              {longPressedId === ev.id && role === 'ADMIN' && (
+                <div className="absolute right-2 top-2 z-20 animate-fade-in">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(ev.id);
+                    }}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg shadow-xl font-bold text-sm active:bg-red-700"
+                  >
+                    Delete Event
+                  </button>
+                </div>
+              )}
+
               <div className="flex justify-between items-start">
                 <div className="flex-1 pr-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -170,7 +244,10 @@ export default function DailyView({
                 {/* 관리자에게만 보이는 ✏️ 수정 버튼 */}
                 {role === 'ADMIN' && (
                   <button 
-                    onClick={() => setEditingEvent(ev)}
+                    onClick={() => {
+                      setEditingEvent(ev);
+                      setIsCreating(false);
+                    }}
                     className="bg-blue-50 text-blue-700 p-2 rounded-lg hover:bg-blue-100 transition-colors"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
@@ -180,14 +257,29 @@ export default function DailyView({
             </div>
           );
         })}
+
+        {/* 새 일정 추가 버튼 박스 (관리자 전용) */}
+        {role === 'ADMIN' && (
+          <button 
+            onClick={openCreateModal}
+            className="w-full p-6 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all active:scale-[0.98]"
+          >
+            <span className="text-4xl font-light">+</span>
+          </button>
+        )}
       </div>
 
       {/* 수정 모달창 (editingEvent가 있을 때만 렌더링) */}
       {editingEvent && (
         <EditModal 
           event={editingEvent} 
-          onClose={() => setEditingEvent(null)} 
+          isCreating={isCreating}
+          onClose={() => {
+            setEditingEvent(null);
+            setIsCreating(false);
+          }} 
           onSave={handleSave} 
+          onDelete={handleDelete}
           locations={locations}
           uniforms={uniforms}
           onAddLocation={onAddLocation}
@@ -201,16 +293,20 @@ export default function DailyView({
 // ---- 수정 모달 컴포넌트 ----
 function EditModal({ 
   event, 
+  isCreating,
   onClose, 
   onSave, 
+  onDelete,
   locations, 
   uniforms, 
   onAddLocation, 
   onAddUniform 
 }: { 
   event: TrainingEvent, 
+  isCreating: boolean,
   onClose: () => void, 
   onSave: (e: TrainingEvent) => void,
+  onDelete: (id: string) => void,
   locations: string[],
   uniforms: string[],
   onAddLocation: (loc: string) => void,
@@ -354,9 +450,21 @@ function EditModal({
           </div>
         </div>
 
-        <div className="p-4 bg-gray-50 flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 bg-gray-200 text-gray-700 font-bold rounded-xl active:bg-gray-300">Cancel</button>
-          <button onClick={() => onSave(formData)} className="flex-1 py-3 bg-blue-700 text-white font-bold rounded-xl active:bg-blue-800 shadow-md">Save Changes</button>
+        <div className="p-4 bg-gray-50 flex flex-col gap-3">
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-3 bg-gray-200 text-gray-700 font-bold rounded-xl active:bg-gray-300">Cancel</button>
+            <button onClick={() => onSave(formData)} className="flex-1 py-3 bg-blue-700 text-white font-bold rounded-xl active:bg-blue-800 shadow-md">
+              {isCreating ? "Create Event" : "Save Changes"}
+            </button>
+          </div>
+          {!isCreating && (
+            <button 
+              onClick={() => onDelete(event.id)}
+              className="w-full py-2 text-red-600 font-bold text-sm hover:bg-red-50 rounded-lg transition-colors"
+            >
+              Delete Event
+            </button>
+          )}
         </div>
       </div>
     </div>

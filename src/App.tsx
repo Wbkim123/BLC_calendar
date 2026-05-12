@@ -122,13 +122,38 @@ function App() {
     if (dayIndex !== -1) {
       const eventIndex = schedules[dayIndex].events.findIndex(ev => ev.id === updatedEvent.id);
       if (eventIndex !== -1) {
-        // 특정 경로의 데이터만 업데이트
         const updates: any = {};
         updates[`/schedules/${dayIndex}/events/${eventIndex}`] = updatedEvent;
         update(ref(db), updates).catch(err => {
           alert("Failed to save changes: " + err.message);
         });
       }
+    }
+  };
+
+  // 새로운 이벤트 추가 함수
+  const handleCreateEvent = (dateStr: string, newEvent: TrainingEvent) => {
+    const dayIndex = schedules.findIndex(day => day.date === dateStr);
+    if (dayIndex !== -1) {
+      const currentEvents = schedules[dayIndex].events || [];
+      const updates: any = {};
+      updates[`/schedules/${dayIndex}/events`] = [...currentEvents, newEvent];
+      update(ref(db), updates).catch(err => {
+        alert("Failed to add event: " + err.message);
+      });
+    }
+  };
+
+  // 이벤트 삭제 함수
+  const handleDeleteEvent = (dateStr: string, eventId: string) => {
+    const dayIndex = schedules.findIndex(day => day.date === dateStr);
+    if (dayIndex !== -1) {
+      const updatedEvents = schedules[dayIndex].events.filter(ev => ev.id !== eventId);
+      const updates: any = {};
+      updates[`/schedules/${dayIndex}/events`] = updatedEvents;
+      update(ref(db), updates).catch(err => {
+        alert("Failed to delete event: " + err.message);
+      });
     }
   };
 
@@ -175,6 +200,8 @@ function App() {
         role={role}
         onBack={() => setSelectedDateId(null)}
         onSave={handleSaveEvent}
+        onCreateEvent={handleCreateEvent}
+        onDeleteEvent={handleDeleteEvent}
         locations={locations}
         uniforms={uniforms}
         onAddLocation={addLocation}
