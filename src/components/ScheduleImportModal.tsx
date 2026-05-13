@@ -48,10 +48,12 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     const timePattern = /([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})\s*[-–—~_ ]+\s*([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})/g;
 
     lines.forEach((line, lineIdx) => {
-      const cleanLine = line.trim();
-      if (!cleanLine || cleanLine.length < 5) return;
+      // 1. Heavy Cleanup: Remove headers and common noise
+      let cleanLine = line.trim();
+      if (!cleanLine || cleanLine.length < 3) return;
+      if (cleanLine.match(/TIME|EVENT|LOC|UNI|CLASS|SCHEDULE/i)) return;
 
-      // 1. Detect Day Transitions
+      // 2. Detect Day Transitions (More robust)
       const dayMatch = cleanLine.match(dayMarkerRegex);
       if (dayMatch) {
         if (dayMatch[2]) {
@@ -61,9 +63,11 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         }
         currentDayLabel = dayMatch[1].toUpperCase();
         currentDate = getDateFromOffset(currentOffset);
+        // If the line only contains the day marker, don't look for events
+        if (cleanLine.replace(dayMarkerRegex, '').trim().length < 5) return;
       }
 
-      // 2. Extract Events using structural matching
+      // 3. Extract Events (Enhanced Table-Aware Logic)
       const matches = Array.from(cleanLine.matchAll(timePattern));
       
       matches.forEach((match, mIdx) => {
@@ -81,26 +85,52 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         const endIdx = nextMatch ? nextMatch.index : cleanLine.length;
         let content = cleanLine.substring(startIdx, endIdx).trim();
 
-        // Fuzzy search for Location and Uniform
+        // Specific handling for 'EVENT LOC UNI' sequence
         let foundLoc = "";
         let foundUni = "";
 
-        // Sort by length descending to match longer strings first (e.g., 'DFC' before 'D')
-        [...locations].sort((a,b) => b.length - a.length).forEach(loc => {
-          if (!foundLoc && content.toUpperCase().includes(loc.toUpperCase())) {
-            foundLoc = loc;
-            content = content.replace(new RegExp(loc, 'gi'), '').trim();
-          }
-        });
-
-        [...uniforms].sort((a,b) => b.length - a.length).forEach(uni => {
-          if (!foundUni && content.toUpperCase().includes(uni.toUpperCase())) {
+        // Uniforms are usually at the very end of the segment
+        const sortedUnis = [...uniforms].sort((a,b) => b.length - a.length);
+        for (const uni of sortedUnis) {
+          const uniRegex = new RegExp(`\\b${uni}\\b$`, 'i'); // Check if it's at the end
+          if (content.match(uniRegex)) {
             foundUni = uni;
-            content = content.replace(new RegExp(uni, 'gi'), '').trim();
+            content = content.replace(uniRegex, '').trim();
+            break;
           }
-        });
+        }
 
-        // Cleanup noise (common OCR artifacts)
+        // Locations are usually the second to last element
+        const sortedLocs = [...locations].sort((a,b) => b.length - a.length);
+        for (const loc of sortedLocs) {
+          const locRegex = new RegExp(`\\b${loc}\\b$`, 'i'); // Check at the new end
+          if (content.match(locRegex)) {
+            foundLoc = loc;
+            content = content.replace(locRegex, '').trim();
+            break;
+          }
+        }
+
+        // Final fallback if not at end (fuzzy)
+        if (!foundUni) {
+          for (const uni of sortedUnis) {
+            if (content.toUpperCase().includes(uni.toUpperCase())) {
+              foundUni = uni;
+              content = content.replace(new RegExp(uni, 'gi'), '').trim();
+              break;
+            }
+          }
+        }
+        if (!foundLoc) {
+          for (const loc of sortedLocs) {
+            if (content.toUpperCase().includes(loc.toUpperCase())) {
+              foundLoc = loc;
+              content = content.replace(new RegExp(loc, 'gi'), '').trim();
+              break;
+            }
+          }
+        }
+
         const eventName = content.replace(/^[:\s\-]+|[:\s\-]+$/g, '') || "Unnamed Event";
 
         if (!schedulesMap[currentDate]) {
