@@ -40,7 +40,6 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     };
 
     // More flexible regexes: handle spaces, missing dashes, and OCR errors (O/o/I/l)
-    // Supports formats like "0900-1000", "0900 1000", "09:00 - 10:00", etc.
     const timeRegex = /([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})\s*[-–—~_ ]+\s*([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})/;
     const dayLabelRegex = /(PICK[-]?UP\s*DAY|DAY\s*[#\-]?\s*(\d+))/i;
     const dateRegex = /(\d{4})[-/](\d{1,2})[-/](\d{1,2})/;
@@ -48,11 +47,9 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     let currentDate = getDateFromOffset(0);
 
     lines.forEach((line, index) => {
-      // Cleanup line: remove extra spaces
       const cleanLine = line.trim();
       if (!cleanLine) return;
       
-      // 1. Check for Date/Day Header
       const dayMatch = cleanLine.match(dayLabelRegex);
       const dateMatch = cleanLine.match(dateRegex);
 
@@ -71,28 +68,23 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         currentDayLabel = `DATE: ${currentDate}`;
       }
 
-      // 2. Check for Event line
       const timeMatch = cleanLine.match(timeRegex);
       if (timeMatch) {
-        // Advanced normalization: O/o -> 0, I/l -> 1, then strip non-digits
         const normalizeTime = (t: string) => {
           return t.replace(/[Oo]/g, '0')
                   .replace(/[Iil]/g, '1')
                   .replace(/[^0-9]/g, '')
                   .padStart(4, '0')
-                  .slice(-4); // Keep only last 4 digits
+                  .slice(-4);
         };
         
         const startTime = normalizeTime(timeMatch[1]);
         const endTime = normalizeTime(timeMatch[2]);
-        
-        // Skip if it doesn't look like a valid time after normalization
         if (startTime === "0000" && endTime === "0000") return;
         
         const formattedTime = `${startTime}-${endTime}`;
         
         let remaining = cleanLine.replace(timeMatch[0], '').trim();
-        
         let foundLocation = "";
         let foundUniform = "";
         
@@ -112,7 +104,6 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           }
         });
 
-        // Final cleanup of remaining text
         remaining = remaining.replace(/^[:\s-]+|[:\s-]+$/g, '');
 
         const newEvent: TrainingEvent = {
@@ -138,7 +129,6 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     setParsedSchedules(Object.values(schedulesMap).sort((a, b) => a.date.localeCompare(b.date)));
   }, [startDate, cycleName, locations, uniforms]);
 
-  // Update parsing when dependencies change
   useEffect(() => {
     parseTextToEvents(extractedText);
   }, [extractedText, parseTextToEvents]);
@@ -173,20 +163,63 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         if (m.status === 'recognizing text') setProgress(Math.floor(m.progress * 100));
       }
     });
+
+    let targetSource: string | File | Blob = file;
+
+    if (file instanceof File || typeof file === 'string' || file instanceof Blob) {
+      const img = new Image();
+      const loadPromise = new Promise((resolve) => {
+        img.onload = resolve;
+        img.src = typeof file === 'string' ? file : URL.createObjectURL(file);
+      });
+      await loadPromise;
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const scale = 2;
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        ctx.filter = 'contrast(1.2) brightness(1.1)';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        targetSource = canvas.toDataURL('image/png');
+      }
+    }
     
-    const { data: { text } } = await worker.recognize(file);
+    const { data: { text } } = await worker.recognize(targetSource);
     await worker.terminate();
     
-    setExtractedText(prev => prev + (prev ? "\n" : "") + text);
+    const normalizedText = text
+      .replace(/[O0o]{1,2}[:\s]*[O0o]{2}/g, m => m.replace(/[Oo]/g, '0'))
+      .replace(/\n\s*\n/g, '\n');
+
+    setExtractedText(prev => prev + (prev ? "\n" : "") + normalizedText);
   };
 
   const processPDF = async (file: File) => {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
     
+    let directText = "";
+    try {
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        directText += pageText + "\n";
+      }
+      
+      if (directText.trim().length > 100) {
+        setExtractedText(directText);
+        return;
+      }
+    } catch (err) {
+      console.warn("Direct text extraction failed:", err);
+    }
+
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2.0 });
+      const viewport = page.getViewport({ scale: 3.0 });
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       canvas.height = viewport.height;
