@@ -1,5 +1,4 @@
-// src/components/ScheduleImportModal.tsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createWorker } from 'tesseract.js';
 import * as pdfjsLib from 'pdfjs-dist';
 import { TrainingEvent, DailySchedule } from '../types/schedule';
@@ -22,6 +21,118 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [cycleName, setCycleName] = useState("06-26");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const parseTextToEvents = useCallback((text: string) => {
+    if (!text) {
+      setParsedSchedules([]);
+      return;
+    }
+
+    const lines = text.split('\n');
+    const schedulesMap: { [date: string]: DailySchedule } = {};
+    let currentDayLabel = "PICK-UP DAY";
+    let currentOffset = 0;
+
+    const getDateFromOffset = (offset: number) => {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + offset);
+      return d.toISOString().split('T')[0];
+    };
+
+    // Improved regexes: handle Day #, Day-X, and flexible time formats
+    const timeRegex = /([0-9Oo]{1,2}[:\s]*[0-9Oo]{2})\s*[-–—~_]\s*([0-9Oo]{1,2}[:\s]*[0-9Oo]{2})/;
+    const dayLabelRegex = /(PICK[-]?UP\s*DAY|DAY\s*[#\-]?\s*(\d+))/i;
+    const dateRegex = /(\d{4})[-/](\d{1,2})[-/](\d{1,2})/;
+
+    let currentDate = getDateFromOffset(0);
+
+    lines.forEach((line, index) => {
+      // Cleanup line: remove extra spaces
+      const cleanLine = line.trim();
+      if (!cleanLine) return;
+      
+      // 1. Check for Date/Day Header
+      const dayMatch = cleanLine.match(dayLabelRegex);
+      const dateMatch = cleanLine.match(dateRegex);
+
+      if (dayMatch) {
+        currentDayLabel = dayMatch[1].toUpperCase();
+        if (dayMatch[2]) {
+          const dayNum = parseInt(dayMatch[2]);
+          currentOffset = dayNum; 
+          currentDate = getDateFromOffset(currentOffset);
+        } else {
+          currentOffset = 0;
+          currentDate = getDateFromOffset(0);
+        }
+      } else if (dateMatch) {
+        currentDate = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`;
+        currentDayLabel = `DATE: ${currentDate}`;
+      }
+
+      // 2. Check for Event line
+      const timeMatch = cleanLine.match(timeRegex);
+      if (timeMatch) {
+        // Normalize OCR numbers (O -> 0) and remove non-digits
+        const normalizeTime = (t: string) => t.replace(/[Oo]/g, '0').replace(/[^0-9]/g, '').padStart(4, '0');
+        const startTime = normalizeTime(timeMatch[1]);
+        const endTime = normalizeTime(timeMatch[2]);
+        
+        // Sanity check for normalized time
+        if (startTime.length !== 4 || endTime.length !== 4) return;
+        const formattedTime = `${startTime}-${endTime}`;
+        
+        let remaining = cleanLine.replace(timeMatch[0], '').trim();
+        
+        let foundLocation = "";
+        let foundUniform = "";
+        
+        locations.forEach(loc => {
+          if (remaining.toUpperCase().includes(loc.toUpperCase())) {
+            foundLocation = loc;
+            const regex = new RegExp(loc, 'gi');
+            remaining = remaining.replace(regex, '').trim();
+          }
+        });
+        
+        uniforms.forEach(uni => {
+          if (remaining.toUpperCase().includes(uni.toUpperCase())) {
+            foundUniform = uni;
+            const regex = new RegExp(uni, 'gi');
+            remaining = remaining.replace(regex, '').trim();
+          }
+        });
+
+        // Final cleanup of remaining text
+        remaining = remaining.replace(/^[:\s-]+|[:\s-]+$/g, '');
+
+        const newEvent: TrainingEvent = {
+          id: `imported-${Date.now()}-${index}`,
+          time: formattedTime,
+          eventName: remaining || "Unnamed Event",
+          location: foundLocation || (locations[0] || "MPR"),
+          uniform: foundUniform || (uniforms[0] || "ACU")
+        };
+
+        if (!schedulesMap[currentDate]) {
+          schedulesMap[currentDate] = {
+            date: currentDate,
+            dayLabel: currentDayLabel,
+            cycleName: cycleName,
+            events: []
+          };
+        }
+        schedulesMap[currentDate].events.push(newEvent);
+      }
+    });
+
+    setParsedSchedules(Object.values(schedulesMap).sort((a, b) => a.date.localeCompare(b.date)));
+  }, [startDate, cycleName, locations, uniforms]);
+
+  // Update parsing when dependencies change
+  useEffect(() => {
+    parseTextToEvents(extractedText);
+  }, [extractedText, parseTextToEvents]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,8 +168,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     const { data: { text } } = await worker.recognize(file);
     await worker.terminate();
     
-    setExtractedText(prev => prev + "\n" + text);
-    parseTextToEvents(text);
+    setExtractedText(prev => prev + (prev ? "\n" : "") + text);
   };
 
   const processPDF = async (file: File) => {
@@ -79,88 +189,6 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         await processImage(imageData);
       }
     }
-  };
-
-  const parseTextToEvents = (text: string) => {
-    const lines = text.split('\n');
-    const schedulesMap: { [date: string]: DailySchedule } = {};
-    let currentDayLabel = "PICK-UP DAY";
-    let currentOffset = 0;
-
-    const getDateFromOffset = (offset: number) => {
-      const d = new Date(startDate);
-      d.setDate(d.getDate() + offset);
-      return d.toISOString().split('T')[0];
-    };
-
-    const timeRegex = /(\d{4})\s*[-–—]\s*(\d{4})/;
-    const dayLabelRegex = /(PICK-UP DAY|DAY\s*(\d+))/i;
-    const dateRegex = /(\d{4})[-/](\d{1,2})[-/](\d{1,2})/;
-
-    let currentDate = getDateFromOffset(0);
-
-    lines.forEach((line, index) => {
-      const dayMatch = line.match(dayLabelRegex);
-      const dateMatch = line.match(dateRegex);
-
-      if (dayMatch) {
-        currentDayLabel = dayMatch[1].toUpperCase();
-        if (currentDayLabel.includes("DAY")) {
-          const dayNum = parseInt(dayMatch[2]);
-          currentOffset = dayNum; 
-          currentDate = getDateFromOffset(currentOffset);
-        } else {
-          currentOffset = 0;
-          currentDate = getDateFromOffset(0);
-        }
-      } else if (dateMatch) {
-        currentDate = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`;
-        currentDayLabel = `DATE: ${currentDate}`;
-      }
-
-      const timeMatch = line.match(timeRegex);
-      if (timeMatch) {
-        const time = `${timeMatch[1]}-${timeMatch[2]}`;
-        let remaining = line.replace(timeMatch[0], '').trim();
-        
-        let foundLocation = "";
-        let foundUniform = "";
-        
-        locations.forEach(loc => {
-          if (remaining.includes(loc)) {
-            foundLocation = loc;
-            remaining = remaining.replace(loc, '').trim();
-          }
-        });
-        
-        uniforms.forEach(uni => {
-          if (remaining.includes(uni)) {
-            foundUniform = uni;
-            remaining = remaining.replace(uni, '').trim();
-          }
-        });
-
-        const newEvent: TrainingEvent = {
-          id: `imported-${Date.now()}-${index}`,
-          time,
-          eventName: remaining || "Unnamed Event",
-          location: foundLocation || (locations[0] || "MPR"),
-          uniform: foundUniform || (uniforms[0] || "ACU")
-        };
-
-        if (!schedulesMap[currentDate]) {
-          schedulesMap[currentDate] = {
-            date: currentDate,
-            dayLabel: currentDayLabel,
-            cycleName: cycleName,
-            events: []
-          };
-        }
-        schedulesMap[currentDate].events.push(newEvent);
-      }
-    });
-
-    setParsedSchedules(Object.values(schedulesMap).sort((a, b) => a.date.localeCompare(b.date)));
   };
 
   const handleImport = () => {
@@ -188,10 +216,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
               <input 
                 type="text" 
                 value={cycleName} 
-                onChange={(e) => {
-                  setCycleName(e.target.value);
-                  if (extractedText) parseTextToEvents(extractedText);
-                }}
+                onChange={(e) => setCycleName(e.target.value)}
                 placeholder="06-26"
                 className="w-full border-2 border-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm font-bold text-blue-900"
               />
@@ -201,10 +226,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
               <input 
                 type="date" 
                 value={startDate} 
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  if (extractedText) parseTextToEvents(extractedText);
-                }}
+                onChange={(e) => setStartDate(e.target.value)}
                 className="w-full border-2 border-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
               />
             </div>
@@ -236,10 +258,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
             </label>
             <textarea 
               value={extractedText}
-              onChange={(e) => {
-                setExtractedText(e.target.value);
-                parseTextToEvents(e.target.value);
-              }}
+              onChange={(e) => setExtractedText(e.target.value)}
               placeholder="Paste schedule text here or upload files..."
               className="w-full h-32 border-2 border-gray-100 rounded-xl p-4 text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none transition-all"
             />
