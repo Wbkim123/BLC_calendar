@@ -33,97 +33,98 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     const schedulesMap: { [date: string]: DailySchedule } = {};
     let currentDayLabel = "PICK-UP DAY";
     let currentOffset = 0;
-
-    const getDateFromOffset = (offset: number) => {
-      const d = new Date(startDate);
-      d.setDate(d.getDate() + offset);
-      return d.toISOString().split('T')[0];
-    };
-
-    // More flexible regexes: handle spaces, missing dashes, and OCR errors (O/o/I/l)
-    const timeRegex = /([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})\s*[-–—~_ ]+\s*([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})/;
-    const dayLabelRegex = /(PICK[-]?UP\s*DAY|DAY\s*[#\-]?\s*(\d+))/i;
-    const dateRegex = /(\d{4})[-/](\d{1,2})[-/](\d{1,2})/;
-
     let currentDate = getDateFromOffset(0);
+
+    // Regex for splitting days
+    const dayLabelRegex = /(PICK[-]?UP\s*DAY|DAY\s*[#\-]?\s*(\d+))/i;
+    const dateMarkerRegex = /(\d{1,2})\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)/i;
+    const timeRegex = /([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})\s*[-–—~_ ]+\s*([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})/;
 
     lines.forEach((line, index) => {
       const cleanLine = line.trim();
       if (!cleanLine) return;
-      
+
+      // 1. Check for Day/Date markers in the line
       const dayMatch = cleanLine.match(dayLabelRegex);
-      const dateMatch = cleanLine.match(dateRegex);
+      const dateMarkerMatch = cleanLine.match(dateMarkerRegex);
 
       if (dayMatch) {
         currentDayLabel = dayMatch[1].toUpperCase();
         if (dayMatch[2]) {
-          const dayNum = parseInt(dayMatch[2]);
-          currentOffset = dayNum; 
-          currentDate = getDateFromOffset(currentOffset);
+          currentOffset = parseInt(dayMatch[2]);
         } else {
           currentOffset = 0;
-          currentDate = getDateFromOffset(0);
         }
-      } else if (dateMatch) {
-        currentDate = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`;
-        currentDayLabel = `DATE: ${currentDate}`;
+        currentDate = getDateFromOffset(currentOffset);
+      } else if (dateMarkerMatch) {
+        // If we see "22 MAY", try to adjust our offset if it's near the current one
+        // For now, we trust the "DAY X" sequence more, but we can use this to sync
+        console.log("Detected date marker:", dateMarkerMatch[0]);
       }
 
-      const timeMatch = cleanLine.match(timeRegex);
-      if (timeMatch) {
-        const normalizeTime = (t: string) => {
-          return t.replace(/[Oo]/g, '0')
-                  .replace(/[Iil]/g, '1')
-                  .replace(/[^0-9]/g, '')
-                  .padStart(4, '0')
-                  .slice(-4);
-        };
-        
-        const startTime = normalizeTime(timeMatch[1]);
-        const endTime = normalizeTime(timeMatch[2]);
-        if (startTime === "0000" && endTime === "0000") return;
-        
-        const formattedTime = `${startTime}-${endTime}`;
-        
-        let remaining = cleanLine.replace(timeMatch[0], '').trim();
-        let foundLocation = "";
-        let foundUniform = "";
-        
-        locations.forEach(loc => {
-          if (remaining.toUpperCase().includes(loc.toUpperCase())) {
-            foundLocation = loc;
-            const regex = new RegExp(loc, 'gi');
-            remaining = remaining.replace(regex, '').trim();
-          }
-        });
-        
-        uniforms.forEach(uni => {
-          if (remaining.toUpperCase().includes(uni.toUpperCase())) {
-            foundUniform = uni;
-            const regex = new RegExp(uni, 'gi');
-            remaining = remaining.replace(regex, '').trim();
-          }
-        });
-
-        remaining = remaining.replace(/^[:\s-]+|[:\s-]+$/g, '');
-
-        const newEvent: TrainingEvent = {
-          id: `imported-${Date.now()}-${index}`,
-          time: formattedTime,
-          eventName: remaining || "Unnamed Event",
-          location: foundLocation || (locations[0] || "MPR"),
-          uniform: foundUniform || (uniforms[0] || "ACU")
-        };
-
-        if (!schedulesMap[currentDate]) {
-          schedulesMap[currentDate] = {
-            date: currentDate,
-            dayLabel: currentDayLabel,
-            cycleName: cycleName,
-            events: []
+      // 2. Extract multiple events from a single line if they exist
+      // Some OCR results put multiple events on one line
+      const timeMatches = Array.from(cleanLine.matchAll(new RegExp(timeRegex, 'g')));
+      
+      if (timeMatches.length > 0) {
+        timeMatches.forEach((timeMatch, mIdx) => {
+          const normalizeTime = (t: string) => {
+            return t.replace(/[Oo]/g, '0')
+                    .replace(/[Iil]/g, '1')
+                    .replace(/[^0-9]/g, '')
+                    .padStart(4, '0')
+                    .slice(-4);
           };
-        }
-        schedulesMap[currentDate].events.push(newEvent);
+          
+          const startTime = normalizeTime(timeMatch[1]);
+          const endTime = normalizeTime(timeMatch[2]);
+          if (startTime === "0000" && endTime === "0000") return;
+          
+          const formattedTime = `${startTime}-${endTime}`;
+          
+          // Try to isolate the event name/loc/uni for this specific time match
+          const nextMatchStart = timeMatches[mIdx + 1] ? timeMatches[mIdx + 1].index : cleanLine.length;
+          let eventPart = cleanLine.substring((timeMatch.index || 0) + timeMatch[0].length, nextMatchStart).trim();
+          
+          let foundLocation = "";
+          let foundUniform = "";
+          
+          locations.forEach(loc => {
+            if (eventPart.toUpperCase().includes(loc.toUpperCase())) {
+              foundLocation = loc;
+              const regex = new RegExp(loc, 'gi');
+              eventPart = eventPart.replace(regex, '').trim();
+            }
+          });
+          
+          uniforms.forEach(uni => {
+            if (eventPart.toUpperCase().includes(uni.toUpperCase())) {
+              foundUniform = uni;
+              const regex = new RegExp(uni, 'gi');
+              eventPart = eventPart.replace(regex, '').trim();
+            }
+          });
+
+          eventPart = eventPart.replace(/^[:\s-]+|[:\s-]+$/g, '');
+
+          const newEvent: TrainingEvent = {
+            id: `imported-${Date.now()}-${index}-${mIdx}`,
+            time: formattedTime,
+            eventName: eventPart || "Unnamed Event",
+            location: foundLocation || (locations[0] || "MPR"),
+            uniform: foundUniform || (uniforms[0] || "ACU")
+          };
+
+          if (!schedulesMap[currentDate]) {
+            schedulesMap[currentDate] = {
+              date: currentDate,
+              dayLabel: currentDayLabel,
+              cycleName: cycleName,
+              events: []
+            };
+          }
+          schedulesMap[currentDate].events.push(newEvent);
+        });
       }
     });
 
