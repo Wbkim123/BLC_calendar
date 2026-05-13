@@ -320,24 +320,4 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       </div>
     </div>
   );
-}              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="p-6 bg-gray-50 flex gap-4 border-t border-gray-200">
-          <button onClick={onClose} className="flex-1 py-4 bg-white text-gray-600 font-bold rounded-2xl border-2 border-gray-200 hover:bg-gray-100 transition-colors">Cancel</button>
-          <button 
-            onClick={handleImport}
-            disabled={parsedSchedules.length === 0}
-            className={`flex-1 py-4 rounded-2xl font-bold shadow-lg transition-all ${
-              parsedSchedules.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-900 text-white hover:bg-blue-800 active:scale-[0.98]'
-            }`}
-          >
-            Import {parsedSchedules.reduce((acc, d) => acc + d.events.length, 0)} Events Across {parsedSchedules.length} Days
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
