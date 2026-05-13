@@ -13,6 +13,7 @@ export interface TrainingEvent {
 export interface DailySchedule {
   date: string;      // 예: "2026-04-20"
   dayLabel: string;  // 예: "DAY 1"
+  cycleName: string; // 예: "06-26"
   events: TrainingEvent[];
 }
 

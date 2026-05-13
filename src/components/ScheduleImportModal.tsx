@@ -20,13 +20,66 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
   const [extractedText, setExtractedText] = useState("");
   const [parsedSchedules, setParsedSchedules] = useState<DailySchedule[]>([]);
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [cycleName, setCycleName] = useState("06-26");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // ... (rest of the handleFileUpload remains same)
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessing(true);
+    setProgress(0);
+    setExtractedText("");
+
+    try {
+      if (file.type === 'application/pdf') {
+        await processPDF(file);
+      } else if (file.type.startsWith('image/')) {
+        await processImage(file);
+      } else {
+        alert("Please upload a PDF or an Image file.");
+      }
+    } catch (err) {
+      console.error("OCR Error:", err);
+      alert("Failed to process file. Please try again or paste text manually.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  // ... (processImage and processPDF remain same)
+  const processImage = async (file: File | string | Blob) => {
+    const worker = await createWorker('eng', 1, {
+      logger: m => {
+        if (m.status === 'recognizing text') setProgress(Math.floor(m.progress * 100));
+      }
+    });
+    
+    const { data: { text } } = await worker.recognize(file);
+    await worker.terminate();
+    
+    setExtractedText(prev => prev + "\n" + text);
+    parseTextToEvents(text);
+  };
+
+  const processPDF = async (file: File) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      if (context) {
+        await (page as any).render({ canvasContext: context, viewport }).promise;
+        const imageData = canvas.toDataURL('image/png');
+        await processImage(imageData);
+      }
+    }
+  };
 
   const parseTextToEvents = (text: string) => {
     const lines = text.split('\n');
@@ -34,7 +87,6 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     let currentDayLabel = "PICK-UP DAY";
     let currentOffset = 0;
 
-    // Helper to calculate date from offset
     const getDateFromOffset = (offset: number) => {
       const d = new Date(startDate);
       d.setDate(d.getDate() + offset);
@@ -48,7 +100,6 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     let currentDate = getDateFromOffset(0);
 
     lines.forEach((line, index) => {
-      // 1. Check for Date/Day Header (e.g., "DAY 1", "2026-04-20")
       const dayMatch = line.match(dayLabelRegex);
       const dateMatch = line.match(dateRegex);
 
@@ -56,8 +107,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         currentDayLabel = dayMatch[1].toUpperCase();
         if (currentDayLabel.includes("DAY")) {
           const dayNum = parseInt(dayMatch[2]);
-          currentOffset = dayNum; // Simple mapping: DAY 1 = Offset 1 (Day 1 after Pick-up? Or Day 1 is Day 1?)
-          // Let's assume PICK-UP is Day 0, DAY 1 is Day 1
+          currentOffset = dayNum; 
           currentDate = getDateFromOffset(currentOffset);
         } else {
           currentOffset = 0;
@@ -68,7 +118,6 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         currentDayLabel = `DATE: ${currentDate}`;
       }
 
-      // 2. Check for Event line
       const timeMatch = line.match(timeRegex);
       if (timeMatch) {
         const time = `${timeMatch[1]}-${timeMatch[2]}`;
@@ -103,6 +152,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           schedulesMap[currentDate] = {
             date: currentDate,
             dayLabel: currentDayLabel,
+            cycleName: cycleName,
             events: []
           };
         }
@@ -132,9 +182,22 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         </div>
 
         <div className="p-6 overflow-y-auto space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
             <div>
-              <label className="block text-xs font-bold text-blue-900 mb-2 uppercase tracking-widest">Cycle Start Date (PICK-UP DAY)</label>
+              <label className="block text-xs font-bold text-blue-900 mb-2 uppercase tracking-widest">Cycle Name (e.g. 06-26)</label>
+              <input 
+                type="text" 
+                value={cycleName} 
+                onChange={(e) => {
+                  setCycleName(e.target.value);
+                  if (extractedText) parseTextToEvents(extractedText);
+                }}
+                placeholder="06-26"
+                className="w-full border-2 border-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm font-bold text-blue-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-blue-900 mb-2 uppercase tracking-widest">PICK-UP Date</label>
               <input 
                 type="date" 
                 value={startDate} 
@@ -144,7 +207,6 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
                 }}
                 className="w-full border-2 border-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
               />
-              <p className="text-[10px] text-blue-600 mt-2 font-medium">※ Other dates will be calculated automatically based on DAY labels.</p>
             </div>
             <div className="flex flex-col justify-end">
               <input 
@@ -162,7 +224,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
                 }`}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                {isProcessing ? `OCR Processing (${progress}%)` : "Upload Full Schedule (PDF/IMG)"}
+                {isProcessing ? `OCR (${progress}%)` : "Upload File"}
               </button>
             </div>
           </div>
@@ -170,7 +232,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest flex justify-between">
               <span>Extracted Text</span>
-              <span className="text-blue-600">Tip: Text must include "DAY X" to split dates.</span>
+              <span className="text-blue-600 text-[10px]">Tip: Text must include "DAY X" to split dates.</span>
             </label>
             <textarea 
               value={extractedText}
@@ -193,7 +255,10 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
                 {parsedSchedules.map((day, dIdx) => (
                   <div key={dIdx} className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
                     <div className="bg-gray-100 px-4 py-2 flex justify-between items-center">
-                      <span className="font-black text-sm text-gray-700">{day.date}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-sm text-gray-700">{day.date}</span>
+                        <span className="bg-blue-100 text-blue-700 text-[10px] px-1.5 rounded font-bold">CYCLE: {day.cycleName}</span>
+                      </div>
                       <span className="text-xs font-bold text-blue-600">{day.dayLabel}</span>
                     </div>
                     <div className="p-3 space-y-2 bg-white">

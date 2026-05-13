@@ -205,13 +205,23 @@ function App() {
     });
   };
 
-  // 스케줄 초기화 함수 (새로운 사이클 시작용)
+  // 스케줄 초기화 함수 (전체 삭제)
   const handleResetSchedules = () => {
-    if (window.confirm("Are you sure you want to CLEAR ALL schedules and start a new cycle?")) {
+    if (window.confirm("Are you sure you want to CLEAR ALL schedules from the database?")) {
       remove(ref(db, 'schedules')).then(() => {
         setSchedules([]);
       }).catch(err => {
         alert("Failed to reset schedules: " + err.message);
+      });
+    }
+  };
+
+  // 특정 기수(Cycle) 삭제 함수
+  const handleDeleteCycle = (targetCycle: string) => {
+    if (window.confirm(`Are you sure you want to delete ALL schedules for cycle [${targetCycle}]?`)) {
+      const updatedSchedules = schedules.filter(s => s.cycleName !== targetCycle);
+      set(ref(db, 'schedules'), updatedSchedules).catch(err => {
+        alert("Failed to delete cycle: " + err.message);
       });
     }
   };
@@ -281,6 +291,7 @@ function App() {
         onUpdateCycleTitle={updateCycleTitle}
         onOpenImport={() => setIsImportModalOpen(true)}
         onResetSchedules={handleResetSchedules}
+        onDeleteCycle={handleDeleteCycle}
       />
       {isImportModalOpen && (
         <ScheduleImportModal 
