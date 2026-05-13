@@ -33,6 +33,13 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     const schedulesMap: { [date: string]: DailySchedule } = {};
     let currentDayLabel = "PICK-UP DAY";
     let currentOffset = 0;
+
+    const getDateFromOffset = (offset: number) => {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + offset);
+      return d.toISOString().split('T')[0];
+    };
+
     let currentDate = getDateFromOffset(0);
 
     // Regex for splitting days
