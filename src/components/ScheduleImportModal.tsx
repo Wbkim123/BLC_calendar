@@ -4,8 +4,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { TrainingEvent, DailySchedule } from '../types/schedule';
 
 // Correct PDF worker setup for pdfjs-dist 4.x/5.x
-// Using a stable CDN version that matches the library version
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.mjs`;
+// Using the legacy build (.js) instead of .mjs for better compatibility
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.js`;
 
 interface Props {
   onClose: () => void;
