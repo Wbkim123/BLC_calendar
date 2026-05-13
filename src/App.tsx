@@ -3,25 +3,39 @@ import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
 import Calendar from './components/Calendar';
 import DailyView from './components/DailyView';
+import ScheduleImportModal from './components/ScheduleImportModal';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
 import { mockSchedules } from './data/mockData';
 import { db } from './firebase';
-import { ref, onValue, set, update } from 'firebase/database';
+import { ref, onValue, set, update, remove } from 'firebase/database';
 
 function App() {
   const [role, setRole] = useState<UserRole>(null);
+  const [cycleTitle, setCycleTitle] = useState<string>("BLC CLASS 06-26");
   const [schedules, setSchedules] = useState<DailySchedule[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [uniforms, setUniforms] = useState<string[]>([]);
   const [selectedDateId, setSelectedDateId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // 1. Firebase에서 실시간 데이터 불러오기
   useEffect(() => {
     const schedulesRef = ref(db, 'schedules');
     const locationsRef = ref(db, 'locations');
     const uniformsRef = ref(db, 'uniforms');
+    const cycleTitleRef = ref(db, 'cycleTitle');
+
+    // 사이클 제목 감시
+    const unsubCycleTitle = onValue(cycleTitleRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setCycleTitle(data);
+      } else {
+        set(cycleTitleRef, "BLC CLASS 06-26").catch(err => console.error("Error setting cycleTitle:", err));
+      }
+    });
 
     // 스케줄 감시
     const unsubSchedules = onValue(schedulesRef, (snapshot) => {
@@ -75,6 +89,7 @@ function App() {
     });
 
     return () => {
+      unsubCycleTitle();
       unsubSchedules();
       unsubLocations();
       unsubUniforms();
@@ -91,11 +106,21 @@ function App() {
       const day = String(today.getDate()).padStart(2, '0');
       const todayStr = `${year}-${month}-${day}`;
       
-      const hasSchedule = schedules.some(s => s.date === todayStr);
-      if (hasSchedule) {
-        setSelectedDateId(todayStr);
+      // schedules가 로딩된 후에만 체크 가능하지만, 이미 로딩된 상태일 가능성이 높음
+      if (schedules.length > 0) {
+        const hasSchedule = schedules.some(s => s.date === todayStr);
+        if (hasSchedule) {
+          setSelectedDateId(todayStr);
+        }
       }
     }
+  };
+
+  // 사이클 제목 수정 함수
+  const updateCycleTitle = (newTitle: string) => {
+    set(ref(db, 'cycleTitle'), newTitle).catch(err => {
+      alert("Failed to update cycle title: " + err.message);
+    });
   };
 
   // 새로운 위치 추가 함수 (Firebase에 직접 반영)
@@ -157,6 +182,40 @@ function App() {
     }
   };
 
+  // 스케줄 대량 임포트 함수
+  const handleImportSchedules = (newSchedules: DailySchedule[]) => {
+    let updatedSchedules = [...schedules];
+    
+    newSchedules.forEach(newDay => {
+      const existingIndex = updatedSchedules.findIndex(s => s.date === newDay.date);
+      if (existingIndex !== -1) {
+        updatedSchedules[existingIndex] = {
+          ...updatedSchedules[existingIndex],
+          events: [...(updatedSchedules[existingIndex].events || []), ...newDay.events]
+        };
+      } else {
+        updatedSchedules.push(newDay);
+      }
+    });
+
+    updatedSchedules.sort((a, b) => a.date.localeCompare(b.date));
+
+    set(ref(db, 'schedules'), updatedSchedules).catch(err => {
+      alert("Failed to import schedules: " + err.message);
+    });
+  };
+
+  // 스케줄 초기화 함수 (새로운 사이클 시작용)
+  const handleResetSchedules = () => {
+    if (window.confirm("Are you sure you want to CLEAR ALL schedules and start a new cycle?")) {
+      remove(ref(db, 'schedules')).then(() => {
+        setSchedules([]);
+      }).catch(err => {
+        alert("Failed to reset schedules: " + err.message);
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-blue-900 text-white font-bold">
@@ -212,7 +271,27 @@ function App() {
     );
   }
 
-  return <Calendar schedules={schedules} onSelectDate={(date) => setSelectedDateId(date)} />;
+  return (
+    <>
+      <Calendar 
+        schedules={schedules} 
+        onSelectDate={(date) => setSelectedDateId(date)} 
+        role={role}
+        cycleTitle={cycleTitle}
+        onUpdateCycleTitle={updateCycleTitle}
+        onOpenImport={() => setIsImportModalOpen(true)}
+        onResetSchedules={handleResetSchedules}
+      />
+      {isImportModalOpen && (
+        <ScheduleImportModal 
+          onClose={() => setIsImportModalOpen(false)}
+          onImport={handleImportSchedules}
+          locations={locations}
+          uniforms={uniforms}
+        />
+      )}
+    </>
+  );
 }
 
 export default App;

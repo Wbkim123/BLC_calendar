@@ -1,15 +1,30 @@
 // src/components/Calendar.tsx
 import React, { useState } from 'react';
-import { DailySchedule } from '../types/schedule';
+import { DailySchedule, UserRole } from '../types/schedule';
 
 interface Props {
   schedules: DailySchedule[];
   onSelectDate: (date: string) => void;
+  role?: UserRole;
+  cycleTitle?: string;
+  onUpdateCycleTitle?: (title: string) => void;
+  onOpenImport?: () => void;
+  onResetSchedules?: () => void;
 }
 
-export default function Calendar({ schedules, onSelectDate }: Props) {
+export default function Calendar({ 
+  schedules, 
+  onSelectDate, 
+  role, 
+  cycleTitle = "BLC CLASS 06-26", 
+  onUpdateCycleTitle,
+  onOpenImport,
+  onResetSchedules
+}: Props) {
   // 현재 보고 있는 달 (초기값은 오늘 날짜 기준)
   const [viewDate, setViewDate] = useState(new Date());
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [newTitle, setNewTitle] = useState(cycleTitle);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -39,18 +54,94 @@ export default function Calendar({ schedules, onSelectDate }: Props) {
 
   const dayLabels = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
+  const handleTitleUpdate = () => {
+    if (onUpdateCycleTitle) {
+      onUpdateCycleTitle(newTitle);
+      setIsEditingTitle(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-3 lg:p-10 font-sans flex flex-col items-center justify-center overflow-hidden">
       {/* 내부 컨테이너 (데스크탑에서 넓이 및 높이 제한으로 비율 조정) */}
       <div className="w-full h-auto lg:max-w-5xl flex flex-col lg:h-[800px]">
         {/* 상단 헤더 - 높이 축소 */}
         <div className="bg-blue-900 text-white rounded-xl py-2 px-4 lg:py-4 lg:px-8 mb-2 lg:mb-4 shadow-lg text-center flex flex-col items-center shrink-0">
-          <div className="flex items-center justify-center gap-3 lg:gap-5">
+          <div className="flex items-center justify-center gap-3 lg:gap-5 w-full relative">
             <img src="/NCOA_Logo.png" alt="NCOA Logo" className="w-8 h-8 lg:w-12 lg:h-12 object-contain" />
-            <h2 className="text-xl lg:text-4xl font-black tracking-wider">BLC CLASS 06-26</h2>
+            {isEditingTitle ? (
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={newTitle} 
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="bg-blue-800 text-white text-xl lg:text-4xl font-black tracking-wider px-2 py-1 rounded outline-none border-2 border-blue-400"
+                  autoFocus
+                />
+                <button onClick={handleTitleUpdate} className="bg-green-600 px-3 py-1 rounded font-bold text-xs">SAVE</button>
+                <button onClick={() => setIsEditingTitle(false)} className="bg-gray-600 px-3 py-1 rounded font-bold text-xs">CANCEL</button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 group">
+                <h2 className="text-xl lg:text-4xl font-black tracking-wider">{cycleTitle}</h2>
+                {role === 'ADMIN' && (
+                  <button 
+                    onClick={() => {
+                      setNewTitle(cycleTitle);
+                      setIsEditingTitle(true);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-blue-700 rounded hover:bg-blue-600"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* 관리자 전용 버튼들 (우측 상단) */}
+            {role === 'ADMIN' && (
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 hidden lg:flex gap-2">
+                <button 
+                  onClick={onOpenImport}
+                  className="bg-blue-700 hover:bg-blue-600 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md transition-all"
+                  title="Import from PDF/Image"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                  IMPORT
+                </button>
+                <button 
+                  onClick={onResetSchedules}
+                  className="bg-red-800 hover:bg-red-700 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md transition-all"
+                  title="Reset All Schedules"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  RESET
+                </button>
+              </div>
+            )}
           </div>
           <p className="text-blue-200 text-[10px] lg:text-sm font-medium uppercase tracking-widest">Cycle Calendar</p>
         </div>
+
+        {/* 모바일 전용 관리자 버튼 */}
+        {role === 'ADMIN' && (
+          <div className="lg:hidden flex gap-2 mb-2 w-full">
+            <button 
+              onClick={onOpenImport}
+              className="flex-1 bg-blue-900 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-md"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+              IMPORT PDF/IMG
+            </button>
+            <button 
+              onClick={onResetSchedules}
+              className="flex-1 bg-red-900 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-md"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              RESET CYCLE
+            </button>
+          </div>
+        )}
 
         {/* 달력 본체 - 높이 확대 및 내부 패딩 조정 */}
         <div className="bg-white rounded-xl lg:rounded-3xl shadow-sm p-3 lg:p-10 lg:flex-1 flex flex-col overflow-hidden min-h-0 border border-gray-200">
