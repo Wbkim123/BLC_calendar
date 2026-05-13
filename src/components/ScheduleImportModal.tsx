@@ -3,8 +3,9 @@ import { createWorker } from 'tesseract.js';
 import * as pdfjsLib from 'pdfjs-dist';
 import { TrainingEvent, DailySchedule } from '../types/schedule';
 
-// PDF worker setup
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Correct PDF worker setup for pdfjs-dist 4.x/5.x
+// Using a stable CDN version that matches the library version
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.mjs`;
 
 interface Props {
   onClose: () => void;
@@ -149,11 +150,12 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       } else {
         alert("Please upload a PDF or an Image file.");
       }
-    } catch (err) {
-      console.error("OCR Error:", err);
-      alert("Failed to process file. Please try again or paste text manually.");
+    } catch (err: any) {
+      console.error("File Processing Error:", err);
+      alert(`Failed to process file: ${err.message || 'Unknown error'}. Please try pasting text manually.`);
     } finally {
       setIsProcessing(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -168,8 +170,9 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
     if (file instanceof File || typeof file === 'string' || file instanceof Blob) {
       const img = new Image();
-      const loadPromise = new Promise((resolve) => {
+      const loadPromise = new Promise((resolve, reject) => {
         img.onload = resolve;
+        img.onerror = reject;
         img.src = typeof file === 'string' ? file : URL.createObjectURL(file);
       });
       await loadPromise;
@@ -183,6 +186,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         ctx.filter = 'contrast(1.2) brightness(1.1)';
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         targetSource = canvas.toDataURL('image/png');
+        if (typeof file !== 'string') URL.revokeObjectURL(img.src);
       }
     }
     
@@ -198,25 +202,43 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
   const processPDF = async (file: File) => {
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
     
-    let directText = "";
+    let fullText = "";
+    let isScanned = true;
+
+    // 1. Try Direct Text Extraction
     try {
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item: any) => item.str).join(' ');
-        directText += pageText + "\n";
-      }
-      
-      if (directText.trim().length > 100) {
-        setExtractedText(directText);
-        return;
+        
+        // Sort items by vertical then horizontal position
+        const items = (textContent.items as any[]).sort((a, b) => {
+          if (Math.abs(a.transform[5] - b.transform[5]) < 5) {
+            return a.transform[4] - b.transform[4];
+          }
+          return b.transform[5] - a.transform[5];
+        });
+
+        const pageText = items.map(item => item.str).join(' ');
+        if (pageText.trim().length > 50) {
+          isScanned = false;
+          fullText += pageText + "\n";
+        }
       }
     } catch (err) {
-      console.warn("Direct text extraction failed:", err);
+      console.warn("Direct extraction failed:", err);
     }
 
+    if (!isScanned && fullText.trim().length > 100) {
+      setExtractedText(fullText);
+      return;
+    }
+
+    // 2. OCR Fallback for Scanned PDF
+    console.log("PDF appears to be scanned, using OCR...");
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const viewport = page.getViewport({ scale: 3.0 });
