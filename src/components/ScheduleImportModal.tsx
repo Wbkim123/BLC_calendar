@@ -39,8 +39,9 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       return d.toISOString().split('T')[0];
     };
 
-    // Improved regexes: handle Day #, Day-X, and flexible time formats
-    const timeRegex = /([0-9Oo]{1,2}[:\s]*[0-9Oo]{2})\s*[-–—~_]\s*([0-9Oo]{1,2}[:\s]*[0-9Oo]{2})/;
+    // More flexible regexes: handle spaces, missing dashes, and OCR errors (O/o/I/l)
+    // Supports formats like "0900-1000", "0900 1000", "09:00 - 10:00", etc.
+    const timeRegex = /([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})\s*[-–—~_ ]+\s*([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})/;
     const dayLabelRegex = /(PICK[-]?UP\s*DAY|DAY\s*[#\-]?\s*(\d+))/i;
     const dateRegex = /(\d{4})[-/](\d{1,2})[-/](\d{1,2})/;
 
@@ -73,13 +74,21 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       // 2. Check for Event line
       const timeMatch = cleanLine.match(timeRegex);
       if (timeMatch) {
-        // Normalize OCR numbers (O -> 0) and remove non-digits
-        const normalizeTime = (t: string) => t.replace(/[Oo]/g, '0').replace(/[^0-9]/g, '').padStart(4, '0');
+        // Advanced normalization: O/o -> 0, I/l -> 1, then strip non-digits
+        const normalizeTime = (t: string) => {
+          return t.replace(/[Oo]/g, '0')
+                  .replace(/[Iil]/g, '1')
+                  .replace(/[^0-9]/g, '')
+                  .padStart(4, '0')
+                  .slice(-4); // Keep only last 4 digits
+        };
+        
         const startTime = normalizeTime(timeMatch[1]);
         const endTime = normalizeTime(timeMatch[2]);
         
-        // Sanity check for normalized time
-        if (startTime.length !== 4 || endTime.length !== 4) return;
+        // Skip if it doesn't look like a valid time after normalization
+        if (startTime === "0000" && endTime === "0000") return;
+        
         const formattedTime = `${startTime}-${endTime}`;
         
         let remaining = cleanLine.replace(timeMatch[0], '').trim();
@@ -292,6 +301,26 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 bg-gray-50 flex gap-4 border-t border-gray-200">
+          <button onClick={onClose} className="flex-1 py-4 bg-white text-gray-600 font-bold rounded-2xl border-2 border-gray-200 hover:bg-gray-100 transition-colors">Cancel</button>
+          <button 
+            onClick={handleImport}
+            disabled={parsedSchedules.length === 0}
+            className={`flex-1 py-4 rounded-2xl font-bold shadow-lg transition-all ${
+              parsedSchedules.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-900 text-white hover:bg-blue-800 active:scale-[0.98]'
+            }`}
+          >
+            Import {parsedSchedules.reduce((acc, d) => acc + d.events.length, 0)} Events Across {parsedSchedules.length} Days
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}              </div>
             </div>
           )}
         </div>

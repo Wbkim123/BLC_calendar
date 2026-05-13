@@ -43,7 +43,17 @@ function App() {
       const data = snapshot.val();
       if (data) {
         // Firebase might return an object if keys are non-sequential, ensure it's an array
-        const schedulesArray = Array.isArray(data) ? data : Object.values(data);
+        let schedulesArray = Array.isArray(data) ? data : Object.values(data);
+        
+        // Ensure every day has an events array (Firebase omits empty arrays)
+        schedulesArray = schedulesArray.map(day => ({
+          ...day,
+          events: day.events || []
+        }));
+
+        // Sort by date to ensure correct order
+        schedulesArray.sort((a, b) => a.date.localeCompare(b.date));
+
         setSchedules(schedulesArray as DailySchedule[]);
         setIsLoading(false);
       } else {
@@ -145,7 +155,8 @@ function App() {
   const handleSaveEvent = (dateStr: string, updatedEvent: TrainingEvent) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
     if (dayIndex !== -1) {
-      const eventIndex = schedules[dayIndex].events.findIndex(ev => ev.id === updatedEvent.id);
+      const currentEvents = schedules[dayIndex].events || [];
+      const eventIndex = currentEvents.findIndex(ev => ev.id === updatedEvent.id);
       if (eventIndex !== -1) {
         const updates: any = {};
         updates[`/schedules/${dayIndex}/events/${eventIndex}`] = updatedEvent;
@@ -173,7 +184,8 @@ function App() {
   const handleDeleteEvent = (dateStr: string, eventId: string) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
     if (dayIndex !== -1) {
-      const updatedEvents = schedules[dayIndex].events.filter(ev => ev.id !== eventId);
+      const currentEvents = schedules[dayIndex].events || [];
+      const updatedEvents = currentEvents.filter(ev => ev.id !== eventId);
       const updates: any = {};
       updates[`/schedules/${dayIndex}/events`] = updatedEvents;
       update(ref(db), updates).catch(err => {
