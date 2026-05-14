@@ -48,117 +48,121 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     const timePattern = /([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})\s*[-–—~_ ]+\s*([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})/g;
 
     lines.forEach((line, lineIdx) => {
-      // 1. Heavy Cleanup: Remove repetitive headers and common noise
+      // 1. Heavy Cleanup
       let cleanLine = line.trim();
       if (!cleanLine || cleanLine.length < 3) return;
-      
-      // Remove table headers if they appear mid-text
       cleanLine = cleanLine.replace(/TIME|EVENT|LOC|UNI|CLASS|SCHEDULE/gi, '').trim();
 
-      // 2. Detect Day Transitions (Handle wide spacing)
-      // FIX: If a line contains multiple day markers, it's likely a header list. Ignore it.
+      // 2. Scan for all Day Markers and Time Patterns in this line
       const dayMatches = Array.from(cleanLine.matchAll(new RegExp(dayMarkerRegex, 'g')));
-      
-      if (dayMatches.length === 1) {
-        const dayMatch = dayMatches[0];
-        if (dayMatch[2]) {
-          currentOffset = parseInt(dayMatch[2]);
-        } else if (dayMatch[0].toUpperCase().includes('PICK')) {
-          currentOffset = 0;
-        }
-        currentDayLabel = dayMatch[0].toUpperCase().replace(/\s+/g, ' '); // Normalize spacing
-        currentDate = getDateFromOffset(currentOffset);
-      } else if (dayMatches.length > 1) {
-        // This is likely a header line like "DAY 1 DAY 2 DAY 3..."
-        // We skip updating currentDate to avoid getting stuck on the last day in the list
-        console.log("Skipping header line with multiple days:", cleanLine);
+      const timeMatches = Array.from(cleanLine.matchAll(timePattern));
+
+      // 3. Intelligent Header Filtering
+      // If multiple days are found but NO events, it's a header list (e.g., "DAY 1 DAY 2...")
+      // In this case, we skip updating to avoid jumping to the end of the cycle.
+      if (dayMatches.length > 1 && timeMatches.length === 0) {
+        console.log("Skipping header list:", cleanLine);
+        return;
       }
 
-      // 3. Extract Events (Handle Interleaved Multi-Column)
-      const matches = Array.from(cleanLine.matchAll(timePattern));
-      
-      matches.forEach((match, mIdx) => {
-        const normalizeTime = (t: string) => {
-          return t.replace(/[Oo]/g, '0').replace(/[Iil]/g, '1').replace(/[^0-9]/g, '').padStart(4, '0').slice(-4);
-        };
+      // 4. Process the line content in order
+      // We combine all tokens (days and times) and sort them by position
+      const tokens: { type: 'DAY' | 'TIME', match: any }[] = [
+        ...dayMatches.map(m => ({ type: 'DAY' as const, match: m })),
+        ...timeMatches.map(m => ({ type: 'TIME' as const, match: m }))
+      ].sort((a, b) => (a.match.index || 0) - (b.match.index || 0));
 
-        const startTime = normalizeTime(match[1]);
-        const endTime = normalizeTime(match[2]);
-        if (startTime === "0000" && endTime === "0000") return;
-
-        // Extract content between this time match and the next one (or end of line)
-        const startIdx = (match.index || 0) + match[0].length;
-        const nextMatch = matches[mIdx + 1];
-        const endIdx = nextMatch ? nextMatch.index : cleanLine.length;
-        let content = cleanLine.substring(startIdx, endIdx).trim();
-
-        // If content is too short, it might be a fragmented line, but let's try to parse
-        if (content.length < 2) return;
-
-        let foundLoc = "";
-        let foundUni = "";
-
-        // Reverse search for Location and Uniform
-        const sortedUnis = [...uniforms].sort((a,b) => b.length - a.length);
-        const sortedLocs = [...locations].sort((a,b) => b.length - a.length);
-
-        // Try matching at the end of the segment first
-        for (const uni of sortedUnis) {
-          const uniRegex = new RegExp(`\\b${uni}\\b\\s*$`, 'i');
-          if (content.match(uniRegex)) {
-            foundUni = uni;
-            content = content.replace(uniRegex, '').trim();
-            break;
+      tokens.forEach((token, tIdx) => {
+        if (token.type === 'DAY') {
+          const m = token.match;
+          if (m[2]) {
+            currentOffset = parseInt(m[2]);
+          } else if (m[0].toUpperCase().includes('PICK')) {
+            currentOffset = 0;
           }
-        }
-
-        for (const loc of sortedLocs) {
-          const locRegex = new RegExp(`\\b${loc}\\b\\s*$`, 'i');
-          if (content.match(locRegex)) {
-            foundLoc = loc;
-            content = content.replace(locRegex, '').trim();
-            break;
-          }
-        }
-
-        // Fuzzy fallback for Loc/Uni
-        if (!foundUni) {
-          for (const uni of sortedUnis) {
-            if (content.toUpperCase().includes(uni.toUpperCase())) {
-              foundUni = uni;
-              content = content.replace(new RegExp(uni, 'gi'), '').trim();
-              break;
-            }
-          }
-        }
-        if (!foundLoc) {
-          for (const loc of sortedLocs) {
-            if (content.toUpperCase().includes(loc.toUpperCase())) {
-              foundLoc = loc;
-              content = content.replace(new RegExp(loc, 'gi'), '').trim();
-              break;
-            }
-          }
-        }
-
-        const eventName = content.replace(/^[:\s\-]+|[:\s\-]+$/g, '').replace(/\s+/g, ' ') || "UNNAMED EVENT";
-
-        if (!schedulesMap[currentDate]) {
-          schedulesMap[currentDate] = {
-            date: currentDate,
-            dayLabel: currentDayLabel,
-            cycleName: cycleName,
-            events: []
+          currentDayLabel = m[0].toUpperCase().replace(/\s+/g, ' ');
+          currentDate = getDateFromOffset(currentOffset);
+        } else {
+          // It's a TIME token (Event)
+          const m = token.match;
+          const normalizeTime = (t: string) => {
+            return t.replace(/[Oo]/g, '0').replace(/[Iil]/g, '1').replace(/[^0-9]/g, '').padStart(4, '0').slice(-4);
           };
-        }
 
-        schedulesMap[currentDate].events.push({
-          id: `imp-${lineIdx}-${mIdx}-${Date.now()}`,
-          time: `${startTime}-${endTime}`,
-          eventName: eventName.toUpperCase(),
-          location: foundLoc || (locations[0] || "MPR"),
-          uniform: foundUni || (uniforms[0] || "ACU")
-        });
+          const startTime = normalizeTime(m[1]);
+          const endTime = normalizeTime(m[2]);
+          if (startTime === "0000" && endTime === "0000") return;
+
+          // Extract content until next token or end of line
+          const startIdx = (m.index || 0) + m[0].length;
+          const nextToken = tokens[tIdx + 1];
+          const endIdx = nextToken ? nextToken.match.index : cleanLine.length;
+          let content = cleanLine.substring(startIdx, endIdx).trim();
+
+          if (content.length < 2) return;
+
+          let foundLoc = "";
+          let foundUni = "";
+          const sortedUnis = [...uniforms].sort((a,b) => b.length - a.length);
+          const sortedLocs = [...locations].sort((a,b) => b.length - a.length);
+
+          // Reverse matching
+          for (const uni of sortedUnis) {
+            const uniRegex = new RegExp(`\\b${uni}\\b\\s*$`, 'i');
+            if (content.match(uniRegex)) {
+              foundUni = uni;
+              content = content.replace(uniRegex, '').trim();
+              break;
+            }
+          }
+          for (const loc of sortedLocs) {
+            const locRegex = new RegExp(`\\b${loc}\\b\\s*$`, 'i');
+            if (content.match(locRegex)) {
+              foundLoc = loc;
+              content = content.replace(locRegex, '').trim();
+              break;
+            }
+          }
+
+          // Fuzzy fallback
+          if (!foundUni) {
+            for (const uni of sortedUnis) {
+              if (content.toUpperCase().includes(uni.toUpperCase())) {
+                foundUni = uni;
+                content = content.replace(new RegExp(uni, 'gi'), '').trim();
+                break;
+              }
+            }
+          }
+          if (!foundLoc) {
+            for (const loc of sortedLocs) {
+              if (content.toUpperCase().includes(loc.toUpperCase())) {
+                foundLoc = loc;
+                content = content.replace(new RegExp(loc, 'gi'), '').trim();
+                break;
+              }
+            }
+          }
+
+          const eventName = content.replace(/^[:\s\-]+|[:\s\-]+$/g, '').replace(/\s+/g, ' ') || "UNNAMED EVENT";
+
+          if (!schedulesMap[currentDate]) {
+            schedulesMap[currentDate] = {
+              date: currentDate,
+              dayLabel: currentDayLabel,
+              cycleName: cycleName,
+              events: []
+            };
+          }
+
+          schedulesMap[currentDate].events.push({
+            id: `imp-${lineIdx}-${tIdx}-${Date.now()}`,
+            time: `${startTime}-${endTime}`,
+            eventName: eventName.toUpperCase(),
+            location: foundLoc || (locations[0] || "MPR"),
+            uniform: foundUni || (uniforms[0] || "ACU")
+          });
+        }
       });
     });
 
