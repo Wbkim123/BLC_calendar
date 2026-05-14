@@ -35,12 +35,19 @@ const median = (values: number[]) => {
 
 const isSunday = (date: Date) => date.getDay() === 0;
 
+const getLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function ScheduleImportModal({ onClose, onImport, locations, uniforms }: Props) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedText, setExtractedText] = useState("");
   const [parsedSchedules, setParsedSchedules] = useState<DailySchedule[]>([]);
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [cycleName, setCycleName] = useState("06-26");
+  const [startDate, setStartDate] = useState(getLocalDateString());
+  const [cycleName, setCycleName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- NEW: Structural Parser Logic ---
@@ -475,35 +482,37 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     }
   };
 
+  const handleConfirmImport = () => {
+    onImport(parsedSchedules);
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
       <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="bg-blue-900 p-6 text-white flex justify-between items-center">
+        <div className="bg-blue-900 p-6 text-white">
           <div>
             <h3 className="text-2xl font-black">Smart Schedule Import</h3>
             <p className="text-blue-200 text-sm">PDF schedule parsing</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
         </div>
 
         <div className="p-6 overflow-y-auto space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-6 rounded-2xl border-2 border-dashed border-gray-200">
-            <div>
-              <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Cycle ID</label>
-              <input type="text" value={cycleName} onChange={e => setCycleName(e.target.value)} className="w-full bg-white border-2 border-gray-100 rounded-xl p-3 font-bold text-blue-900 focus:border-blue-500 outline-none transition-all" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 md:p-6 rounded-2xl border-2 border-dashed border-gray-200">
+            <div className="min-w-0">
+              <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Cycle Number</label>
+              <input type="text" value={cycleName} onChange={e => setCycleName(e.target.value)} placeholder="00-00" className="block w-full max-w-full min-w-0 box-border bg-white border-2 border-gray-100 rounded-xl p-3 font-bold text-blue-900 placeholder:text-gray-300 focus:border-blue-500 outline-none transition-all" />
             </div>
-            <div>
+            <div className="min-w-0">
               <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Start Date (PICK-UP)</label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-white border-2 border-gray-100 rounded-xl p-3 font-bold focus:border-blue-500 outline-none transition-all" />
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="block w-full max-w-full min-w-0 box-border bg-white border-2 border-gray-100 rounded-xl p-3 font-bold focus:border-blue-500 outline-none transition-all" />
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end min-w-0">
               <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="application/pdf,.pdf" />
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isProcessing}
-                className={`w-full py-3.5 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 ${
+                className={`w-full max-w-full min-w-0 py-3.5 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 ${
                   isProcessing ? 'bg-gray-200 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-0.5'
                 }`}
               >
@@ -562,7 +571,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         <div className="p-6 bg-gray-50 flex gap-4 border-t border-gray-200">
           <button onClick={onClose} className="flex-1 py-4 bg-white text-gray-500 font-black text-sm uppercase tracking-widest rounded-2xl border-2 border-gray-200 hover:bg-gray-100 transition-all">Cancel</button>
           <button 
-            onClick={() => onImport(parsedSchedules)}
+            onClick={handleConfirmImport}
             disabled={parsedSchedules.length === 0}
             className={`flex-1 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl transition-all ${
               parsedSchedules.length === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-900 text-white hover:bg-blue-800 active:scale-95'

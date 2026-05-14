@@ -17,7 +17,7 @@ export default function Calendar({
   schedules, 
   onSelectDate, 
   role, 
-  cycleTitle = "BLC CLASS 06-26", 
+  cycleTitle = "BLC CLASS", 
   onUpdateCycleTitle,
   onOpenImport,
   onResetSchedules,
@@ -91,7 +91,7 @@ export default function Calendar({
             ) : (
               <div className="flex items-center gap-2 group">
                 <h2 className="text-xl lg:text-4xl font-black tracking-wider">{cycleTitle}</h2>
-                {role === 'ADMIN' && (
+                {role === 'ADMIN' && onUpdateCycleTitle && (
                   <button 
                     onClick={() => {
                       setNewTitle(cycleTitle);

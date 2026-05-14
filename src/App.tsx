@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Login from './components/Login';
 import Calendar from './components/Calendar';
 import DailyView from './components/DailyView';
@@ -11,7 +11,6 @@ import { ref, onValue, set, update, remove } from 'firebase/database';
 
 function App() {
   const [role, setRole] = useState<UserRole>(null);
-  const [cycleTitle, setCycleTitle] = useState<string>("BLC CLASS 06-26");
   const [schedules, setSchedules] = useState<DailySchedule[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [uniforms, setUniforms] = useState<string[]>([]);
@@ -25,18 +24,8 @@ function App() {
     const schedulesRef = ref(db, 'schedules');
     const locationsRef = ref(db, 'locations');
     const uniformsRef = ref(db, 'uniforms');
-    const cycleTitleRef = ref(db, 'cycleTitle');
 
     // 사이클 제목 감시
-    const unsubCycleTitle = onValue(cycleTitleRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setCycleTitle(data);
-      } else {
-        set(cycleTitleRef, "BLC CLASS 06-26").catch(err => console.error("Error setting cycleTitle:", err));
-      }
-    });
-
     // 스케줄 감시
     const unsubSchedules = onValue(schedulesRef, (snapshot) => {
       console.log("Schedules snapshot received:", snapshot.val());
@@ -99,7 +88,6 @@ function App() {
     });
 
     return () => {
-      unsubCycleTitle();
       unsubSchedules();
       unsubLocations();
       unsubUniforms();
@@ -127,12 +115,6 @@ function App() {
   };
 
   // 사이클 제목 수정 함수
-  const updateCycleTitle = (newTitle: string) => {
-    set(ref(db, 'cycleTitle'), newTitle).catch(err => {
-      alert("Failed to update cycle title: " + err.message);
-    });
-  };
-
   // 새로운 위치 추가 함수 (Firebase에 직접 반영)
   const addLocation = (loc: string) => {
     if (loc && !locations.includes(loc)) {
@@ -238,6 +220,32 @@ function App() {
     }
   };
 
+  const cycleTitle = useMemo(() => {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const cycleRanges = new Map<string, { start: string; end: string }>();
+
+    schedules.forEach(schedule => {
+      const cycleName = (schedule.cycleName || '').trim();
+      if (!cycleName) return;
+
+      const existing = cycleRanges.get(cycleName);
+      if (!existing) {
+        cycleRanges.set(cycleName, { start: schedule.date, end: schedule.date });
+        return;
+      }
+
+      if (schedule.date < existing.start) existing.start = schedule.date;
+      if (schedule.date > existing.end) existing.end = schedule.date;
+    });
+
+    const activeOrNextCycle = Array.from(cycleRanges.entries())
+      .sort((a, b) => a[1].start.localeCompare(b[1].start))
+      .find(([, range]) => range.end >= todayStr);
+
+    return activeOrNextCycle ? `BLC CLASS ${activeOrNextCycle[0]}` : 'BLC CLASS';
+  }, [schedules]);
+
   if (isLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-blue-900 text-white font-bold">
@@ -300,7 +308,6 @@ function App() {
         onSelectDate={(date) => setSelectedDateId(date)} 
         role={role}
         cycleTitle={cycleTitle}
-        onUpdateCycleTitle={updateCycleTitle}
         onOpenImport={() => setIsImportModalOpen(true)}
         onResetSchedules={handleResetSchedules}
         onDeleteCycle={handleDeleteCycle}
