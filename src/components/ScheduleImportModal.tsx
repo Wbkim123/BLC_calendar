@@ -56,8 +56,11 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       cleanLine = cleanLine.replace(/TIME|EVENT|LOC|UNI|CLASS|SCHEDULE/gi, '').trim();
 
       // 2. Detect Day Transitions (Handle wide spacing)
-      const dayMatch = cleanLine.match(dayMarkerRegex);
-      if (dayMatch) {
+      // FIX: If a line contains multiple day markers, it's likely a header list. Ignore it.
+      const dayMatches = Array.from(cleanLine.matchAll(new RegExp(dayMarkerRegex, 'g')));
+      
+      if (dayMatches.length === 1) {
+        const dayMatch = dayMatches[0];
         if (dayMatch[2]) {
           currentOffset = parseInt(dayMatch[2]);
         } else if (dayMatch[0].toUpperCase().includes('PICK')) {
@@ -65,6 +68,10 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         }
         currentDayLabel = dayMatch[0].toUpperCase().replace(/\s+/g, ' '); // Normalize spacing
         currentDate = getDateFromOffset(currentOffset);
+      } else if (dayMatches.length > 1) {
+        // This is likely a header line like "DAY 1 DAY 2 DAY 3..."
+        // We skip updating currentDate to avoid getting stuck on the last day in the list
+        console.log("Skipping header line with multiple days:", cleanLine);
       }
 
       // 3. Extract Events (Handle Interleaved Multi-Column)
