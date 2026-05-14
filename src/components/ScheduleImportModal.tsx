@@ -42,32 +42,32 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
     let currentDate = getDateFromOffset(0);
 
-    // More aggressive Regex: allow noise and common OCR artifacts
-    const dayMarkerRegex = /(PICK[- ]?UP\s*DAY|DAY\s*[#\- ]?\s*(\d{1,2}))/i;
-    // Flexible time: 4 digits, optional colon, separator (dash, tilde, space), 4 digits
+    // More aggressive Regex: allow noise, common OCR artifacts, and wide spacing
+    const dayMarkerRegex = /(PICK\s*-\s*UP\s*DAY|DAY\s*[#\- ]?\s*(\d{1,2}))/i;
+    // Flexible time: handle spaces around dash, O instead of 0, etc.
     const timePattern = /([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})\s*[-–—~_ ]+\s*([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})/g;
 
     lines.forEach((line, lineIdx) => {
-      // 1. Heavy Cleanup: Remove headers and common noise
+      // 1. Heavy Cleanup: Remove repetitive headers and common noise
       let cleanLine = line.trim();
       if (!cleanLine || cleanLine.length < 3) return;
-      if (cleanLine.match(/TIME|EVENT|LOC|UNI|CLASS|SCHEDULE/i)) return;
+      
+      // Remove table headers if they appear mid-text
+      cleanLine = cleanLine.replace(/TIME|EVENT|LOC|UNI|CLASS|SCHEDULE/gi, '').trim();
 
-      // 2. Detect Day Transitions (More robust)
+      // 2. Detect Day Transitions (Handle wide spacing)
       const dayMatch = cleanLine.match(dayMarkerRegex);
       if (dayMatch) {
         if (dayMatch[2]) {
           currentOffset = parseInt(dayMatch[2]);
-        } else if (dayMatch[1].toUpperCase().includes('PICK')) {
+        } else if (dayMatch[0].toUpperCase().includes('PICK')) {
           currentOffset = 0;
         }
-        currentDayLabel = dayMatch[1].toUpperCase();
+        currentDayLabel = dayMatch[0].toUpperCase().replace(/\s+/g, ' '); // Normalize spacing
         currentDate = getDateFromOffset(currentOffset);
-        // If the line only contains the day marker, don't look for events
-        if (cleanLine.replace(dayMarkerRegex, '').trim().length < 5) return;
       }
 
-      // 3. Extract Events (Enhanced Table-Aware Logic)
+      // 3. Extract Events (Handle Interleaved Multi-Column)
       const matches = Array.from(cleanLine.matchAll(timePattern));
       
       matches.forEach((match, mIdx) => {
@@ -79,20 +79,25 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         const endTime = normalizeTime(match[2]);
         if (startTime === "0000" && endTime === "0000") return;
 
-        // Take text until the next time match or end of line
+        // Extract content between this time match and the next one (or end of line)
         const startIdx = (match.index || 0) + match[0].length;
         const nextMatch = matches[mIdx + 1];
         const endIdx = nextMatch ? nextMatch.index : cleanLine.length;
         let content = cleanLine.substring(startIdx, endIdx).trim();
 
-        // Specific handling for 'EVENT LOC UNI' sequence
+        // If content is too short, it might be a fragmented line, but let's try to parse
+        if (content.length < 2) return;
+
         let foundLoc = "";
         let foundUni = "";
 
-        // Uniforms are usually at the very end of the segment
+        // Reverse search for Location and Uniform
         const sortedUnis = [...uniforms].sort((a,b) => b.length - a.length);
+        const sortedLocs = [...locations].sort((a,b) => b.length - a.length);
+
+        // Try matching at the end of the segment first
         for (const uni of sortedUnis) {
-          const uniRegex = new RegExp(`\\b${uni}\\b$`, 'i'); // Check if it's at the end
+          const uniRegex = new RegExp(`\\b${uni}\\b\\s*$`, 'i');
           if (content.match(uniRegex)) {
             foundUni = uni;
             content = content.replace(uniRegex, '').trim();
@@ -100,10 +105,8 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           }
         }
 
-        // Locations are usually the second to last element
-        const sortedLocs = [...locations].sort((a,b) => b.length - a.length);
         for (const loc of sortedLocs) {
-          const locRegex = new RegExp(`\\b${loc}\\b$`, 'i'); // Check at the new end
+          const locRegex = new RegExp(`\\b${loc}\\b\\s*$`, 'i');
           if (content.match(locRegex)) {
             foundLoc = loc;
             content = content.replace(locRegex, '').trim();
@@ -111,7 +114,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           }
         }
 
-        // Final fallback if not at end (fuzzy)
+        // Fuzzy fallback for Loc/Uni
         if (!foundUni) {
           for (const uni of sortedUnis) {
             if (content.toUpperCase().includes(uni.toUpperCase())) {
@@ -131,7 +134,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           }
         }
 
-        const eventName = content.replace(/^[:\s\-]+|[:\s\-]+$/g, '') || "Unnamed Event";
+        const eventName = content.replace(/^[:\s\-]+|[:\s\-]+$/g, '').replace(/\s+/g, ' ') || "UNNAMED EVENT";
 
         if (!schedulesMap[currentDate]) {
           schedulesMap[currentDate] = {
