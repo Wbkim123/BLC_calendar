@@ -497,22 +497,22 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           </div>
         </div>
 
-        <div className="p-6 overflow-y-auto space-y-6">
+        <div className="p-4 md:p-6 overflow-y-auto space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 md:p-6 rounded-2xl border-2 border-dashed border-gray-200">
-            <div className="min-w-0">
+            <div className="min-w-0 overflow-hidden">
               <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Cycle Number</label>
-              <input type="text" value={cycleName} onChange={e => setCycleName(e.target.value)} placeholder="00-00" className="block w-full max-w-full min-w-0 box-border bg-white border-2 border-gray-100 rounded-xl p-3 font-bold text-blue-900 placeholder:text-gray-300 focus:border-blue-500 outline-none transition-all" />
+              <input type="text" value={cycleName} onChange={e => setCycleName(e.target.value)} placeholder="00-00" className="schedule-import-control bg-white border-2 border-gray-100 rounded-xl p-3 font-bold text-blue-900 placeholder:text-gray-300 focus:border-blue-500 outline-none transition-all" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 overflow-hidden">
               <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Start Date (PICK-UP)</label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="block w-full max-w-full min-w-0 box-border bg-white border-2 border-gray-100 rounded-xl p-3 font-bold focus:border-blue-500 outline-none transition-all" />
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="schedule-import-control schedule-import-date bg-white border-2 border-gray-100 rounded-xl p-3 font-bold focus:border-blue-500 outline-none transition-all" />
             </div>
-            <div className="flex items-end min-w-0">
+            <div className="flex items-end min-w-0 overflow-hidden">
               <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="application/pdf,.pdf" />
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isProcessing}
-                className={`w-full max-w-full min-w-0 py-3.5 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 ${
+                className={`schedule-import-control py-3.5 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 ${
                   isProcessing ? 'bg-gray-200 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-0.5'
                 }`}
               >

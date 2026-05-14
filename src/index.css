@@ -1,3 +1,27 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.schedule-import-control {
+  box-sizing: border-box;
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.schedule-import-date {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.schedule-import-date::-webkit-date-and-time-value {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  text-align: left;
+}
+
+.schedule-import-date::-webkit-datetime-edit {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
