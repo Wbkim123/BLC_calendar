@@ -9,6 +9,10 @@ import { mockSchedules } from './data/mockData';
 import { db } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 
+const LEGACY_06_26_START = '2026-04-20';
+const LEGACY_06_26_END = '2026-05-15';
+const LEGACY_06_26_CYCLE = '06-26';
+
 function App() {
   const [role, setRole] = useState<UserRole>(null);
   const [schedules, setSchedules] = useState<DailySchedule[]>([]);
@@ -34,16 +38,37 @@ function App() {
         // Firebase might return an object if keys are non-sequential, ensure it's an array
         let schedulesArray = Array.isArray(data) ? data : Object.values(data);
         
+        let normalizedLegacyCycle = false;
+
         // Ensure every day has an events array (Firebase omits empty arrays)
-        schedulesArray = schedulesArray.map(day => ({
-          ...day,
-          events: day.events || []
-        }));
+        schedulesArray = schedulesArray.map(day => {
+          const isLegacy0626Date = day.date >= LEGACY_06_26_START && day.date <= LEGACY_06_26_END;
+          const missingCycleName = !day.cycleName || String(day.cycleName).trim() === '';
+
+          if (isLegacy0626Date && missingCycleName) {
+            normalizedLegacyCycle = true;
+            return {
+              ...day,
+              cycleName: LEGACY_06_26_CYCLE,
+              events: day.events || []
+            };
+          }
+
+          return {
+            ...day,
+            events: day.events || []
+          };
+        });
 
         // Sort by date to ensure correct order
         schedulesArray.sort((a, b) => a.date.localeCompare(b.date));
 
         setSchedules(schedulesArray as DailySchedule[]);
+        if (normalizedLegacyCycle) {
+          set(schedulesRef, schedulesArray).catch(err => {
+            console.error("Error normalizing 06-26 cycleName:", err);
+          });
+        }
         setIsLoading(false);
       } else {
         console.log("No schedules data, setting initial...");
