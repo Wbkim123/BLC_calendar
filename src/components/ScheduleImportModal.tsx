@@ -1,10 +1,22 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createWorker } from 'tesseract.js';
 import * as pdfjsLib from 'pdfjs-dist';
-import { TrainingEvent, DailySchedule } from '../types/schedule';
+import { DailySchedule } from '../types/schedule';
 
 // Correct PDF worker setup
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
+type PdfTextItem = {
+  str: string;
+  x: number;
+  y: number;
+};
+
+type PdfDayLabel = {
+  text: string;
+  x: number;
+  y: number;
+};
 
 interface Props {
   onClose: () => void;
@@ -13,9 +25,18 @@ interface Props {
   uniforms: string[];
 }
 
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const median = (values: number[]) => {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+};
+
+const isSunday = (date: Date) => date.getDay() === 0;
+
 export default function ScheduleImportModal({ onClose, onImport, locations, uniforms }: Props) {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [extractedText, setExtractedText] = useState("");
   const [parsedSchedules, setParsedSchedules] = useState<DailySchedule[]>([]);
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
@@ -33,6 +54,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     const schedulesMap: { [date: string]: DailySchedule } = {};
     let currentDayLabel = "PICK-UP DAY";
     let currentOffset = 0;
+    let hasSeenCalendarMarker = false;
 
     const getDateFromOffset = (offset: number) => {
       const d = new Date(startDate);
@@ -40,10 +62,18 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       return d.toISOString().split('T')[0];
     };
 
+    const getNextDisplayedDate = (dateStr: string) => {
+      const d = new Date(dateStr);
+      do {
+        d.setDate(d.getDate() + 1);
+      } while (isSunday(d));
+      return d.toISOString().split('T')[0];
+    };
+
     let currentDate = getDateFromOffset(0);
 
     // More aggressive Regex: allow noise, common OCR artifacts, and wide spacing
-    const dayMarkerRegex = /(PICK\s*-\s*UP\s*DAY|DAY\s*[#\- ]?\s*(\d{1,2}))/i;
+    const dayMarkerRegex = /(PICK\s*-\s*UP\s*DAY|DAY\s*[#\- ]?\s*(\d{1,2})|FEDERAL\s+HOLIDAY(?:\s*-\s*[A-Z\s]+)?|MEMORIAL\s+DAY)/i;
     // Flexible time: handle spaces around dash, O instead of 0, etc.
     const timePattern = /([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})\s*[-–—~_ ]+\s*([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})/g;
 
@@ -81,7 +111,27 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
             currentOffset = 0;
           }
           currentDayLabel = m[0].toUpperCase().replace(/\s+/g, ' ');
-          currentDate = getDateFromOffset(currentOffset);
+
+          if (!hasSeenCalendarMarker) {
+            currentDate = m[0].toUpperCase().includes('PICK') || !m[2]
+              ? getDateFromOffset(currentOffset)
+              : getDateFromOffset(parseInt(m[2]));
+            hasSeenCalendarMarker = true;
+          } else {
+            currentDate = getNextDisplayedDate(currentDate);
+          }
+
+          if (!schedulesMap[currentDate]) {
+            schedulesMap[currentDate] = {
+              date: currentDate,
+              dayLabel: currentDayLabel,
+              cycleName: cycleName,
+              events: []
+            };
+          } else {
+            schedulesMap[currentDate].dayLabel = currentDayLabel;
+            schedulesMap[currentDate].cycleName = cycleName;
+          }
         } else {
           // It's a TIME token (Event)
           const m = token.match;
@@ -108,7 +158,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
           // Reverse matching
           for (const uni of sortedUnis) {
-            const uniRegex = new RegExp(`\\b${uni}\\b\\s*$`, 'i');
+            const uniRegex = new RegExp(`\\b${escapeRegex(uni)}\\b\\s*$`, 'i');
             if (content.match(uniRegex)) {
               foundUni = uni;
               content = content.replace(uniRegex, '').trim();
@@ -116,7 +166,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
             }
           }
           for (const loc of sortedLocs) {
-            const locRegex = new RegExp(`\\b${loc}\\b\\s*$`, 'i');
+            const locRegex = new RegExp(`\\b${escapeRegex(loc)}\\b\\s*$`, 'i');
             if (content.match(locRegex)) {
               foundLoc = loc;
               content = content.replace(locRegex, '').trim();
@@ -129,7 +179,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
             for (const uni of sortedUnis) {
               if (content.toUpperCase().includes(uni.toUpperCase())) {
                 foundUni = uni;
-                content = content.replace(new RegExp(uni, 'gi'), '').trim();
+                content = content.replace(new RegExp(escapeRegex(uni), 'gi'), '').trim();
                 break;
               }
             }
@@ -138,13 +188,13 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
             for (const loc of sortedLocs) {
               if (content.toUpperCase().includes(loc.toUpperCase())) {
                 foundLoc = loc;
-                content = content.replace(new RegExp(loc, 'gi'), '').trim();
+                content = content.replace(new RegExp(escapeRegex(loc), 'gi'), '').trim();
                 break;
               }
             }
           }
 
-          const eventName = content.replace(/^[:\s\-]+|[:\s\-]+$/g, '').replace(/\s+/g, ' ') || "UNNAMED EVENT";
+          const eventName = content.replace(/^[:\s-]+|[:\s-]+$/g, '').replace(/\s+/g, ' ') || "UNNAMED EVENT";
 
           if (!schedulesMap[currentDate]) {
             schedulesMap[currentDate] = {
@@ -214,17 +264,175 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     setExtractedText(prev => prev + "\n" + text);
   };
 
+  const extractStructuredPdfText = async (pdf: any) => {
+    const pages: string[] = [];
+
+    for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex++) {
+      const page = await pdf.getPage(pageIndex);
+      const content = await page.getTextContent();
+      const items: PdfTextItem[] = (content.items as any[])
+        .map(item => ({
+          str: String(item.str || '').trim(),
+          x: item.transform[4] as number,
+          y: item.transform[5] as number
+        }))
+        .filter(item => item.str.length > 0);
+
+      const timeHeaderXs = Array.from(new Set(
+        items
+          .filter(item => /^TIME$/i.test(item.str))
+          .map(item => Math.round(item.x * 10) / 10)
+      )).sort((a, b) => a - b);
+
+      if (timeHeaderXs.length < 2) continue;
+
+      const columnWidth = median(timeHeaderXs.slice(1).map((x, idx) => x - timeHeaderXs[idx]));
+      if (!columnWidth) continue;
+
+      const leftEdge = timeHeaderXs[0] - 16;
+      const labels: PdfDayLabel[] = [];
+
+      items.forEach(item => {
+        const dayMatch = item.str.match(/^DAY\s+(\d{1,2})$/i);
+        if (dayMatch) {
+          labels.push({ text: `DAY ${dayMatch[1]}`, x: item.x, y: item.y });
+          return;
+        }
+
+        if (/^FEDERAL\s+HOLIDAY$/i.test(item.str)) {
+          const columnWidthEstimate = columnWidth || 190;
+          const memorialDay = items.find(candidate =>
+            /MEMORIAL\s+DAY/i.test(candidate.str) &&
+            Math.abs(candidate.x - item.x) < columnWidthEstimate / 2 &&
+            candidate.y < item.y
+          );
+          labels.push({
+            text: memorialDay ? 'FEDERAL HOLIDAY - MEMORIAL DAY' : 'FEDERAL HOLIDAY',
+            x: item.x,
+            y: item.y
+          });
+          return;
+        }
+
+        if (/^PICK$/i.test(item.str)) {
+          const upDay = items.find(candidate =>
+            /UP\s*DAY/i.test(candidate.str) &&
+            Math.abs(candidate.y - item.y) < 2 &&
+            candidate.x > item.x &&
+            candidate.x < item.x + 80
+          );
+          if (upDay) labels.push({ text: 'PICK-UP DAY', x: item.x, y: item.y });
+        }
+      });
+
+      labels.sort((a, b) => b.y - a.y || a.x - b.x);
+      if (labels.length === 0) continue;
+
+      const labelRows = Array.from(new Set(labels.map(label => Math.round(label.y * 10) / 10)))
+        .sort((a, b) => b - a);
+
+      const pageLines: string[] = [];
+
+      labels.forEach(label => {
+        const columnIndex = Math.max(0, Math.floor((label.x - leftEdge) / columnWidth));
+        const columnLeft = leftEdge + columnIndex * columnWidth;
+        const columnRight = columnLeft + columnWidth;
+        const nextLabelRow = labelRows.find(rowY => rowY < label.y - 10);
+        const rowBottom = nextLabelRow == null ? 0 : nextLabelRow + 5;
+        const rows: { y: number; items: PdfTextItem[] }[] = [];
+
+        items.forEach(item => {
+          if (item.y >= label.y - 3 || item.y <= rowBottom) return;
+          if (item.x < columnLeft + 4 || item.x > columnRight + 8) return;
+          if (/^(TIME|EVENT|LOC|UNI)$/i.test(item.str)) return;
+          if (/^DAY\s+\d{1,2}$/i.test(item.str) || /^PICK$/i.test(item.str) || /UP\s*DAY/i.test(item.str)) return;
+
+          let row = rows.find(existing => Math.abs(existing.y - item.y) < 2);
+          if (!row) {
+            row = { y: item.y, items: [] };
+            rows.push(row);
+          }
+          row.items.push(item);
+        });
+
+        pageLines.push(label.text);
+        rows
+          .sort((a, b) => b.y - a.y)
+          .forEach(row => {
+            const rowItems = row.items.sort((a, b) => a.x - b.x);
+            const time = rowItems
+              .filter(item => item.x < columnLeft + 48)
+              .map(item => item.str)
+              .join('');
+
+            if (!/^\d{3,4}-\d{3,4}$/.test(time)) return;
+
+            const event = rowItems
+              .filter(item => item.x >= columnLeft + 48 && item.x < columnLeft + 155)
+              .map(item => item.str)
+              .join(' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            const location = rowItems
+              .filter(item => item.x >= columnLeft + 155 && item.x < columnLeft + 184)
+              .map(item => item.str)
+              .join(' ')
+              .trim();
+            const uniform = rowItems
+              .filter(item => item.x >= columnLeft + 184)
+              .map(item => item.str)
+              .join(' ')
+              .trim();
+
+            pageLines.push([time, event, location, uniform].filter(Boolean).join(' '));
+          });
+      });
+
+      pages.push(pageLines.join('\n'));
+    }
+
+    return pages.join('\n\n').trim();
+  };
+
   const processPDF = async (file: File) => {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     
+    const structuredText = await extractStructuredPdfText(pdf);
+    if (structuredText.trim().length > 100) {
+      setExtractedText(structuredText);
+      return;
+    }
+
     let fullText = "";
-    // Try text layer first
+    // Try text layer first, preserving visual lines instead of flattening the whole page.
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      const items = (content.items as any[]).sort((a,b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4]);
-      const pageText = items.map(it => it.str).join(' ');
+      const items = (content.items as any[])
+        .map(item => ({
+          str: String(item.str || '').trim(),
+          x: item.transform[4] as number,
+          y: item.transform[5] as number
+        }))
+        .filter(item => item.str.length > 0)
+        .sort((a, b) => b.y - a.y || a.x - b.x);
+
+      const rows: { y: number; items: PdfTextItem[] }[] = [];
+      items.forEach(item => {
+        let row = rows.find(existing => Math.abs(existing.y - item.y) < 2);
+        if (!row) {
+          row = { y: item.y, items: [] };
+          rows.push(row);
+        }
+        row.items.push(item);
+      });
+
+      const pageText = rows
+        .sort((a, b) => b.y - a.y)
+        .map(row => row.items.sort((a, b) => a.x - b.x).map(item => item.str).join(' '))
+        .join('\n');
+
       if (pageText.trim().length > 50) fullText += pageText + "\n";
     }
 
@@ -249,11 +457,16 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      alert("Please select a PDF file. PNG and JPG imports are not supported.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     setIsProcessing(true);
-    setProgress(0);
     try {
-      if (file.type === 'application/pdf') await processPDF(file);
-      else await processImage(file);
+      await processPDF(file);
     } catch (err: any) {
       alert("Error: " + err.message);
     } finally {
@@ -268,7 +481,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         <div className="bg-blue-900 p-6 text-white flex justify-between items-center">
           <div>
             <h3 className="text-2xl font-black">Smart Schedule Import</h3>
-            <p className="text-blue-200 text-sm">AI-powered PDF & Image parsing</p>
+            <p className="text-blue-200 text-sm">PDF schedule parsing</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -286,7 +499,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-white border-2 border-gray-100 rounded-xl p-3 font-bold focus:border-blue-500 outline-none transition-all" />
             </div>
             <div className="flex items-end">
-              <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*,application/pdf" />
+              <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="application/pdf,.pdf" />
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isProcessing}
