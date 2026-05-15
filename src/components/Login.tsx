@@ -11,9 +11,7 @@ export default function Login({ onLogin }: Props) {
   const [rememberLogin, setRememberLogin] = useState(true);
 
   const handleEnter = () => {
-    if (code === '2002') {
-      onLogin(code, rememberLogin);
-    } else if (code === '8520') {
+    if (code === '2002' || code === '8520' || code === '0987') {
       onLogin(code, rememberLogin);
     } else {
       setError(true);
