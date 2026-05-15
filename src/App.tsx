@@ -12,9 +12,30 @@ import { ref, onValue, set, update, remove } from 'firebase/database';
 const LEGACY_06_26_START = '2026-04-20';
 const LEGACY_06_26_END = '2026-05-15';
 const LEGACY_06_26_CYCLE = '06-26';
+const LOGIN_STORAGE_KEY = 'blc_calendar_login';
+
+function resolveRoleFromCode(code: string): UserRole {
+  if (code === '2002') return 'ADMIN';
+  if (code === '8520') return 'VIEWER';
+  return null;
+}
 
 function App() {
-  const [role, setRole] = useState<UserRole>(null);
+  const [role, setRole] = useState<UserRole>(() => {
+    if (typeof window === 'undefined') return null;
+
+    try {
+      const saved = window.localStorage.getItem(LOGIN_STORAGE_KEY);
+      if (!saved) return null;
+
+      const parsed = JSON.parse(saved) as { code?: string } | null;
+      if (!parsed?.code) return null;
+
+      return resolveRoleFromCode(parsed.code);
+    } catch {
+      return null;
+    }
+  });
   const [schedules, setSchedules] = useState<DailySchedule[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [uniforms, setUniforms] = useState<string[]>([]);
@@ -120,6 +141,7 @@ function App() {
   }, []);
 
   // 로그인 시 오늘 날짜 자동 선택
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleSetRole = (newRole: UserRole) => {
     setRole(newRole);
     if (newRole) {
@@ -244,6 +266,40 @@ function App() {
       });
     }
   };
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(LOGIN_STORAGE_KEY);
+    }
+
+    setRole(null);
+    setSelectedDateId(null);
+  };
+  const handleLogin = (code: string, rememberLogin: boolean) => {
+    const newRole = resolveRoleFromCode(code);
+    setRole(newRole);
+
+    if (typeof window !== 'undefined') {
+      if (newRole && rememberLogin) {
+        window.localStorage.setItem(
+          LOGIN_STORAGE_KEY,
+          JSON.stringify({ code, role: newRole })
+        );
+      } else {
+        window.localStorage.removeItem(LOGIN_STORAGE_KEY);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!role || selectedDateId || schedules.length === 0) return;
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    if (schedules.some(s => s.date === todayStr)) {
+      setSelectedDateId(todayStr);
+    }
+  }, [role, schedules, selectedDateId]);
 
   const cycleTitle = useMemo(() => {
     const today = new Date();
@@ -295,7 +351,7 @@ function App() {
   }
 
   if (!role) {
-    return <Login setRole={handleSetRole} />;
+    return <Login onLogin={handleLogin} />;
   }
 
   const selectedSchedule = schedules.find(s => s.date === selectedDateId);
@@ -313,6 +369,7 @@ function App() {
         schedule={selectedSchedule} 
         role={role}
         onBack={() => setSelectedDateId(null)}
+        onLogout={handleLogout}
         onSave={handleSaveEvent}
         onCreateEvent={handleCreateEvent}
         onDeleteEvent={handleDeleteEvent}
@@ -332,6 +389,7 @@ function App() {
         schedules={schedules} 
         onSelectDate={(date) => setSelectedDateId(date)} 
         role={role}
+        onLogout={handleLogout}
         cycleTitle={cycleTitle}
         onOpenImport={() => setIsImportModalOpen(true)}
         onResetSchedules={handleResetSchedules}

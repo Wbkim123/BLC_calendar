@@ -6,6 +6,7 @@ interface Props {
   schedules: DailySchedule[];
   onSelectDate: (date: string) => void;
   role?: UserRole;
+  onLogout?: () => void;
   cycleTitle?: string;
   onUpdateCycleTitle?: (title: string) => void;
   onOpenImport?: () => void;
@@ -17,6 +18,7 @@ export default function Calendar({
   schedules, 
   onSelectDate, 
   role, 
+  onLogout,
   cycleTitle = "BLC CLASS", 
   onUpdateCycleTitle,
   onOpenImport,
@@ -106,6 +108,17 @@ export default function Calendar({
             )}
 
             {/* 관리자 전용 버튼들 (우측 상단) */}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="absolute right-0 top-1/2 -translate-y-1/2 -translate-x-36 hidden lg:flex bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-xs font-bold items-center gap-1 shadow-md transition-all"
+                title="Sign out"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                LOGOUT
+              </button>
+            )}
+
             {role === 'ADMIN' && (
               <div className="absolute right-0 top-1/2 -translate-y-1/2 hidden lg:flex gap-2">
                 <button 
@@ -177,6 +190,16 @@ export default function Calendar({
               Close
             </button>
           </div>
+        )}
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className="lg:hidden w-full mb-2 bg-gray-700 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-md"
+            title="Sign out"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            LOGOUT
+          </button>
         )}
 
         {/* 모바일 전용 관리자 버튼 */}

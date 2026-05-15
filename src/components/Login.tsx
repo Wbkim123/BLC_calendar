@@ -1,20 +1,20 @@
 // src/components/Login.tsx
 import React, { useState } from 'react';
-import { UserRole } from '../types/schedule';
 
 interface Props {
-  setRole: (role: UserRole) => void;
+  onLogin: (code: string, rememberLogin: boolean) => void;
 }
 
-export default function Login({ setRole }: Props) {
+export default function Login({ onLogin }: Props) {
   const [code, setCode] = useState('');
   const [error, setError] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(true);
 
   const handleEnter = () => {
     if (code === '2002') {
-      setRole('ADMIN');
+      onLogin(code, rememberLogin);
     } else if (code === '8520') {
-      setRole('VIEWER');
+      onLogin(code, rememberLogin);
     } else {
       setError(true);
       setCode('');
@@ -34,10 +34,24 @@ export default function Login({ setRole }: Props) {
           type="password"
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleEnter()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleEnter();
+            }
+          }}
           placeholder="Enter Access Code"
           className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 mb-4 text-center text-lg tracking-widest focus:border-blue-500 focus:outline-none"
         />
+
+        <label className="mb-4 flex items-center justify-center gap-2 text-sm font-bold text-gray-600">
+          <input
+            type="checkbox"
+            checked={rememberLogin}
+            onChange={(e) => setRememberLogin(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-blue-700 focus:ring-blue-600"
+          />
+          KEEP LOGIN
+        </label>
         
         {error && <p className="text-red-500 text-sm mb-4 font-bold">Invalid code. Try again.</p>}
 

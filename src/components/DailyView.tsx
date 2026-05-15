@@ -6,6 +6,7 @@ interface Props {
   schedule: DailySchedule;
   role: UserRole;
   onBack: () => void;
+  onLogout?: () => void;
   onSave: (dateStr: string, updatedEvent: TrainingEvent) => void;
   onCreateEvent: (dateStr: string, newEvent: TrainingEvent) => void;
   onDeleteEvent: (dateStr: string, eventId: string) => void;
@@ -21,6 +22,7 @@ export default function DailyView({
   schedule, 
   role, 
   onBack, 
+  onLogout,
   onSave, 
   onCreateEvent,
   onDeleteEvent,
@@ -157,6 +159,15 @@ export default function DailyView({
 
         {/* 이전/다음 날짜 이동 버튼 */}
         <div className="flex gap-2">
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="p-2 rounded-lg bg-gray-700 active:bg-gray-600"
+              title="Sign out"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </button>
+          )}
           <button 
             onClick={onPrev} 
             disabled={!onPrev}
