@@ -381,7 +381,6 @@ function App() {
         schedule={selectedSchedule} 
         role={role}
         onBack={() => setSelectedDateId(null)}
-        onLogout={handleLogout}
         onSave={handleSaveEvent}
         onCreateEvent={handleCreateEvent}
         onDeleteEvent={handleDeleteEvent}
