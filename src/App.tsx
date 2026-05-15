@@ -17,6 +17,7 @@ const LOGIN_STORAGE_KEY = 'blc_calendar_login';
 function resolveRoleFromCode(code: string): UserRole {
   if (code === '2002') return 'ADMIN';
   if (code === '8520') return 'VIEWER';
+  if (code === '0987') return 'STUDENT';
   return null;
 }
 
@@ -301,7 +302,7 @@ function App() {
     }
   }, [role, schedules, selectedDateId]);
 
-  const cycleTitle = useMemo(() => {
+  const activeCycleName = useMemo(() => {
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const cycleRanges = new Map<string, { start: string; end: string }>();
@@ -324,8 +325,19 @@ function App() {
       .sort((a, b) => a[1].start.localeCompare(b[1].start))
       .find(([, range]) => range.end >= todayStr);
 
-    return activeOrNextCycle ? `BLC CLASS ${activeOrNextCycle[0]}` : 'BLC CLASS';
+    return activeOrNextCycle ? activeOrNextCycle[0] : null;
   }, [schedules]);
+
+  const filteredSchedules = useMemo(() => {
+    if (role === 'STUDENT') {
+      return schedules.filter(s => s.cycleName === activeCycleName);
+    }
+    return schedules;
+  }, [role, schedules, activeCycleName]);
+
+  const cycleTitle = useMemo(() => {
+    return activeCycleName ? `BLC CLASS ${activeCycleName}` : 'BLC CLASS';
+  }, [activeCycleName]);
 
   if (isLoading) {
     return (
@@ -354,15 +366,15 @@ function App() {
     return <Login onLogin={handleLogin} />;
   }
 
-  const selectedSchedule = schedules.find(s => s.date === selectedDateId);
+  const selectedSchedule = filteredSchedules.find(s => s.date === selectedDateId);
 
   if (selectedSchedule) {
-    const currentIndex = schedules.findIndex(s => s.date === selectedDateId);
+    const currentIndex = filteredSchedules.findIndex(s => s.date === selectedDateId);
     const hasPrev = currentIndex > 0;
-    const hasNext = currentIndex < schedules.length - 1;
+    const hasNext = currentIndex < filteredSchedules.length - 1;
 
-    const handlePrev = hasPrev ? () => setSelectedDateId(schedules[currentIndex - 1].date) : undefined;
-    const handleNext = hasNext ? () => setSelectedDateId(schedules[currentIndex + 1].date) : undefined;
+    const handlePrev = hasPrev ? () => setSelectedDateId(filteredSchedules[currentIndex - 1].date) : undefined;
+    const handleNext = hasNext ? () => setSelectedDateId(filteredSchedules[currentIndex + 1].date) : undefined;
 
     return (
       <DailyView 
@@ -386,7 +398,7 @@ function App() {
   return (
     <>
       <Calendar 
-        schedules={schedules} 
+        schedules={filteredSchedules} 
         onSelectDate={(date) => setSelectedDateId(date)} 
         role={role}
         onLogout={handleLogout}

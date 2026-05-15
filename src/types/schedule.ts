@@ -18,4 +18,4 @@ export interface DailySchedule {
 }
 
 // 사용자 권한 타입
-export type UserRole = 'ADMIN' | 'VIEWER' | null;
+export type UserRole = 'ADMIN' | 'VIEWER' | 'STUDENT' | null;
