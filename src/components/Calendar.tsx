@@ -107,11 +107,11 @@ export default function Calendar({
               </div>
             )}
 
-            {/* 관리자 전용 버튼들 (우측 상단) */}
+            {/* 관리자 전용 버튼들 (좌측 상단) */}
             {onLogout && (
               <button
                 onClick={onLogout}
-                className="absolute right-0 top-1/2 -translate-y-1/2 -translate-x-36 hidden lg:flex bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-xs font-bold items-center gap-1 shadow-md transition-all"
+                className="absolute left-0 top-1/2 -translate-y-1/2 hidden lg:flex bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-xs font-bold items-center gap-1 shadow-md transition-all"
                 title="Sign out"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
