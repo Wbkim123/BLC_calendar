@@ -11,9 +11,9 @@ export default function Login({ setRole }: Props) {
   const [error, setError] = useState(false);
 
   const handleEnter = () => {
-    if (code === '001') {
+    if (code === '2002') {
       setRole('ADMIN');
-    } else if (code === '002') {
+    } else if (code === '8520') {
       setRole('VIEWER');
     } else {
       setError(true);
