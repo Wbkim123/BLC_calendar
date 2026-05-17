@@ -7,6 +7,8 @@ interface Props {
   role: UserRole;
   onBack: () => void;
   onSave: (dateStr: string, updatedEvent: TrainingEvent) => void;
+  onSaveNotes: (dateStr: string, notes: string) => void;
+  onToggleNotesHighlight: (dateStr: string) => void;
   onCreateEvent: (dateStr: string, newEvent: TrainingEvent) => void;
   onDeleteEvent: (dateStr: string, eventId: string) => void;
   locations: string[];
@@ -22,6 +24,8 @@ export default function DailyView({
   role, 
   onBack, 
   onSave, 
+  onSaveNotes,
+  onToggleNotesHighlight,
   onCreateEvent,
   onDeleteEvent,
   locations, 
@@ -32,6 +36,7 @@ export default function DailyView({
   onNext 
 }: Props) {
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
+  const [editingNotes, setEditingNotes] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
   // --- 스와이프 기능 구현 ---
@@ -97,7 +102,8 @@ export default function DailyView({
       time: "0900-1000",
       eventName: "",
       location: locations[0] || "MPR",
-      uniform: uniforms[0] || "PT"
+      uniform: uniforms[0] || "PT",
+      highlighted: false
     };
     setEditingEvent(newEvent);
     setIsCreating(true);
@@ -235,9 +241,28 @@ export default function DailyView({
                       <span className="flex items-center gap-1">👕 UNI: <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.uniform}</span></span>
                     </div>
                   </div>
-                  <p className={`text-sm lg:text-base font-bold leading-tight ${isPast ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
-                    {ev.eventName}
-                  </p>
+                  <div className="flex items-start gap-2">
+                    {role === 'ADMIN' && (
+                      <button
+                        onClick={() => onSave(schedule.date, { ...ev, highlighted: !ev.highlighted })}
+                        className={`mt-[-1px] text-lg leading-none transition-colors ${
+                          ev.highlighted ? 'text-red-500' : 'text-gray-300 hover:text-red-400'
+                        }`}
+                        title={ev.highlighted ? "Remove highlight" : "Highlight event"}
+                      >
+                        ★
+                      </button>
+                    )}
+                    <p className={`text-sm lg:text-base font-bold leading-tight ${
+                      ev.highlighted
+                        ? 'text-red-600'
+                        : isPast
+                          ? 'text-gray-500 line-through'
+                          : 'text-gray-900'
+                    }`}>
+                      {ev.eventName}
+                    </p>
+                  </div>
                 </div>
                 
                 {/* 관리자에게만 보이는 ✏️ 수정 버튼 */}
@@ -258,13 +283,61 @@ export default function DailyView({
         })}
 
         {/* 새 일정 추가 버튼 박스 (관리자 전용) */}
+        {schedule.notes && (
+          <div className={`p-4 rounded-r-lg shadow-sm border-l-4 ${
+            schedule.notesHighlighted
+              ? 'bg-red-50 border-red-500 ring-2 ring-red-100'
+              : 'bg-blue-50 border-blue-500'
+          }`}>
+            <div className="flex items-center justify-between gap-3 mb-1">
+              <div className="flex items-center gap-2">
+                {role === 'ADMIN' && (
+                  <button
+                    onClick={() => onToggleNotesHighlight(schedule.date)}
+                    className={`text-lg leading-none transition-colors ${
+                      schedule.notesHighlighted ? 'text-red-500' : 'text-blue-200 hover:text-red-400'
+                    }`}
+                    title={schedule.notesHighlighted ? "Remove notes highlight" : "Highlight notes"}
+                  >
+                    ★
+                  </button>
+                )}
+                <p className={`text-xs font-black ${schedule.notesHighlighted ? 'text-red-700' : 'text-blue-800'}`}>NOTES:</p>
+              </div>
+              {role === 'ADMIN' && (
+                <button
+                  onClick={() => setEditingNotes(true)}
+                  className={`text-[10px] bg-white px-2 py-1 rounded-md font-black border hover:bg-blue-100 ${
+                    schedule.notesHighlighted ? 'text-red-700 border-red-100' : 'text-blue-700 border-blue-100'
+                  }`}
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+            <p className={`text-sm font-semibold leading-relaxed whitespace-pre-wrap ${
+              schedule.notesHighlighted ? 'text-red-700' : 'text-gray-700'
+            }`}>{schedule.notes}</p>
+          </div>
+        )}
+
         {role === 'ADMIN' && (
+          <>
+          {!schedule.notes && (
+            <button
+              onClick={() => setEditingNotes(true)}
+              className="w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-blue-200 rounded-xl flex items-center justify-center text-blue-500 hover:border-blue-400 hover:bg-blue-50 transition-all active:scale-[0.98] text-xs lg:text-sm font-black uppercase tracking-widest"
+            >
+              + Add Notes
+            </button>
+          )}
           <button 
             onClick={openCreateModal}
             className="w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all active:scale-[0.98]"
           >
             <span className="text-2xl lg:text-3xl font-light">+</span>
           </button>
+          </>
         )}
       </div>
 
@@ -285,11 +358,59 @@ export default function DailyView({
           onAddUniform={onAddUniform}
         />
       )}
+      {editingNotes && (
+        <NotesModal
+          initialNotes={schedule.notes || ""}
+          onClose={() => setEditingNotes(false)}
+          onSave={(notes) => {
+            onSaveNotes(schedule.date, notes);
+            setEditingNotes(false);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // ---- 수정 모달 컴포넌트 ----
+function NotesModal({
+  initialNotes,
+  onClose,
+  onSave
+}: {
+  initialNotes: string,
+  onClose: () => void,
+  onSave: (notes: string) => void
+}) {
+  const [notes, setNotes] = useState(initialNotes);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+      <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
+        <div className="bg-blue-900 p-4 text-white">
+          <h3 className="font-bold text-lg">Edit Notes</h3>
+        </div>
+        <div className="p-5">
+          <label className="block text-xs font-bold text-gray-500 mb-1">NOTES:</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={6}
+            placeholder="Optional notes for this day"
+            className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none leading-relaxed"
+          />
+        </div>
+        <div className="p-4 bg-gray-50 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 bg-gray-200 text-gray-700 font-bold rounded-xl active:bg-gray-300">Cancel</button>
+          <button onClick={() => onSave(notes)} className="flex-1 py-3 bg-blue-700 text-white font-bold rounded-xl active:bg-blue-800 shadow-md">
+            Save Notes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EditModal({ 
   event, 
   isCreating,
@@ -355,7 +476,6 @@ function EditModal({
             <label className="block text-xs font-bold text-gray-500 mb-1">EVENT NAME</label>
             <input type="text" name="eventName" value={formData.eventName} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
-          
           {/* LOCATION Dropdown */}
           <div>
             <div className="flex justify-between items-center mb-1">
@@ -447,6 +567,7 @@ function EditModal({
               </select>
             )}
           </div>
+
         </div>
 
         <div className="p-4 bg-gray-50 flex flex-col gap-3">

@@ -72,13 +72,23 @@ function App() {
             return {
               ...day,
               cycleName: LEGACY_06_26_CYCLE,
-              events: day.events || []
+              notes: day.notes || "",
+              notesHighlighted: Boolean(day.notesHighlighted),
+              events: (day.events || []).map((event: TrainingEvent) => ({
+                ...event,
+                highlighted: Boolean(event.highlighted)
+              }))
             };
           }
 
           return {
             ...day,
-            events: day.events || []
+            notes: day.notes || "",
+            notesHighlighted: Boolean(day.notesHighlighted),
+            events: (day.events || []).map((event: TrainingEvent) => ({
+              ...event,
+              highlighted: Boolean(event.highlighted)
+            }))
           };
         });
 
@@ -197,6 +207,28 @@ function App() {
     }
   };
 
+  const handleSaveDayNotes = (dateStr: string, notes: string) => {
+    const dayIndex = schedules.findIndex(day => day.date === dateStr);
+    if (dayIndex !== -1) {
+      const updates: any = {};
+      updates[`/schedules/${dayIndex}/notes`] = notes.trim();
+      update(ref(db), updates).catch(err => {
+        alert("Failed to save notes: " + err.message);
+      });
+    }
+  };
+
+  const handleToggleDayNotesHighlight = (dateStr: string) => {
+    const dayIndex = schedules.findIndex(day => day.date === dateStr);
+    if (dayIndex !== -1) {
+      const updates: any = {};
+      updates[`/schedules/${dayIndex}/notesHighlighted`] = !schedules[dayIndex].notesHighlighted;
+      update(ref(db), updates).catch(err => {
+        alert("Failed to highlight notes: " + err.message);
+      });
+    }
+  };
+
   // 새로운 이벤트 추가 함수
   const handleCreateEvent = (dateStr: string, newEvent: TrainingEvent) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
@@ -233,6 +265,7 @@ function App() {
       if (existingIndex !== -1) {
         updatedSchedules[existingIndex] = {
           ...updatedSchedules[existingIndex],
+          notes: [updatedSchedules[existingIndex].notes, newDay.notes].filter(Boolean).join('\n'),
           events: [...(updatedSchedules[existingIndex].events || []), ...newDay.events]
         };
       } else {
@@ -382,6 +415,8 @@ function App() {
         role={role}
         onBack={() => setSelectedDateId(null)}
         onSave={handleSaveEvent}
+        onSaveNotes={handleSaveDayNotes}
+        onToggleNotesHighlight={handleToggleDayNotesHighlight}
         onCreateEvent={handleCreateEvent}
         onDeleteEvent={handleDeleteEvent}
         locations={locations}

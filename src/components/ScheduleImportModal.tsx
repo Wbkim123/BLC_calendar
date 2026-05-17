@@ -62,6 +62,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     let currentDayLabel = "PICK-UP DAY";
     let currentOffset = 0;
     let hasSeenCalendarMarker = false;
+    let isCollectingDayNotes = false;
 
     const getDateFromOffset = (offset: number) => {
       const d = new Date(startDate);
@@ -79,8 +80,33 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
     let currentDate = getDateFromOffset(0);
 
+    const ensureCurrentSchedule = () => {
+      if (!schedulesMap[currentDate]) {
+        schedulesMap[currentDate] = {
+          date: currentDate,
+          dayLabel: currentDayLabel,
+          cycleName: cycleName,
+          events: []
+        };
+      }
+
+      return schedulesMap[currentDate];
+    };
+
+    const appendCurrentDayNotes = (noteText: string) => {
+      const normalizedNote = noteText
+        .replace(/^NOTES?\s*[:-]?\s*/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (!normalizedNote) return;
+
+      const schedule = ensureCurrentSchedule();
+      schedule.notes = [schedule.notes, normalizedNote].filter(Boolean).join('\n');
+    };
+
     // More aggressive Regex: allow noise, common OCR artifacts, and wide spacing
-    const dayMarkerRegex = /(PICK\s*-\s*UP\s*DAY|DAY\s*[#\- ]?\s*(\d{1,2})|FEDERAL\s+HOLIDAY(?:\s*-\s*[A-Z\s]+)?|MEMORIAL\s+DAY)/i;
+    const dayMarkerRegex = /\b(PICK\s*-\s*UP\s*DAY|DAY\s*[#\- ]?\s*(\d{1,2})|FEDERAL\s+HOLIDAY(?:\s*-\s*[A-Z\s]+)?)\b/i;
     // Flexible time: handle spaces around dash, O instead of 0, etc.
     const timePattern = /([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})\s*[-–—~_ ]+\s*([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})/g;
 
@@ -88,11 +114,21 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       // 1. Heavy Cleanup
       let cleanLine = line.trim();
       if (!cleanLine || cleanLine.length < 3) return;
-      cleanLine = cleanLine.replace(/TIME|EVENT|LOC|UNI|CLASS|SCHEDULE/gi, '').trim();
+      cleanLine = cleanLine.replace(/\b(TIME|EVENT|LOC|UNI|CLASS|SCHEDULE)\b/gi, '').trim();
 
       // 2. Scan for all Day Markers and Time Patterns in this line
       const dayMatches = Array.from(cleanLine.matchAll(new RegExp(dayMarkerRegex, 'g')));
       const timeMatches = Array.from(cleanLine.matchAll(timePattern));
+
+      if (dayMatches.length === 0 && timeMatches.length === 0) {
+        if (/^NOTES?\s*[:-]?/i.test(cleanLine)) {
+          appendCurrentDayNotes(cleanLine);
+          isCollectingDayNotes = true;
+        } else if (isCollectingDayNotes) {
+          appendCurrentDayNotes(cleanLine);
+        }
+        return;
+      }
 
       // 3. Intelligent Header Filtering
       // If multiple days are found but NO events, it's a header list (e.g., "DAY 1 DAY 2...")
@@ -111,6 +147,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
       tokens.forEach((token, tIdx) => {
         if (token.type === 'DAY') {
+          isCollectingDayNotes = false;
           const m = token.match;
           if (m[2]) {
             currentOffset = parseInt(m[2]);
@@ -140,6 +177,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
             schedulesMap[currentDate].cycleName = cycleName;
           }
         } else {
+          isCollectingDayNotes = false;
           // It's a TIME token (Event)
           const m = token.match;
           const normalizeTime = (t: string) => {
@@ -201,18 +239,17 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
             }
           }
 
-          const eventName = content.replace(/^[:\s-]+|[:\s-]+$/g, '').replace(/\s+/g, ' ') || "UNNAMED EVENT";
-
-          if (!schedulesMap[currentDate]) {
-            schedulesMap[currentDate] = {
-              date: currentDate,
-              dayLabel: currentDayLabel,
-              cycleName: cycleName,
-              events: []
-            };
+          const inlineNoteMatch = content.match(/\bNOTES?\s*[:-]\s*/i);
+          if (inlineNoteMatch && typeof inlineNoteMatch.index === 'number') {
+            appendCurrentDayNotes(content.substring(inlineNoteMatch.index));
+            isCollectingDayNotes = true;
+            content = content.substring(0, inlineNoteMatch.index).trim();
           }
 
-          schedulesMap[currentDate].events.push({
+          const eventName = content.replace(/^[:\s-]+|[:\s-]+$/g, '').replace(/\s+/g, ' ') || "UNNAMED EVENT";
+
+          const schedule = ensureCurrentSchedule();
+          schedule.events.push({
             id: `imp-${lineIdx}-${tIdx}-${Date.now()}`,
             time: `${startTime}-${endTime}`,
             eventName: eventName.toUpperCase(),
@@ -372,7 +409,21 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
               .map(item => item.str)
               .join('');
 
-            if (!/^\d{3,4}-\d{3,4}$/.test(time)) return;
+            if (!/^\d{3,4}-\d{3,4}$/.test(time)) {
+              const rowText = rowItems
+                .map(item => item.str)
+                .join(' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+              const noteMatch = rowText.match(/\bNOTES?\s*:\s*/i);
+
+              if (noteMatch && typeof noteMatch.index === 'number') {
+                pageLines.push(`NOTES: ${rowText.substring(noteMatch.index + noteMatch[0].length).trim()}`);
+              } else if (rowText && !/\d{3,4}-\d{3,4}/.test(rowText) && !/^(TIME|EVENT|LOC|UNI)$/i.test(rowText)) {
+                pageLines.push(rowText);
+              }
+              return;
+            }
 
             const event = rowItems
               .filter(item => item.x >= columnLeft + 48 && item.x < columnLeft + 155)
@@ -548,13 +599,21 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
                       {day.events.map((ev, eIdx) => (
                         <div key={eIdx} className="flex items-center gap-3 text-[10px] bg-blue-50/50 p-2 rounded-lg">
                           <span className="font-black text-blue-700 w-16 shrink-0">{ev.time}</span>
-                          <span className="flex-1 font-bold text-gray-700 truncate">{ev.eventName}</span>
+                          <span className="flex-1 min-w-0 font-bold text-gray-700">
+                            <span className="block truncate">{ev.eventName}</span>
+                          </span>
                           <div className="flex gap-1">
                             <span className="bg-white px-1.5 py-0.5 rounded border border-gray-200 text-gray-500">{ev.location}</span>
                             <span className="bg-white px-1.5 py-0.5 rounded border border-gray-200 text-gray-500">{ev.uniform}</span>
                           </div>
                         </div>
                       ))}
+                      {day.notes && (
+                        <div className="rounded-lg border border-blue-100 bg-blue-50 p-2 text-[10px] font-semibold text-gray-600 whitespace-pre-wrap">
+                          <span className="font-black text-blue-800">NOTES: </span>
+                          {day.notes}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
