@@ -10,6 +10,7 @@ type PdfTextItem = {
   str: string;
   x: number;
   y: number;
+  isRed?: boolean;
 };
 
 type PdfDayLabel = {
@@ -26,11 +27,115 @@ interface Props {
 }
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const PDF_RED_MARKER = '[[PDF_RED_TEXT]]';
 
 const median = (values: number[]) => {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.floor(sorted.length / 2)];
+};
+
+const isRedPdfColor = (value: any) => {
+  const source = Array.isArray(value) && Array.isArray(value[0]) ? value[0] : value;
+  if (Array.isArray(source) && typeof source[0] === 'string') {
+    const color = source[0].trim().toLowerCase();
+    return color === '#ff0000' || color === 'rgb(255,0,0)' || color === 'red';
+  }
+
+  if (typeof source === 'string') {
+    const color = source.trim().toLowerCase();
+    return color === '#ff0000' || color === 'rgb(255,0,0)' || color === 'red';
+  }
+
+  const rgb = Array.isArray(source) ? source : Array.from(source || []);
+  if (rgb.length < 3) return false;
+
+  const [rawR, rawG, rawB] = rgb;
+  const scale = Math.max(rawR, rawG, rawB) <= 1 ? 1 : 255;
+  const r = rawR / scale;
+  const g = rawG / scale;
+  const b = rawB / scale;
+
+  return r > 0.45 && g < 0.35 && b < 0.35 && r > g * 1.5 && r > b * 1.5;
+};
+
+const normalizePdfMatchText = (value: string) => value.replace(/\s+/g, '').toUpperCase();
+
+const getPdfGlyphText = (args: any[]) => {
+  const glyphs = Array.isArray(args?.[0]) ? args[0] : [];
+  return glyphs
+    .map(glyph => {
+      if (typeof glyph === 'string') return glyph;
+      if (typeof glyph === 'object' && glyph) return glyph.unicode || '';
+      return ' ';
+    })
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const extractPdfTextItems = async (page: any): Promise<PdfTextItem[]> => {
+  const [content, operatorList] = await Promise.all([
+    page.getTextContent(),
+    page.getOperatorList()
+  ]);
+
+  const redTexts: string[] = [];
+  const ops = pdfjsLib.OPS as any;
+  let currentFill: any = [0, 0, 0];
+
+  operatorList.fnArray.forEach((fn: number, index: number) => {
+    const args = operatorList.argsArray[index];
+
+    if (fn === ops.setFillRGBColor || fn === ops.setFillColor || fn === ops.setFillColorN) {
+      currentFill = args;
+      return;
+    }
+
+    if (fn === ops.setFillGray) {
+      currentFill = [args?.[0] || 0, args?.[0] || 0, args?.[0] || 0];
+      return;
+    }
+
+    if (fn === ops.showText || fn === ops.showSpacedText || fn === ops.nextLineShowText || fn === ops.nextLineSetSpacingShowText) {
+      if (isRedPdfColor(currentFill)) {
+        const text = normalizePdfMatchText(getPdfGlyphText(args));
+        if (text.length >= 3) redTexts.push(text);
+      }
+    }
+  });
+
+  let redTextIndex = 0;
+  return (content.items as any[])
+    .map(item => {
+      const str = String(item.str || '').trim();
+      if (!str) return null;
+      const matchText = normalizePdfMatchText(str);
+      let isRed = false;
+
+      while (redTextIndex < redTexts.length) {
+        const redText = redTexts[redTextIndex];
+        if (redText.length < 3) {
+          redTextIndex += 1;
+          continue;
+        }
+
+        if (matchText.includes(redText) || (matchText.length >= 3 && redText.includes(matchText))) {
+          isRed = true;
+          redTextIndex += 1;
+        }
+        break;
+      }
+
+      const pdfItem: PdfTextItem = {
+        str,
+        x: item.transform[4] as number,
+        y: item.transform[5] as number,
+        isRed
+      };
+      return pdfItem;
+    })
+    .filter(Boolean) as PdfTextItem[];
 };
 
 const isSunday = (date: Date) => date.getDay() === 0;
@@ -93,7 +198,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       return schedulesMap[currentDate];
     };
 
-    const appendCurrentDayNotes = (noteText: string) => {
+    const appendCurrentDayNotes = (noteText: string, highlighted = false) => {
       const normalizedNote = noteText
         .replace(/^NOTES?\s*[:-]?\s*/i, '')
         .replace(/\s+/g, ' ')
@@ -103,6 +208,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
       const schedule = ensureCurrentSchedule();
       schedule.notes = [schedule.notes, normalizedNote].filter(Boolean).join('\n');
+      schedule.notesHighlighted = Boolean(schedule.notesHighlighted || highlighted);
     };
 
     // More aggressive Regex: allow noise, common OCR artifacts, and wide spacing
@@ -114,6 +220,8 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       // 1. Heavy Cleanup
       let cleanLine = line.trim();
       if (!cleanLine || cleanLine.length < 3) return;
+      const lineHighlighted = cleanLine.includes(PDF_RED_MARKER);
+      cleanLine = cleanLine.split(PDF_RED_MARKER).join('').trim();
       cleanLine = cleanLine.replace(/\b(TIME|EVENT|LOC|UNI|CLASS|SCHEDULE)\b/gi, '').trim();
 
       // 2. Scan for all Day Markers and Time Patterns in this line
@@ -122,10 +230,10 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
       if (dayMatches.length === 0 && timeMatches.length === 0) {
         if (/^NOTES?\s*[:-]?/i.test(cleanLine)) {
-          appendCurrentDayNotes(cleanLine);
+          appendCurrentDayNotes(cleanLine, lineHighlighted);
           isCollectingDayNotes = true;
         } else if (isCollectingDayNotes) {
-          appendCurrentDayNotes(cleanLine);
+          appendCurrentDayNotes(cleanLine, lineHighlighted);
         }
         return;
       }
@@ -241,7 +349,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
           const inlineNoteMatch = content.match(/\bNOTES?\s*[:-]\s*/i);
           if (inlineNoteMatch && typeof inlineNoteMatch.index === 'number') {
-            appendCurrentDayNotes(content.substring(inlineNoteMatch.index));
+            appendCurrentDayNotes(content.substring(inlineNoteMatch.index), lineHighlighted);
             isCollectingDayNotes = true;
             content = content.substring(0, inlineNoteMatch.index).trim();
           }
@@ -254,7 +362,8 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
             time: `${startTime}-${endTime}`,
             eventName: eventName.toUpperCase(),
             location: foundLoc || (locations[0] || "MPR"),
-            uniform: foundUni || (uniforms[0] || "ACU")
+            uniform: foundUni || (uniforms[0] || "ACU"),
+            highlighted: lineHighlighted
           });
         }
       });
@@ -313,14 +422,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
     for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex++) {
       const page = await pdf.getPage(pageIndex);
-      const content = await page.getTextContent();
-      const items: PdfTextItem[] = (content.items as any[])
-        .map(item => ({
-          str: String(item.str || '').trim(),
-          x: item.transform[4] as number,
-          y: item.transform[5] as number
-        }))
-        .filter(item => item.str.length > 0);
+      const items = await extractPdfTextItems(page);
 
       const timeHeaderXs = Array.from(new Set(
         items
@@ -333,7 +435,6 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       const columnWidth = median(timeHeaderXs.slice(1).map((x, idx) => x - timeHeaderXs[idx]));
       if (!columnWidth) continue;
 
-      const leftEdge = timeHeaderXs[0] - 16;
       const labels: PdfDayLabel[] = [];
 
       items.forEach(item => {
@@ -374,15 +475,40 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
       const labelRows = Array.from(new Set(labels.map(label => Math.round(label.y * 10) / 10)))
         .sort((a, b) => b - a);
+      const labelColumnLefts = new Map<PdfDayLabel, number>();
+
+      labelRows.forEach(labelRowY => {
+        const rowLabels = labels
+          .filter(label => Math.abs(Math.round(label.y * 10) / 10 - labelRowY) < 0.2)
+          .sort((a, b) => a.x - b.x);
+        const rowHeaderXs = Array.from(new Set(
+          items
+            .filter(item => /^TIME$/i.test(item.str) && item.y < labelRowY && labelRowY - item.y < 20)
+            .map(item => Math.round(item.x * 10) / 10)
+        )).sort((a, b) => a - b);
+
+        const labelsWithSchedules =
+          rowLabels.length === rowHeaderXs.length + 1 && /^FEDERAL\s+HOLIDAY/i.test(rowLabels[0].text)
+            ? rowLabels.slice(1)
+            : rowLabels;
+
+        labelsWithSchedules.forEach((label, index) => {
+          const headerX = rowHeaderXs[index];
+          if (headerX != null) labelColumnLefts.set(label, headerX - 16);
+        });
+      });
 
       const pageLines: string[] = [];
 
       labels.forEach(label => {
-        const columnIndex = Math.max(0, Math.floor((label.x - leftEdge) / columnWidth));
-        const columnLeft = leftEdge + columnIndex * columnWidth;
-        const columnRight = columnLeft + columnWidth;
         const nextLabelRow = labelRows.find(rowY => rowY < label.y - 10);
         const rowBottom = nextLabelRow == null ? 0 : nextLabelRow + 5;
+        const columnLeft = labelColumnLefts.get(label);
+        if (columnLeft == null) {
+          pageLines.push(label.text);
+          return;
+        }
+        const columnRight = columnLeft + columnWidth;
         const rows: { y: number; items: PdfTextItem[] }[] = [];
 
         items.forEach(item => {
@@ -416,33 +542,35 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
                 .replace(/\s+/g, ' ')
                 .trim();
               const noteMatch = rowText.match(/\bNOTES?\s*:\s*/i);
+              const rowMarker = rowItems.some(item => item.isRed) ? `${PDF_RED_MARKER} ` : '';
 
               if (noteMatch && typeof noteMatch.index === 'number') {
-                pageLines.push(`NOTES: ${rowText.substring(noteMatch.index + noteMatch[0].length).trim()}`);
+                pageLines.push(`${rowMarker}NOTES: ${rowText.substring(noteMatch.index + noteMatch[0].length).trim()}`);
               } else if (rowText && !/\d{3,4}-\d{3,4}/.test(rowText) && !/^(TIME|EVENT|LOC|UNI)$/i.test(rowText)) {
-                pageLines.push(rowText);
+                pageLines.push(`${rowMarker}${rowText}`);
               }
               return;
             }
 
-            const event = rowItems
-              .filter(item => item.x >= columnLeft + 48 && item.x < columnLeft + 155)
+            const eventItems = rowItems.filter(item => item.x >= columnLeft + 48 && item.x < columnLeft + 155);
+            const locationItems = rowItems.filter(item => item.x >= columnLeft + 155 && item.x < columnLeft + 184);
+            const uniformItems = rowItems.filter(item => item.x >= columnLeft + 184);
+            const event = eventItems
               .map(item => item.str)
               .join(' ')
               .replace(/\s+/g, ' ')
               .trim();
-            const location = rowItems
-              .filter(item => item.x >= columnLeft + 155 && item.x < columnLeft + 184)
+            const location = locationItems
               .map(item => item.str)
               .join(' ')
               .trim();
-            const uniform = rowItems
-              .filter(item => item.x >= columnLeft + 184)
+            const uniform = uniformItems
               .map(item => item.str)
               .join(' ')
               .trim();
 
-            pageLines.push([time, event, location, uniform].filter(Boolean).join(' '));
+            const rowMarker = eventItems.some(item => item.isRed) ? `${PDF_RED_MARKER} ` : '';
+            pageLines.push(`${rowMarker}${[time, event, location, uniform].filter(Boolean).join(' ')}`);
           });
       });
 
@@ -466,14 +594,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     // Try text layer first, preserving visual lines instead of flattening the whole page.
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      const items = (content.items as any[])
-        .map(item => ({
-          str: String(item.str || '').trim(),
-          x: item.transform[4] as number,
-          y: item.transform[5] as number
-        }))
-        .filter(item => item.str.length > 0)
+      const items = (await extractPdfTextItems(page))
         .sort((a, b) => b.y - a.y || a.x - b.x);
 
       const rows: { y: number; items: PdfTextItem[] }[] = [];
@@ -488,7 +609,11 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
       const pageText = rows
         .sort((a, b) => b.y - a.y)
-        .map(row => row.items.sort((a, b) => a.x - b.x).map(item => item.str).join(' '))
+        .map(row => {
+          const rowItems = row.items.sort((a, b) => a.x - b.x);
+          const marker = rowItems.some(item => item.isRed) ? `${PDF_RED_MARKER} ` : '';
+          return marker + rowItems.map(item => item.str).join(' ');
+        })
         .join('\n');
 
       if (pageText.trim().length > 50) fullText += pageText + "\n";
@@ -597,11 +722,12 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
                     </div>
                     <div className="p-3 space-y-2">
                       {day.events.map((ev, eIdx) => (
-                        <div key={eIdx} className="flex items-center gap-3 text-[10px] bg-blue-50/50 p-2 rounded-lg">
+                        <div key={eIdx} className={`flex items-center gap-3 text-[10px] p-2 rounded-lg ${ev.highlighted ? 'bg-red-50' : 'bg-blue-50/50'}`}>
                           <span className="font-black text-blue-700 w-16 shrink-0">{ev.time}</span>
-                          <span className="flex-1 min-w-0 font-bold text-gray-700">
+                          <span className={`flex-1 min-w-0 font-bold ${ev.highlighted ? 'text-red-700' : 'text-gray-700'}`}>
                             <span className="block truncate">{ev.eventName}</span>
                           </span>
+                          {ev.highlighted && <span className="text-red-500" title="Highlighted from red PDF text">*</span>}
                           <div className="flex gap-1">
                             <span className="bg-white px-1.5 py-0.5 rounded border border-gray-200 text-gray-500">{ev.location}</span>
                             <span className="bg-white px-1.5 py-0.5 rounded border border-gray-200 text-gray-500">{ev.uniform}</span>
@@ -609,8 +735,9 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
                         </div>
                       ))}
                       {day.notes && (
-                        <div className="rounded-lg border border-blue-100 bg-blue-50 p-2 text-[10px] font-semibold text-gray-600 whitespace-pre-wrap">
-                          <span className="font-black text-blue-800">NOTES: </span>
+                        <div className={`rounded-lg border p-2 text-[10px] font-semibold whitespace-pre-wrap ${day.notesHighlighted ? 'border-red-100 bg-red-50 text-red-700' : 'border-blue-100 bg-blue-50 text-gray-600'}`}>
+                          <span className={`font-black ${day.notesHighlighted ? 'text-red-800' : 'text-blue-800'}`}>NOTES: </span>
+                          {day.notesHighlighted && <span className="text-red-500">* </span>}
                           {day.notes}
                         </div>
                       )}

@@ -266,6 +266,7 @@ function App() {
         updatedSchedules[existingIndex] = {
           ...updatedSchedules[existingIndex],
           notes: [updatedSchedules[existingIndex].notes, newDay.notes].filter(Boolean).join('\n'),
+          notesHighlighted: Boolean(updatedSchedules[existingIndex].notesHighlighted || newDay.notesHighlighted),
           events: [...(updatedSchedules[existingIndex].events || []), ...newDay.events]
         };
       } else {
