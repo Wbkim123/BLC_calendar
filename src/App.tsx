@@ -14,11 +14,38 @@ const LEGACY_06_26_END = '2026-05-15';
 const LEGACY_06_26_CYCLE = '06-26';
 const LOGIN_STORAGE_KEY = 'blc_calendar_login';
 
-function resolveRoleFromCode(code: string): UserRole {
-  if (code === '2002') return 'ADMIN';
-  if (code === '8520') return 'VIEWER';
-  if (code === '0987') return 'STUDENT';
-  return null;
+type LoginResult = {
+  role: UserRole;
+  studentCycleName?: string;
+};
+
+const getLocalTodayString = () => {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+};
+
+const normalizeStudentCode = (cycleName: string) => cycleName.replace(/\D/g, '');
+
+function resolveLoginFromCode(code: string, schedules: DailySchedule[]): LoginResult | null {
+  const normalizedCode = code.trim();
+  if (normalizedCode === '2002') return { role: 'ADMIN' };
+  if (normalizedCode === '9876') return { role: 'VIEWER' };
+
+  const todayStr = getLocalTodayString();
+  const matchingCycle = schedules.find(schedule => {
+    const cycleName = (schedule.cycleName || '').trim();
+    return cycleName && normalizeStudentCode(cycleName) === normalizedCode;
+  })?.cycleName;
+
+  if (!matchingCycle) return null;
+
+  const cycleSchedules = schedules.filter(schedule => schedule.cycleName === matchingCycle);
+  const cycleStart = cycleSchedules.reduce((earliest, schedule) => schedule.date < earliest ? schedule.date : earliest, cycleSchedules[0].date);
+  const cycleEnd = cycleSchedules.reduce((latest, schedule) => schedule.date > latest ? schedule.date : latest, cycleSchedules[0].date);
+
+  if (todayStr < cycleStart || todayStr > cycleEnd) return null;
+
+  return { role: 'STUDENT', studentCycleName: matchingCycle };
 }
 
 function App() {
@@ -29,10 +56,11 @@ function App() {
       const saved = window.localStorage.getItem(LOGIN_STORAGE_KEY);
       if (!saved) return null;
 
-      const parsed = JSON.parse(saved) as { code?: string } | null;
+      const parsed = JSON.parse(saved) as { code?: string; role?: UserRole } | null;
       if (!parsed?.code) return null;
 
-      return resolveRoleFromCode(parsed.code);
+      if (parsed.role === 'ADMIN' || parsed.role === 'VIEWER') return parsed.role;
+      return null;
     } catch {
       return null;
     }
@@ -41,6 +69,7 @@ function App() {
   const [locations, setLocations] = useState<string[]>([]);
   const [uniforms, setUniforms] = useState<string[]>([]);
   const [selectedDateId, setSelectedDateId] = useState<string | null>(null);
+  const [studentCycleName, setStudentCycleName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -308,21 +337,27 @@ function App() {
 
     setRole(null);
     setSelectedDateId(null);
+    setStudentCycleName(null);
   };
   const handleLogin = (code: string, rememberLogin: boolean) => {
-    const newRole = resolveRoleFromCode(code);
-    setRole(newRole);
+    const login = resolveLoginFromCode(code, schedules);
+    if (!login?.role) return false;
+
+    setRole(login.role);
+    setStudentCycleName(login.studentCycleName || null);
 
     if (typeof window !== 'undefined') {
-      if (newRole && rememberLogin) {
+      if (login.role !== 'STUDENT' && rememberLogin) {
         window.localStorage.setItem(
           LOGIN_STORAGE_KEY,
-          JSON.stringify({ code, role: newRole })
+          JSON.stringify({ code, role: login.role })
         );
       } else {
         window.localStorage.removeItem(LOGIN_STORAGE_KEY);
       }
     }
+
+    return true;
   };
 
   useEffect(() => {
@@ -364,14 +399,15 @@ function App() {
 
   const filteredSchedules = useMemo(() => {
     if (role === 'STUDENT') {
-      return schedules.filter(s => s.cycleName === activeCycleName);
+      return schedules.filter(s => s.cycleName === studentCycleName);
     }
     return schedules;
-  }, [role, schedules, activeCycleName]);
+  }, [role, schedules, studentCycleName]);
 
   const cycleTitle = useMemo(() => {
-    return activeCycleName ? `BLC CLASS ${activeCycleName}` : 'BLC CLASS';
-  }, [activeCycleName]);
+    const titleCycleName = role === 'STUDENT' ? studentCycleName : activeCycleName;
+    return titleCycleName ? `BLC CLASS ${titleCycleName}` : 'BLC CLASS';
+  }, [role, studentCycleName, activeCycleName]);
 
   if (isLoading) {
     return (

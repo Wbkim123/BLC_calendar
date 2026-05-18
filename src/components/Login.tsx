@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 
 interface Props {
-  onLogin: (code: string, rememberLogin: boolean) => void;
+  onLogin: (code: string, rememberLogin: boolean) => boolean;
 }
 
 export default function Login({ onLogin }: Props) {
@@ -11,8 +11,8 @@ export default function Login({ onLogin }: Props) {
   const [rememberLogin, setRememberLogin] = useState(true);
 
   const handleEnter = () => {
-    if (code === '2002' || code === '8520' || code === '0987') {
-      onLogin(code, rememberLogin);
+    if (onLogin(code, rememberLogin)) {
+      setError(false);
     } else {
       setError(true);
       setCode('');
@@ -51,7 +51,7 @@ export default function Login({ onLogin }: Props) {
           KEEP LOGIN
         </label>
         
-        {error && <p className="text-red-500 text-sm mb-4 font-bold">Invalid code. Try again.</p>}
+        {error && <p className="text-red-500 text-sm mb-4 font-bold">Invalid code or inactive cycle.</p>}
 
         <button 
           onClick={handleEnter}
