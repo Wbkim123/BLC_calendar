@@ -246,7 +246,7 @@ export default function DailyView({
                       <button
                         onClick={() => onSave(schedule.date, { ...ev, highlighted: !ev.highlighted })}
                         className={`mt-[-1px] text-lg leading-none transition-colors ${
-                          ev.highlighted ? 'text-red-500' : 'text-gray-300 hover:text-red-400'
+                          ev.highlighted ? 'text-red-500 hover:text-red-600' : 'text-gray-300 hover:text-gray-400'
                         }`}
                         title={ev.highlighted ? "Remove highlight" : "Highlight event"}
                       >
