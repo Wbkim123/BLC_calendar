@@ -1,5 +1,5 @@
 // src/components/Calendar.tsx
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { DailySchedule, UserRole } from '../types/schedule';
 
 interface Props {
@@ -30,6 +30,7 @@ export default function Calendar({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [newTitle, setNewTitle] = useState(cycleTitle);
   const [showManageData, setShowManageData] = useState(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -53,6 +54,26 @@ export default function Calendar({
 
   const changeMonth = (offset: number) => {
     setViewDate(new Date(year, month + offset, 1));
+  };
+
+  const handleCalendarTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleCalendarTouchEnd = (e: React.TouchEvent) => {
+    const touchStart = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!touchStart) return;
+
+    const touchEnd = e.changedTouches[0];
+    const distanceX = touchEnd.clientX - touchStart.x;
+    const distanceY = touchEnd.clientY - touchStart.y;
+    const minSwipeDistance = 70;
+
+    if (Math.abs(distanceX) < minSwipeDistance || Math.abs(distanceX) <= Math.abs(distanceY)) return;
+
+    changeMonth(distanceX < 0 ? 1 : -1);
   };
 
   const isScheduled = (day: number) => {
@@ -223,7 +244,11 @@ export default function Calendar({
         )}
 
         {/* 달력 본체 - 높이 확대 및 내부 패딩 조정 */}
-        <div className="bg-white rounded-xl lg:rounded-3xl shadow-sm p-3 lg:p-10 lg:flex-1 flex flex-col overflow-hidden min-h-0 border border-gray-200">
+        <div
+          className="bg-white rounded-xl lg:rounded-3xl shadow-sm p-3 lg:p-10 lg:flex-1 flex flex-col overflow-hidden min-h-0 border border-gray-200"
+          onTouchStart={handleCalendarTouchStart}
+          onTouchEnd={handleCalendarTouchEnd}
+        >
           <div className="flex justify-between items-center mb-3 lg:mb-8 shrink-0">
             <button onClick={() => changeMonth(-1)} className="p-2 lg:p-4 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
               <svg className="w-5 h-5 lg:w-8 lg:h-8 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
