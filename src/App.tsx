@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Login from './components/Login';
 import Calendar from './components/Calendar';
 import DailyView from './components/DailyView';
@@ -73,6 +73,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const hasAutoSelectedTodayRef = useRef(false);
 
   // 1. Firebase에서 실시간 데이터 불러오기
   useEffect(() => {
@@ -184,6 +185,7 @@ function App() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleSetRole = (newRole: UserRole) => {
     setRole(newRole);
+    hasAutoSelectedTodayRef.current = false;
     if (newRole) {
       const today = new Date();
       const year = today.getFullYear();
@@ -195,6 +197,7 @@ function App() {
       if (schedules.length > 0) {
         const hasSchedule = schedules.some(s => s.date === todayStr);
         if (hasSchedule) {
+          hasAutoSelectedTodayRef.current = true;
           setSelectedDateId(todayStr);
         }
       }
@@ -338,11 +341,13 @@ function App() {
     setRole(null);
     setSelectedDateId(null);
     setStudentCycleName(null);
+    hasAutoSelectedTodayRef.current = false;
   };
   const handleLogin = (code: string, rememberLogin: boolean) => {
     const login = resolveLoginFromCode(code, schedules);
     if (!login?.role) return false;
 
+    hasAutoSelectedTodayRef.current = false;
     setRole(login.role);
     setStudentCycleName(login.studentCycleName || null);
 
@@ -360,13 +365,19 @@ function App() {
     return true;
   };
 
+  const handleBackToCalendar = () => {
+    hasAutoSelectedTodayRef.current = true;
+    setSelectedDateId(null);
+  };
+
   useEffect(() => {
-    if (!role || selectedDateId || schedules.length === 0) return;
+    if (!role || selectedDateId || schedules.length === 0 || hasAutoSelectedTodayRef.current) return;
 
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
     if (schedules.some(s => s.date === todayStr)) {
+      hasAutoSelectedTodayRef.current = true;
       setSelectedDateId(todayStr);
     }
   }, [role, schedules, selectedDateId]);
@@ -450,7 +461,7 @@ function App() {
       <DailyView 
         schedule={selectedSchedule} 
         role={role}
-        onBack={() => setSelectedDateId(null)}
+        onBack={handleBackToCalendar}
         onSave={handleSaveEvent}
         onSaveNotes={handleSaveDayNotes}
         onToggleNotesHighlight={handleToggleDayNotesHighlight}
