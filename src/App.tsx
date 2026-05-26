@@ -19,6 +19,11 @@ type LoginResult = {
   studentCycleName?: string;
 };
 
+type SavedLogin = {
+  code?: string;
+  role?: UserRole;
+};
+
 const getLocalTodayString = () => {
   const today = new Date();
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -56,7 +61,7 @@ function App() {
       const saved = window.localStorage.getItem(LOGIN_STORAGE_KEY);
       if (!saved) return null;
 
-      const parsed = JSON.parse(saved) as { code?: string; role?: UserRole } | null;
+      const parsed = JSON.parse(saved) as SavedLogin | null;
       if (!parsed?.code) return null;
 
       if (parsed.role === 'ADMIN' || parsed.role === 'VIEWER') return parsed.role;
@@ -180,6 +185,30 @@ function App() {
       unsubUniforms();
     };
   }, []);
+
+  useEffect(() => {
+    if (role || schedules.length === 0 || typeof window === 'undefined') return;
+
+    try {
+      const saved = window.localStorage.getItem(LOGIN_STORAGE_KEY);
+      if (!saved) return;
+
+      const parsed = JSON.parse(saved) as SavedLogin | null;
+      if (!parsed?.code) return;
+
+      const login = resolveLoginFromCode(parsed.code, schedules);
+      if (!login?.role) {
+        window.localStorage.removeItem(LOGIN_STORAGE_KEY);
+        return;
+      }
+
+      setRole(login.role);
+      setStudentCycleName(login.studentCycleName || null);
+      hasAutoSelectedTodayRef.current = false;
+    } catch {
+      window.localStorage.removeItem(LOGIN_STORAGE_KEY);
+    }
+  }, [role, schedules]);
 
   // 로그인 시 오늘 날짜 자동 선택
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -352,10 +381,10 @@ function App() {
     setStudentCycleName(login.studentCycleName || null);
 
     if (typeof window !== 'undefined') {
-      if (login.role !== 'STUDENT' && rememberLogin) {
+      if (rememberLogin) {
         window.localStorage.setItem(
           LOGIN_STORAGE_KEY,
-          JSON.stringify({ code, role: login.role })
+          JSON.stringify({ code: code.trim(), role: login.role })
         );
       } else {
         window.localStorage.removeItem(LOGIN_STORAGE_KEY);
