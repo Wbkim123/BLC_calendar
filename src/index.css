@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+html,
+body,
+#root {
+  min-block-size: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+.app-safe-screen {
+  min-block-size: 100vh;
+  min-block-size: 100dvh;
+  padding-block-start: env(safe-area-inset-top);
+  padding-block-end: env(safe-area-inset-bottom);
+}
+
+.app-safe-top {
+  padding-block-start: calc(1rem + env(safe-area-inset-top));
+}
+
+.app-safe-bottom {
+  padding-block-end: calc(1rem + env(safe-area-inset-bottom));
+}
+
 .schedule-import-control {
   box-sizing: border-box;
   display: block;

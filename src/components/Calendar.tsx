@@ -91,7 +91,7 @@ export default function Calendar({
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-3 lg:p-10 font-sans flex flex-col items-center justify-center overflow-hidden">
+    <div className="app-safe-screen bg-gray-100 p-3 lg:p-10 font-sans flex flex-col items-center justify-start lg:justify-center overflow-y-auto">
       {/* 내부 컨테이너 (데스크탑에서 넓이 및 높이 제한으로 비율 조정) */}
       <div className="w-full h-auto lg:max-w-5xl flex flex-col lg:h-[800px] relative">
         
@@ -112,8 +112,8 @@ export default function Calendar({
                 <button onClick={() => setIsEditingTitle(false)} className="bg-gray-600 px-3 py-1 rounded font-bold text-xs">CANCEL</button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 group">
-                <h2 className="text-xl lg:text-4xl font-black tracking-wider">{cycleTitle}</h2>
+              <div className="flex items-center gap-2 group min-w-0">
+                <h2 className="text-lg sm:text-xl lg:text-4xl font-black tracking-wide lg:tracking-wider truncate">{cycleTitle}</h2>
                 {role === 'ADMIN' && onUpdateCycleTitle && (
                   <button 
                     onClick={() => {
@@ -307,9 +307,17 @@ export default function Calendar({
         {/* 하단 범례 */}
         <div className="mt-2 lg:mt-6 p-2 lg:p-6 bg-blue-50 rounded-lg lg:rounded-2xl flex items-start gap-2 lg:gap-4 border border-blue-100 shrink-0 mb-1 lg:mb-0">
           <svg className="w-5 h-5 lg:w-7 lg:h-7 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          <p className="text-[9px] lg:text-lg text-blue-700 font-medium leading-tight">
+          <p className="text-[10px] lg:text-lg text-blue-700 font-medium leading-tight">
             Dates with <span className="inline-block w-2 h-2 lg:w-4 lg:h-4 bg-yellow-500 rounded-full mx-0.5" /> mark scheduled training days. Tap any highlighted date to view details.
           </p>
+        </div>
+        <div className="pb-2 text-center">
+          <a
+            href="/privacy.html"
+            className="text-[10px] lg:text-xs font-bold text-gray-500 underline underline-offset-4"
+          >
+            Privacy Policy
+          </a>
         </div>
       </div>
     </div>

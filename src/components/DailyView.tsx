@@ -143,26 +143,26 @@ export default function DailyView({
 
   return (
     <div 
-      className="min-h-screen bg-gray-100 flex flex-col relative"
+      className="app-safe-screen bg-gray-100 flex flex-col relative"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       {/* 상단 헤더 */}
-      <div className="bg-blue-900 text-white p-4 sticky top-0 shadow-md z-10 flex items-center justify-between">
-        <div className="flex items-center">
-          <button onClick={onBack} className="mr-4 p-2 bg-blue-800 rounded-lg active:bg-blue-700">
+      <div className="bg-blue-900 text-white p-3 sm:p-4 sticky top-0 shadow-md z-10 flex items-center justify-between gap-2">
+        <div className="flex items-center min-w-0 flex-1">
+          <button onClick={onBack} className="mr-2 sm:mr-4 p-2 bg-blue-800 rounded-lg active:bg-blue-700 shrink-0">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
-          <img src="/NCOA_Logo.png" alt="NCOA Logo" className="w-10 h-10 object-contain mr-3" />
-          <div>
-            <h1 className="text-xl font-black">{schedule.date}</h1>
-            <p className="text-sm text-blue-200">{schedule.dayLabel}</p>
+          <img src="/NCOA_Logo.png" alt="NCOA Logo" className="hidden sm:block w-10 h-10 object-contain mr-3 shrink-0" />
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-xl font-black truncate">{schedule.date}</h1>
+            <p className="text-xs sm:text-sm text-blue-200 truncate">{schedule.dayLabel}</p>
           </div>
         </div>
 
         {/* 이전/다음 날짜 이동 버튼 */}
-        <div className="flex gap-2">
+        <div className="flex gap-1 sm:gap-2 shrink-0">
           <button 
             onClick={onPrev} 
             disabled={!onPrev}
@@ -181,7 +181,7 @@ export default function DailyView({
       </div>
       
       {/* 스케줄 리스트 */}
-      <div className="flex-1 p-4 space-y-3 overflow-y-auto pb-10">
+      <div className="flex-1 p-3 sm:p-4 space-y-3 overflow-y-auto app-safe-bottom">
         {/* 시간 중복 경고 메시지 */}
         {hasGlobalConflict && (
           <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-2 rounded-r-lg flex items-center gap-3">
@@ -225,9 +225,9 @@ export default function DailyView({
                       : 'bg-white border-yellow-500'
               }`}
             >
-              <div className="flex justify-between items-center">
-                <div className="flex-1 pr-2 lg:pr-4">
-                  <div className="flex items-center gap-3 mb-1">
+              <div className="flex justify-between items-start gap-2">
+                <div className="flex-1 min-w-0 pr-1 lg:pr-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-1">
                     <div className="flex items-center gap-1.5">
                       <span className={`inline-block px-2 py-0.5 text-[10px] lg:text-xs font-bold rounded ${
                         isOngoing ? 'bg-green-500 text-white animate-pulse' : 'bg-gray-100 text-gray-700'
@@ -236,12 +236,12 @@ export default function DailyView({
                       </span>
                       {isConflicting && <span className="text-sm animate-bounce" title="Time Conflict">⚠️</span>}
                     </div>
-                    <div className="flex gap-3 text-[10px] lg:text-xs font-bold text-gray-500">
-                      <span className="flex items-center gap-1">📍 LOC: <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.location}</span></span>
-                      <span className="flex items-center gap-1">👕 UNI: <span className={isPast ? 'text-gray-400' : 'text-gray-800'}>{ev.uniform}</span></span>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] lg:text-xs font-bold text-gray-500 min-w-0">
+                      <span className="flex items-center gap-1 min-w-0">📍 LOC: <span className={`${isPast ? 'text-gray-400' : 'text-gray-800'} truncate`}>{ev.location}</span></span>
+                      <span className="flex items-center gap-1 min-w-0">👕 UNI: <span className={`${isPast ? 'text-gray-400' : 'text-gray-800'} truncate`}>{ev.uniform}</span></span>
                     </div>
                   </div>
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
                     {role === 'ADMIN' && (
                       <button
                         onClick={() => onSave(schedule.date, { ...ev, highlighted: !ev.highlighted })}
@@ -253,7 +253,7 @@ export default function DailyView({
                         ★
                       </button>
                     )}
-                    <p className={`text-sm lg:text-base font-bold leading-tight ${
+                    <p className={`text-sm lg:text-base font-bold leading-tight break-words min-w-0 ${
                       ev.highlighted
                         ? 'text-red-600'
                         : isPast

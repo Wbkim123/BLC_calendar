@@ -664,16 +664,16 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-      <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="bg-blue-900 p-6 text-white">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-2 sm:p-4 z-[100] backdrop-blur-sm">
+      <div className="bg-white w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[94dvh]">
+        <div className="bg-blue-900 p-4 sm:p-6 text-white shrink-0">
           <div>
-            <h3 className="text-2xl font-black">Smart Schedule Import</h3>
+            <h3 className="text-xl sm:text-2xl font-black">Smart Schedule Import</h3>
             <p className="text-blue-200 text-sm">PDF schedule parsing</p>
           </div>
         </div>
 
-        <div className="p-4 md:p-6 overflow-y-auto space-y-6">
+        <div className="p-3 sm:p-4 md:p-6 overflow-y-auto space-y-4 sm:space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 md:p-6 rounded-2xl border-2 border-dashed border-gray-200">
             <div className="min-w-0 overflow-hidden">
               <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Cycle Number</label>
@@ -703,7 +703,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
               <textarea 
                 value={extractedText} 
                 onChange={e => setExtractedText(e.target.value)}
-                className="w-full h-[400px] bg-gray-900 text-green-400 p-4 font-mono text-xs rounded-2xl border-none focus:ring-4 focus:ring-blue-500/20 outline-none resize-none leading-relaxed"
+                className="w-full h-[240px] lg:h-[400px] bg-gray-900 text-green-400 p-4 font-mono text-xs rounded-2xl border-none focus:ring-4 focus:ring-blue-500/20 outline-none resize-none leading-relaxed"
                 placeholder="OCR text will appear here. You can also paste manually."
               />
             </div>
@@ -713,7 +713,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
                 <span>Parsing Preview</span>
                 <span className="text-blue-600">{parsedSchedules.length} Days Found</span>
               </label>
-              <div className="h-[400px] overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+              <div className="h-[240px] lg:h-[400px] overflow-y-auto space-y-3 pr-2 custom-scrollbar">
                 {parsedSchedules.map((day, idx) => (
                   <div key={idx} className="bg-white border-2 border-gray-100 rounded-2xl overflow-hidden shadow-sm">
                     <div className="bg-gray-50 px-4 py-2 border-b-2 border-gray-100 flex justify-between items-center">
@@ -754,12 +754,12 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           </div>
         </div>
 
-        <div className="p-6 bg-gray-50 flex gap-4 border-t border-gray-200">
-          <button onClick={onClose} className="flex-1 py-4 bg-white text-gray-500 font-black text-sm uppercase tracking-widest rounded-2xl border-2 border-gray-200 hover:bg-gray-100 transition-all">Cancel</button>
+        <div className="p-3 sm:p-6 bg-gray-50 flex gap-3 sm:gap-4 border-t border-gray-200 shrink-0 app-safe-bottom">
+          <button onClick={onClose} className="flex-1 py-3 sm:py-4 bg-white text-gray-500 font-black text-xs sm:text-sm uppercase tracking-wide sm:tracking-widest rounded-xl sm:rounded-2xl border-2 border-gray-200 hover:bg-gray-100 transition-all">Cancel</button>
           <button 
             onClick={handleConfirmImport}
             disabled={parsedSchedules.length === 0}
-            className={`flex-1 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl transition-all ${
+            className={`flex-1 py-3 sm:py-4 rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wide sm:tracking-widest shadow-xl transition-all ${
               parsedSchedules.length === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-900 text-white hover:bg-blue-800 active:scale-95'
             }`}
           >
