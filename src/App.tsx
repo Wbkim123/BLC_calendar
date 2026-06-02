@@ -517,6 +517,7 @@ function App() {
         onOpenImport={() => setIsImportModalOpen(true)}
         onResetSchedules={handleResetSchedules}
         onDeleteCycle={handleDeleteCycle}
+        showAdBanner={!isImportModalOpen}
       />
       {isImportModalOpen && (
         <ScheduleImportModal 

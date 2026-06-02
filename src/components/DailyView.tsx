@@ -1,6 +1,7 @@
 // src/components/DailyView.tsx
 import React, { useState } from 'react';
 import { DailySchedule, UserRole, TrainingEvent } from '../types/schedule';
+import AdMobBanner from './AdMobBanner';
 
 interface Props {
   schedule: DailySchedule;
@@ -181,7 +182,7 @@ export default function DailyView({
       </div>
       
       {/* 스케줄 리스트 */}
-      <div className="flex-1 p-3 sm:p-4 space-y-3 overflow-y-auto app-safe-bottom">
+      <div className="flex-1 p-3 sm:p-4 space-y-3 overflow-y-auto">
         {/* 시간 중복 경고 메시지 */}
         {hasGlobalConflict && (
           <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-2 rounded-r-lg flex items-center gap-3">
@@ -340,6 +341,7 @@ export default function DailyView({
           </>
         )}
       </div>
+      <AdMobBanner />
 
       {/* 수정 모달창 (editingEvent가 있을 때만 렌더링) */}
       {editingEvent && (

@@ -665,7 +665,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-2 sm:p-4 z-[100] backdrop-blur-sm">
-      <div className="bg-white w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[94dvh]">
+      <div className="bg-white w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]">
         <div className="bg-blue-900 p-4 sm:p-6 text-white shrink-0">
           <div>
             <h3 className="text-xl sm:text-2xl font-black">Smart Schedule Import</h3>
@@ -673,7 +673,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           </div>
         </div>
 
-        <div className="p-3 sm:p-4 md:p-6 overflow-y-auto space-y-4 sm:space-y-6">
+        <div className="p-3 sm:p-4 md:p-6 overflow-y-auto space-y-4 sm:space-y-6 min-h-0">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 md:p-6 rounded-2xl border-2 border-dashed border-gray-200">
             <div className="min-w-0 overflow-hidden">
               <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Cycle Number</label>
@@ -754,7 +754,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           </div>
         </div>
 
-        <div className="p-3 sm:p-6 bg-gray-50 flex gap-3 sm:gap-4 border-t border-gray-200 shrink-0 app-safe-bottom">
+        <div className="p-3 sm:p-6 bg-gray-50 flex gap-3 sm:gap-4 border-t border-gray-200 shrink-0">
           <button onClick={onClose} className="flex-1 py-3 sm:py-4 bg-white text-gray-500 font-black text-xs sm:text-sm uppercase tracking-wide sm:tracking-widest rounded-xl sm:rounded-2xl border-2 border-gray-200 hover:bg-gray-100 transition-all">Cancel</button>
           <button 
             onClick={handleConfirmImport}

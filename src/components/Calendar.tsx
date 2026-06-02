@@ -1,6 +1,7 @@
 // src/components/Calendar.tsx
 import React, { useRef, useState } from 'react';
 import { DailySchedule, UserRole } from '../types/schedule';
+import AdMobBanner from './AdMobBanner';
 
 interface Props {
   schedules: DailySchedule[];
@@ -12,6 +13,7 @@ interface Props {
   onOpenImport?: () => void;
   onResetSchedules?: () => void;
   onDeleteCycle?: (cycleName: string) => void;
+  showAdBanner?: boolean;
 }
 
 export default function Calendar({ 
@@ -23,7 +25,8 @@ export default function Calendar({
   onUpdateCycleTitle,
   onOpenImport,
   onResetSchedules,
-  onDeleteCycle
+  onDeleteCycle,
+  showAdBanner = true
 }: Props) {
   // 현재 보고 있는 달 (초기값은 오늘 날짜 기준)
   const [viewDate, setViewDate] = useState(new Date());
@@ -305,13 +308,13 @@ export default function Calendar({
         </div>
 
         {/* 하단 범례 */}
-        <div className="mt-2 lg:mt-6 p-2 lg:p-6 bg-blue-50 rounded-lg lg:rounded-2xl flex items-start gap-2 lg:gap-4 border border-blue-100 shrink-0 mb-1 lg:mb-0">
+        <div className="mt-2 lg:mt-4 p-2 lg:p-4 bg-blue-50 rounded-lg lg:rounded-2xl flex items-start gap-2 lg:gap-4 border border-blue-100 shrink-0">
           <svg className="w-5 h-5 lg:w-7 lg:h-7 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           <p className="text-[10px] lg:text-lg text-blue-700 font-medium leading-tight">
             Dates with <span className="inline-block w-2 h-2 lg:w-4 lg:h-4 bg-yellow-500 rounded-full mx-0.5" /> mark scheduled training days. Tap any highlighted date to view details.
           </p>
         </div>
-        <div className="pb-2 text-center">
+        <div className="py-2 text-center">
           <a
             href="/privacy.html"
             className="text-[10px] lg:text-xs font-bold text-gray-500 underline underline-offset-4"
@@ -319,6 +322,7 @@ export default function Calendar({
             Privacy Policy
           </a>
         </div>
+        <AdMobBanner visible={showAdBanner} />
       </div>
     </div>
   );
