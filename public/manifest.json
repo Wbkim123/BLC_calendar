@@ -1,14 +1,14 @@
 {
-  "short_name": "BLC CALENDAR",
-  "name": "BLC CALENDAR",
+  "short_name": "BLC Tracker",
+  "name": "Unofficial BLC Tracker",
   "icons": [
     {
-      "src": "NCOA_Logo.png",
+      "src": "icon.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "NCOA_Logo.png",
+      "src": "icon.png",
       "type": "image/png",
       "sizes": "512x512"
     }

@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'dev.pages.blccalendar',
-  appName: 'BLC Calendar',
+  appName: 'Unofficial BLC Tracker',
   webDir: 'build'
 };
 

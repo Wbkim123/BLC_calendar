@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">BLC Calendar</string>
-    <string name="title_activity_main">BLC Calendar</string>
+    <string name="app_name">Unofficial BLC Tracker</string>
+    <string name="title_activity_main">Unofficial BLC Tracker</string>
     <string name="package_name">dev.pages.blccalendar</string>
     <string name="custom_url_scheme">dev.pages.blccalendar</string>
 </resources>
