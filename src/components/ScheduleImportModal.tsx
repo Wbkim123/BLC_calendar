@@ -225,8 +225,14 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       cleanLine = cleanLine.replace(/\b(TIME|EVENT|LOC|UNI|CLASS|SCHEDULE)\b/gi, '').trim();
 
       // 2. Scan for all Day Markers and Time Patterns in this line
-      const dayMatches = Array.from(cleanLine.matchAll(new RegExp(dayMarkerRegex, 'g')));
       const timeMatches = Array.from(cleanLine.matchAll(timePattern));
+      const firstTimeIndex = timeMatches[0]?.index ?? Number.POSITIVE_INFINITY;
+      const dayMatches = Array.from(cleanLine.matchAll(new RegExp(dayMarkerRegex.source, 'gi')))
+        // DAY followed by a number is also valid event text, for example
+        // "TM - LEADER STAKES DAY 1 (CRAWL)". A real calendar marker appears
+        // before the first time range on a line; anything after it belongs to
+        // the event description and must not advance the current date.
+        .filter(match => (match.index ?? 0) < firstTimeIndex);
 
       if (dayMatches.length === 0 && timeMatches.length === 0) {
         if (/^NOTES?\s*[:-]?/i.test(cleanLine)) {
