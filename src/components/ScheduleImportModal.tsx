@@ -477,25 +477,15 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
         .sort((a, b) => b - a);
       const labelColumnLefts = new Map<PdfDayLabel, number>();
 
-      labelRows.forEach(labelRowY => {
-        const rowLabels = labels
-          .filter(label => Math.abs(Math.round(label.y * 10) / 10 - labelRowY) < 0.2)
-          .sort((a, b) => a.x - b.x);
-        const rowHeaderXs = Array.from(new Set(
-          items
-            .filter(item => /^TIME$/i.test(item.str) && item.y < labelRowY && labelRowY - item.y < 20)
-            .map(item => Math.round(item.x * 10) / 10)
-        )).sort((a, b) => a - b);
-
-        const labelsWithSchedules =
-          rowLabels.length === rowHeaderXs.length + 1 && /^FEDERAL\s+HOLIDAY/i.test(rowLabels[0].text)
-            ? rowLabels.slice(1)
-            : rowLabels;
-
-        labelsWithSchedules.forEach((label, index) => {
-          const headerX = rowHeaderXs[index];
-          if (headerX != null) labelColumnLefts.set(label, headerX - 16);
-        });
+      // Some schedule cells (especially the Saturday cells in 08-26) omit the
+      // TIME/EVENT header even though they contain events. Map labels against
+      // the page-wide column grid instead of requiring a TIME header in the
+      // same row. A day label is right-aligned inside its schedule column.
+      labels.forEach(label => {
+        const headerX = [...timeHeaderXs]
+          .reverse()
+          .find(x => x <= label.x && label.x - x < columnWidth);
+        if (headerX != null) labelColumnLefts.set(label, headerX - 16);
       });
 
       const pageLines: string[] = [];
@@ -680,7 +670,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
               <input type="text" value={cycleName} onChange={e => setCycleName(e.target.value)} placeholder="00-00" className="schedule-import-control bg-white border-2 border-gray-100 rounded-xl p-3 font-bold text-blue-900 placeholder:text-gray-300 focus:border-blue-500 outline-none transition-all" />
             </div>
             <div className="min-w-0 overflow-hidden">
-              <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Start Date (PICK-UP)</label>
+              <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">First Schedule Date (PICK-UP / DAY 0)</label>
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="schedule-import-control schedule-import-date bg-white border-2 border-gray-100 rounded-xl p-3 font-bold focus:border-blue-500 outline-none transition-all" />
             </div>
             <div className="flex items-end min-w-0 overflow-hidden">
