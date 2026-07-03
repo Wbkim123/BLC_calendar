@@ -16,6 +16,18 @@ interface Props {
   showAdBanner?: boolean;
 }
 
+const hasScheduleConflict = (schedule: DailySchedule) => {
+  const sortedEvents = [...(schedule.events || [])].sort((a, b) => a.time.localeCompare(b.time));
+
+  return sortedEvents.some((event, index) => {
+    if (index === 0) return false;
+
+    const previousEnd = parseInt(sortedEvents[index - 1].time.split('-')[1]);
+    const currentStart = parseInt(event.time.split('-')[0]);
+    return currentStart < previousEnd;
+  });
+};
+
 export default function Calendar({ 
   schedules, 
   onSelectDate, 
@@ -280,15 +292,19 @@ export default function Calendar({
               
               const schedule = isScheduled(day);
               const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+              const hasConflict = schedule ? hasScheduleConflict(schedule) : false;
 
               return (
                 <button
                   key={day}
                   onClick={() => schedule && onSelectDate(schedule.date)}
                   disabled={!schedule}
+                  title={hasConflict ? 'Conflict detected: Overlapping schedule.' : undefined}
                   className={`aspect-square lg:aspect-auto lg:h-full rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all border-2 ${
-                    schedule 
-                      ? 'bg-blue-50 text-blue-900 font-bold border-blue-100 active:scale-95 hover:bg-blue-100 shadow-sm' 
+                    hasConflict
+                      ? 'bg-red-50 text-red-900 font-bold border-red-400 active:scale-95 hover:bg-red-100 shadow-sm'
+                      : schedule 
+                      ? 'bg-blue-50 text-blue-900 font-bold border-blue-100 active:scale-95 hover:bg-blue-100 shadow-sm'
                       : 'text-gray-300 pointer-events-none border-transparent'
                   } ${isToday ? 'ring-2 lg:ring-4 ring-blue-900 ring-offset-1' : ''}`}
                 >
@@ -299,7 +315,16 @@ export default function Calendar({
                     </span>
                   )}
                   {schedule && (
-                    <div className="absolute top-1 right-1 lg:top-3 lg:right-3 w-1.5 h-1.5 lg:w-3 lg:h-3 bg-yellow-500 rounded-full shadow-sm" />
+                    hasConflict ? (
+                      <div
+                        className="absolute top-0.5 right-0.5 lg:top-2 lg:right-2 w-4 h-4 lg:w-7 lg:h-7 bg-red-600 text-white rounded-full shadow-sm flex items-center justify-center text-[10px] lg:text-base font-black"
+                        aria-label="Schedule conflict"
+                      >
+                        !
+                      </div>
+                    ) : (
+                      <div className="absolute top-1 right-1 lg:top-3 lg:right-3 w-1.5 h-1.5 lg:w-3 lg:h-3 bg-yellow-500 rounded-full shadow-sm" />
+                    )
                   )}
                 </button>
               );
@@ -311,7 +336,7 @@ export default function Calendar({
         <div className="mt-2 lg:mt-4 p-2 lg:p-4 bg-blue-50 rounded-lg lg:rounded-2xl flex items-start gap-2 lg:gap-4 border border-blue-100 shrink-0">
           <svg className="w-5 h-5 lg:w-7 lg:h-7 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           <p className="text-[10px] lg:text-lg text-blue-700 font-medium leading-tight">
-            Dates with <span className="inline-block w-2 h-2 lg:w-4 lg:h-4 bg-yellow-500 rounded-full mx-0.5" /> mark scheduled training days. Tap any highlighted date to view details.
+            Dates with <span className="inline-block w-2 h-2 lg:w-4 lg:h-4 bg-yellow-500 rounded-full mx-0.5" /> mark scheduled training days. A <span className="inline-flex w-3.5 h-3.5 lg:w-6 lg:h-6 bg-red-600 text-white rounded-full mx-0.5 items-center justify-center text-[9px] lg:text-sm font-black align-middle">!</span> indicates overlapping events. Tap a highlighted date to view details.
           </p>
         </div>
         <div className="py-2 text-center">

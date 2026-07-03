@@ -313,7 +313,10 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           let foundLoc = "";
           let foundUni = "";
           const sortedUnis = [...uniforms].sort((a,b) => b.length - a.length);
-          const sortedLocs = [...locations].sort((a,b) => b.length - a.length);
+          // RNG is a schedule location used for range events. Keep it as an
+          // import fallback so parsing does not depend on the locations list
+          // having finished syncing before a file is processed.
+          const sortedLocs = Array.from(new Set([...locations, 'RNG'])).sort((a,b) => b.length - a.length);
 
           // Reverse matching
           for (const uni of sortedUnis) {
