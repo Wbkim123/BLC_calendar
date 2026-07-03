@@ -212,7 +212,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     };
 
     // More aggressive Regex: allow noise, common OCR artifacts, and wide spacing
-    const dayMarkerRegex = /\b(PICK\s*-\s*UP\s*DAY|DAY\s*[#\- ]?\s*(\d{1,2})|FEDERAL\s+HOLIDAY(?:\s*-\s*[A-Z\s]+)?)\b/i;
+    const dayMarkerRegex = /^(?:\d{1,2}\s+[A-Z]{3}\s+)?(PICK\s*-\s*UP\s*DAY|DAY\s*[#\- ]?\s*(\d{1,2})|FEDERAL\s+HOLIDAY(?:\s*-\s*[A-Z\s]+)?)\b/i;
     // Flexible time: handle spaces around dash, O instead of 0, etc.
     const timePattern = /([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})\s*[-–—~_ ]+\s*([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})/g;
 
