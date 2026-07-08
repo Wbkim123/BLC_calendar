@@ -77,7 +77,7 @@ export default function NotificationPrompt({ role, cycleName }: Props) {
           : 'bg-blue-700 text-white hover:bg-blue-600'
       }`}
     >
-      {busy ? 'UPDATING...' : status === 'granted' ? 'SCHEDULE NOTIFICATIONS ON' : 'ENABLE SCHEDULE NOTIFICATIONS'}
+      {busy ? 'UPDATING...' : status === 'granted' ? 'TURN OFF SCHEDULE NOTIFICATIONS' : 'ENABLE SCHEDULE NOTIFICATIONS'}
     </button>
   );
 }

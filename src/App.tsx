@@ -27,6 +27,27 @@ type SavedLogin = {
   role?: UserRole;
 };
 
+type NotificationFocus = {
+  date: string;
+  targetId: string;
+  changeType: string;
+  changedFields: string[];
+};
+
+const getNotificationFocusFromUrl = (): NotificationFocus | null => {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const date = params.get('date');
+  const targetId = params.get('highlight');
+  if (!date || !targetId) return null;
+  return {
+    date,
+    targetId,
+    changeType: params.get('change') || 'Schedule updated',
+    changedFields: (params.get('fields') || '').split(',').filter(Boolean)
+  };
+};
+
 const getLocalTodayString = () => {
   const today = new Date();
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -81,6 +102,7 @@ function App() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [pendingNotification, setPendingNotification] = useState<PendingScheduleNotification | null>(null);
+  const [notificationFocus, setNotificationFocus] = useState<NotificationFocus | null>(getNotificationFocusFromUrl);
   const hasAutoSelectedTodayRef = useRef(false);
 
   useEffect(() => {
@@ -90,6 +112,36 @@ function App() {
     }).catch(console.error);
     return () => unsubscribe?.();
   }, []);
+
+  useEffect(() => {
+    const handleForegroundNotification = (event: Event) => {
+      const detail = (event as CustomEvent<NotificationFocus>).detail;
+      if (!detail?.date || !detail.targetId) return;
+      const availableSchedules = role === 'STUDENT'
+        ? schedules.filter(schedule => schedule.cycleName === studentCycleName)
+        : schedules;
+      if (!availableSchedules.some(schedule => schedule.date === detail.date)) return;
+
+      hasAutoSelectedTodayRef.current = true;
+      setSelectedDateId(detail.date);
+      setNotificationFocus(null);
+      window.setTimeout(() => setNotificationFocus(detail), 0);
+    };
+
+    window.addEventListener('blc-schedule-notification', handleForegroundNotification);
+    return () => window.removeEventListener('blc-schedule-notification', handleForegroundNotification);
+  }, [role, schedules, studentCycleName]);
+
+  useEffect(() => {
+    if (!notificationFocus || selectedDateId !== notificationFocus.date) return;
+    const clearTimer = window.setTimeout(() => {
+      setNotificationFocus(null);
+      const url = new URL(window.location.href);
+      ['highlight', 'change', 'fields'].forEach(key => url.searchParams.delete(key));
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    }, 4500);
+    return () => window.clearTimeout(clearTimer);
+  }, [notificationFocus, selectedDateId]);
 
   // 1. Firebase에서 실시간 데이터 불러오기
   useEffect(() => {
@@ -264,13 +316,19 @@ function App() {
     }
   };
 
-  const queueScheduleNotification = (dateStr: string, changeType: string, targetId: string) => {
+  const queueScheduleNotification = (
+    dateStr: string,
+    changeType: string,
+    targetId: string,
+    changedFields: string[] = []
+  ) => {
     const changedDay = schedules.find(day => day.date === dateStr);
     setPendingNotification({
       date: dateStr,
       cycleName: changedDay?.cycleName || null,
       changeType,
-      targetId
+      targetId,
+      changedFields
     });
   };
 
@@ -281,10 +339,18 @@ function App() {
       const currentEvents = schedules[dayIndex].events || [];
       const eventIndex = currentEvents.findIndex(ev => ev.id === updatedEvent.id);
       if (eventIndex !== -1) {
+        const originalEvent = currentEvents[eventIndex];
+        const changedFields = (['time', 'eventName', 'location', 'uniform', 'highlighted'] as const)
+          .filter(field => originalEvent[field] !== updatedEvent[field]);
         const updates: any = {};
         updates[`/schedules/${dayIndex}/events/${eventIndex}`] = updatedEvent;
         update(ref(db), updates)
-          .then(() => queueScheduleNotification(dateStr, 'Event updated', `event:${updatedEvent.id}`))
+          .then(() => queueScheduleNotification(
+            dateStr,
+            'Event updated',
+            `event:${updatedEvent.id}`,
+            changedFields
+          ))
           .catch(err => {
             alert("Failed to save changes: " + err.message);
           });
@@ -298,7 +364,7 @@ function App() {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/notes`] = notes.trim();
       update(ref(db), updates)
-        .then(() => queueScheduleNotification(dateStr, 'Notes updated', 'notes'))
+        .then(() => queueScheduleNotification(dateStr, 'Notes updated', 'notes', ['notes']))
         .catch(err => {
           alert("Failed to save notes: " + err.message);
         });
@@ -311,7 +377,7 @@ function App() {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/notesHighlighted`] = !schedules[dayIndex].notesHighlighted;
       update(ref(db), updates)
-        .then(() => queueScheduleNotification(dateStr, 'Notes highlight changed', 'notes'))
+        .then(() => queueScheduleNotification(dateStr, 'Notes highlight changed', 'notes', ['highlighted']))
         .catch(err => {
           alert("Failed to highlight notes: " + err.message);
         });
@@ -594,8 +660,9 @@ function App() {
         onAddUniform={addUniform}
         onPrev={handlePrev}
         onNext={handleNext}
-        notificationHighlightTarget={new URLSearchParams(window.location.search).get('highlight')}
-        notificationChangeType={new URLSearchParams(window.location.search).get('change')}
+        notificationHighlightTarget={notificationFocus?.targetId || null}
+        notificationChangeType={notificationFocus?.changeType || null}
+        notificationChangedFields={notificationFocus?.changedFields || []}
       />
       {pendingNotification && (
         <ScheduleNotificationModal

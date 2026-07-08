@@ -27,6 +27,7 @@ export async function sendScheduleNotification(details: {
   cycleName?: string | null;
   changeType: string;
   targetId: string;
+  changedFields: string[];
   recipients: NotificationRecipients;
 }) {
   await httpsCallable(functions, 'sendScheduleNotification')(details);
@@ -106,6 +107,14 @@ export async function listenForForegroundNotifications() {
   if (!(await isSupported())) return () => undefined;
   return onMessage(getMessaging(app), payload => {
     if (Notification.permission !== 'granted') return;
+    const notificationDetail = {
+      date: payload.data?.date || '',
+      targetId: payload.data?.targetId || '',
+      changeType: payload.data?.changeType || '',
+      changedFields: (payload.data?.changedFields || '').split(',').filter(Boolean)
+    };
+    window.dispatchEvent(new CustomEvent('blc-schedule-notification', { detail: notificationDetail }));
+
     const title = payload.notification?.title || 'BLC Schedule Updated';
     const notification = new Notification(title, {
       body: payload.notification?.body || 'A schedule was updated.',
@@ -115,10 +124,12 @@ export async function listenForForegroundNotifications() {
       const date = payload.data?.date;
       const targetId = payload.data?.targetId;
       const changeType = payload.data?.changeType;
+      const changedFields = payload.data?.changedFields;
       const params = new URLSearchParams();
       if (date) params.set('date', date);
       if (targetId) params.set('highlight', targetId);
       if (changeType) params.set('change', changeType);
+      if (changedFields) params.set('fields', changedFields);
       window.location.href = params.size > 0 ? `/?${params.toString()}` : '/';
     };
   });

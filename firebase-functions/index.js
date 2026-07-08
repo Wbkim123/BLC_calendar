@@ -98,6 +98,11 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
   const safeCycle = sanitizeCycleName(cycleName);
   const changeType = requireText(request.data?.changeType, 'change type', 40);
   const targetId = requireText(request.data?.targetId, 'target ID', 100);
+  const changedFields = Array.isArray(request.data?.changedFields)
+    ? request.data.changedFields
+        .filter(field => typeof field === 'string' && /^[a-zA-Z]+$/.test(field))
+        .slice(0, 10)
+    : [];
   const recipients = request.data?.recipients || {};
   const topics = ['audience-admin'];
 
@@ -118,13 +123,15 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
     date,
     cycleName,
     changeType,
-    targetId
+    targetId,
+    changedFields: changedFields.join(',')
   };
 
   const linkParams = new URLSearchParams({
     date,
     highlight: targetId,
-    change: changeType
+    change: changeType,
+    fields: changedFields.join(',')
   });
 
   const messageIds = await Promise.all(topics.map(topic => getMessaging().send({

@@ -6,6 +6,7 @@ export type PendingScheduleNotification = {
   cycleName?: string | null;
   changeType: string;
   targetId: string;
+  changedFields: string[];
 };
 
 interface Props {

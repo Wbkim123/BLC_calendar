@@ -21,6 +21,7 @@ interface Props {
   onNext?: () => void;
   notificationHighlightTarget?: string | null;
   notificationChangeType?: string | null;
+  notificationChangedFields?: string[];
 }
 
 export default function DailyView({ 
@@ -39,7 +40,8 @@ export default function DailyView({
   onPrev,
   onNext,
   notificationHighlightTarget,
-  notificationChangeType
+  notificationChangeType,
+  notificationChangedFields = []
 }: Props) {
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
@@ -196,7 +198,9 @@ export default function DailyView({
       </div>
       
       {/* 스케줄 리스트 */}
-      <div className="daily-content flex-1 p-3 sm:p-4 space-y-3 overflow-y-auto">
+      <div className={`daily-content flex-1 p-3 sm:p-4 space-y-3 overflow-y-auto ${
+        role === 'ADMIN' ? 'daily-content-admin' : ''
+      }`}>
         {notificationChangeType && (
           <div
             ref={notificationHighlightTarget === 'day' ? highlightedTargetRef : undefined}
@@ -222,6 +226,15 @@ export default function DailyView({
           role={role}
           cycleName={role === 'STUDENT' ? schedule.cycleName : null}
         />
+
+        {notificationHighlightTarget === 'notes' && !schedule.notes && (
+          <div
+            ref={highlightedTargetRef}
+            className="notification-change-highlight rounded-xl border-2 border-blue-400 bg-blue-50 p-3 text-sm font-black text-blue-900"
+          >
+            NOTES changed: no notes for this day.
+          </div>
+        )}
 
         <div className="daily-main-layout space-y-3 lg:space-y-0">
         <div className="daily-events-grid space-y-3">
@@ -267,7 +280,7 @@ export default function DailyView({
                     <div className="flex items-center gap-1.5">
                       <span className={`inline-block px-2 py-0.5 text-[10px] lg:text-xs font-bold rounded ${
                         isOngoing ? 'bg-green-500 text-white animate-pulse' : 'bg-gray-100 text-gray-700'
-                      }`}>
+                      } ${notificationHighlightTarget === `event:${ev.id}` && notificationChangedFields.includes('time') ? 'notification-field-highlight' : ''}`}>
                         {ev.time}
                       </span>
                       {isConflicting && <span className="text-sm animate-bounce" title="Time Conflict">⚠️</span>}
@@ -277,13 +290,23 @@ export default function DailyView({
                       <span className="flex items-center gap-1 min-w-0">👕 UNI: <span className={`${isPast ? 'text-gray-400' : 'text-gray-800'} truncate`}>{ev.uniform}</span></span>
                     </div>
                   </div>
+                  {notificationHighlightTarget === `event:${ev.id}` && (
+                    <div className="mb-1 flex flex-wrap gap-2 text-[10px] font-black">
+                      {notificationChangedFields.includes('location') && (
+                        <span className="notification-field-highlight px-1.5 py-0.5">LOC changed: {ev.location}</span>
+                      )}
+                      {notificationChangedFields.includes('uniform') && (
+                        <span className="notification-field-highlight px-1.5 py-0.5">UNI changed: {ev.uniform}</span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-start gap-2 min-w-0">
                     {role === 'ADMIN' && (
                       <button
                         onClick={() => onSave(schedule.date, { ...ev, highlighted: !ev.highlighted })}
                         className={`mt-[-1px] text-lg leading-none transition-colors ${
                           ev.highlighted ? 'text-red-500 hover:text-red-600' : 'text-gray-300 hover:text-gray-400'
-                        }`}
+                        } ${notificationHighlightTarget === `event:${ev.id}` && notificationChangedFields.includes('highlighted') ? 'notification-field-highlight' : ''}`}
                         title={ev.highlighted ? "Remove highlight" : "Highlight event"}
                       >
                         ★
@@ -295,7 +318,7 @@ export default function DailyView({
                         : isPast
                           ? 'text-gray-500 line-through'
                           : 'text-gray-900'
-                    }`}>
+                    } ${notificationHighlightTarget === `event:${ev.id}` && notificationChangedFields.includes('eventName') ? 'notification-field-highlight' : ''}`}>
                       {ev.eventName}
                     </p>
                   </div>
@@ -338,7 +361,7 @@ export default function DailyView({
                     onClick={() => onToggleNotesHighlight(schedule.date)}
                     className={`text-lg leading-none transition-colors ${
                       schedule.notesHighlighted ? 'text-red-500' : 'text-blue-200 hover:text-red-400'
-                    }`}
+                    } ${notificationHighlightTarget === 'notes' && notificationChangedFields.includes('highlighted') ? 'notification-field-highlight' : ''}`}
                     title={schedule.notesHighlighted ? "Remove notes highlight" : "Highlight notes"}
                   >
                     ★
@@ -357,9 +380,14 @@ export default function DailyView({
                 </button>
               )}
             </div>
+            {notificationHighlightTarget === 'notes' && notificationChangedFields.includes('highlighted') && (
+              <span className="notification-field-highlight mb-2 inline-block px-1.5 py-0.5 text-[10px] font-black">
+                NOTES highlight changed
+              </span>
+            )}
             <p className={`text-sm font-semibold leading-relaxed whitespace-pre-wrap ${
               schedule.notesHighlighted ? 'text-red-700' : 'text-gray-700'
-            }`}>{schedule.notes}</p>
+            } ${notificationHighlightTarget === 'notes' && notificationChangedFields.includes('notes') ? 'notification-field-highlight p-1' : ''}`}>{schedule.notes}</p>
           </div>
         )}
         </div>
