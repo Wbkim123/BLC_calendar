@@ -1,4 +1,4 @@
-import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging';
+import { deleteToken, getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { signInWithCustomToken } from 'firebase/auth';
 import { app, auth } from './firebase';
@@ -6,6 +6,7 @@ import { UserRole } from './types/schedule';
 
 const PUSH_TOKEN_KEY = 'blc_push_token';
 const PUSH_TOPIC_KEY = 'blc_push_topic';
+const PUSH_DISABLED_KEY = 'blc_push_disabled';
 const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY
   || 'BHhrU-r2LR0CQuEHSoy4qzLXmFJRGV_35MJANS-pQfExxsnGRNFNWQO5vnUl2YtcejkyeDBc-2_pgKmDaWnjklc';
 const functions = getFunctions(app, 'us-central1');
@@ -39,6 +40,7 @@ export type NotificationAvailability =
   | 'unsupported'
   | 'needs-install'
   | 'prompt'
+  | 'disabled'
   | 'granted'
   | 'denied';
 
@@ -53,6 +55,7 @@ export async function getNotificationAvailability(): Promise<NotificationAvailab
     return 'unsupported';
   }
   if (isIos() && !isStandalone()) return 'needs-install';
+  if (window.localStorage.getItem(PUSH_DISABLED_KEY) === 'true') return 'disabled';
   if (Notification.permission === 'granted') return 'granted';
   if (Notification.permission === 'denied') return 'denied';
   return 'prompt';
@@ -88,6 +91,7 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
   } else {
     window.localStorage.removeItem(PUSH_TOPIC_KEY);
   }
+  window.localStorage.removeItem(PUSH_DISABLED_KEY);
 }
 
 export async function syncNotificationSubscription(role: UserRole, cycleName?: string | null) {
@@ -95,12 +99,25 @@ export async function syncNotificationSubscription(role: UserRole, cycleName?: s
   await enableNotifications(role, cycleName);
 }
 
-export async function disableNotifications() {
-  const token = window.localStorage.getItem(PUSH_TOKEN_KEY);
+export async function disableNotifications(role?: UserRole, cycleName?: string | null) {
+  let token = window.localStorage.getItem(PUSH_TOKEN_KEY);
   const topic = window.localStorage.getItem(PUSH_TOPIC_KEY);
-  if (token) await httpsCallable(functions, 'unregisterPushToken')({ token, topic });
+  if (!token && Notification.permission === 'granted') {
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    token = await getToken(getMessaging(app), {
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: registration
+    });
+  }
+  if (token) {
+    await httpsCallable(functions, 'unregisterPushToken')({ token, topic, role, cycleName });
+    await deleteToken(getMessaging(app)).catch(error => {
+      console.error('Failed to delete the local FCM token:', error);
+    });
+  }
   window.localStorage.removeItem(PUSH_TOKEN_KEY);
   window.localStorage.removeItem(PUSH_TOPIC_KEY);
+  window.localStorage.setItem(PUSH_DISABLED_KEY, 'true');
 }
 
 export async function listenForForegroundNotifications() {

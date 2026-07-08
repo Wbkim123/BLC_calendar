@@ -77,8 +77,14 @@ exports.unregisterPushToken = onCall({ region: 'us-central1' }, async request =>
   const topic = request.data?.topic;
   const topics = [LEGACY_PUSH_TOPIC];
   if (isValidAudienceTopic(topic)) topics.push(topic);
+  if (request.data?.role === 'VIEWER') topics.push('audience-sgl');
+  if (request.data?.role === 'ADMIN') topics.push('audience-admin');
+  if (request.data?.role === 'STUDENT') {
+    const safeCycle = sanitizeCycleName(request.data?.cycleName);
+    if (safeCycle) topics.push(`cycle-${safeCycle}`);
+  }
 
-  await Promise.all(topics.map(item => getMessaging().unsubscribeFromTopic(token, item)));
+  await Promise.all([...new Set(topics)].map(item => getMessaging().unsubscribeFromTopic(token, item)));
   return { subscribed: false, topic: null };
 });
 

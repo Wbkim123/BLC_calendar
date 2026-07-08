@@ -462,7 +462,7 @@ function App() {
   };
   const handleLogout = async () => {
     try {
-      await disableNotifications();
+      await disableNotifications(role, studentCycleName);
     } catch (error) {
       console.error('Failed to unsubscribe from schedule notifications:', error);
     }

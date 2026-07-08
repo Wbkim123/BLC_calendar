@@ -43,8 +43,10 @@ export default function NotificationPrompt({ role, cycleName }: Props) {
   const handleDisable = async () => {
     setBusy(true);
     try {
-      await disableNotifications();
-      setStatus(Notification.permission === 'denied' ? 'denied' : 'prompt');
+      await disableNotifications(role, cycleName);
+      setStatus('disabled');
+    } catch (error) {
+      console.error('Failed to disable notifications:', error);
     } finally {
       setBusy(false);
     }
