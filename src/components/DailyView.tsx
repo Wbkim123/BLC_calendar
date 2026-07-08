@@ -1,7 +1,8 @@
 // src/components/DailyView.tsx
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { DailySchedule, UserRole, TrainingEvent } from '../types/schedule';
 import AdMobBanner from './AdMobBanner';
+import NotificationPrompt from './NotificationPrompt';
 
 interface Props {
   schedule: DailySchedule;
@@ -18,6 +19,8 @@ interface Props {
   onAddUniform: (uni: string) => void;
   onPrev?: () => void;
   onNext?: () => void;
+  notificationHighlightTarget?: string | null;
+  notificationChangeType?: string | null;
 }
 
 export default function DailyView({ 
@@ -34,11 +37,22 @@ export default function DailyView({
   onAddLocation, 
   onAddUniform,
   onPrev,
-  onNext 
+  onNext,
+  notificationHighlightTarget,
+  notificationChangeType
 }: Props) {
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const highlightedTargetRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!notificationHighlightTarget) return;
+    const scrollTimer = window.setTimeout(() => {
+      highlightedTargetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 250);
+    return () => window.clearTimeout(scrollTimer);
+  }, [notificationHighlightTarget]);
 
   // --- 스와이프 기능 구현 ---
   const [touchStart, setTouchStart] = useState<{ x: number, y: number } | null>(null);
@@ -183,6 +197,17 @@ export default function DailyView({
       
       {/* 스케줄 리스트 */}
       <div className="daily-content flex-1 p-3 sm:p-4 space-y-3 overflow-y-auto">
+        {notificationChangeType && (
+          <div
+            ref={notificationHighlightTarget === 'day' ? highlightedTargetRef : undefined}
+            className={`rounded-xl border-2 border-blue-500 bg-blue-50 px-4 py-3 text-sm font-black text-blue-900 shadow-sm ${
+            notificationHighlightTarget === 'day' ? 'notification-change-highlight' : ''
+          }`}
+          >
+            Updated: {notificationChangeType}
+          </div>
+        )}
+
         {/* 시간 중복 경고 메시지 */}
         {hasGlobalConflict && (
           <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-2 rounded-r-lg flex items-center gap-3">
@@ -192,6 +217,11 @@ export default function DailyView({
             </p>
           </div>
         )}
+
+        <NotificationPrompt
+          role={role}
+          cycleName={role === 'STUDENT' ? schedule.cycleName : null}
+        />
 
         <div className="daily-main-layout space-y-3 lg:space-y-0">
         <div className="daily-events-grid space-y-3">
@@ -218,7 +248,10 @@ export default function DailyView({
           return (
             <div 
               key={ev.id} 
+              ref={notificationHighlightTarget === `event:${ev.id}` ? highlightedTargetRef : undefined}
               className={`daily-event-card py-2 px-3 lg:py-3 lg:px-4 rounded-xl shadow-sm border-l-4 transition-colors relative ${
+                notificationHighlightTarget === `event:${ev.id}` ? 'notification-change-highlight ' : ''
+              }${
                 isPast 
                   ? 'bg-gray-200 border-gray-400 opacity-60' 
                   : isOngoing 
@@ -288,11 +321,16 @@ export default function DailyView({
 
         {/* 새 일정 추가 버튼 박스 (관리자 전용) */}
         {schedule.notes && (
-          <div className={`daily-notes-panel p-4 rounded-r-lg shadow-sm border-l-4 ${
+          <div
+            ref={notificationHighlightTarget === 'notes' ? highlightedTargetRef : undefined}
+            className={`daily-notes-panel p-4 rounded-r-lg shadow-sm border-l-4 ${
+            notificationHighlightTarget === 'notes' ? 'notification-change-highlight ' : ''
+          }${
             schedule.notesHighlighted
               ? 'bg-red-50 border-red-500 ring-2 ring-red-100'
               : 'bg-blue-50 border-blue-500'
-          }`}>
+          }`}
+          >
             <div className="flex items-center justify-between gap-3 mb-1">
               <div className="flex items-center gap-2">
                 {role === 'ADMIN' && (

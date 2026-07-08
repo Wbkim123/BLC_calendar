@@ -5,6 +5,7 @@ export type PendingScheduleNotification = {
   date: string;
   cycleName?: string | null;
   changeType: string;
+  targetId: string;
 };
 
 interface Props {
@@ -19,11 +20,6 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
   const [error, setError] = useState('');
 
   const handleSend = async () => {
-    if (!sendToSgl && !sendToStudents) {
-      setError('Select at least one recipient, or choose Skip Notification.');
-      return;
-    }
-
     setSending(true);
     setError('');
     try {
@@ -40,6 +36,23 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
     }
   };
 
+  const handleSkip = async () => {
+    setSending(true);
+    setError('');
+    try {
+      await sendScheduleNotification({
+        ...change,
+        recipients: { sgl: false, students: false }
+      });
+      onClose();
+    } catch (sendError) {
+      console.error('Failed to notify schedule managers:', sendError);
+      setError('The schedule was saved, but managers could not be notified.');
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -49,6 +62,10 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
         </div>
 
         <div className="space-y-3 p-5">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-bold text-blue-900">
+            Schedule managers (2002) are always notified.
+          </div>
+
           <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-200 p-3">
             <input
               type="checkbox"
@@ -80,10 +97,10 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
           <button
             type="button"
             disabled={sending}
-            onClick={onClose}
+            onClick={handleSkip}
             className="flex-1 rounded-xl bg-gray-200 py-3 font-bold text-gray-700 disabled:opacity-50"
           >
-            Skip Notification
+            Skip SGL / Students
           </button>
           <button
             type="button"

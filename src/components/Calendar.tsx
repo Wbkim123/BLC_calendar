@@ -2,6 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { DailySchedule, UserRole } from '../types/schedule';
 import AdMobBanner from './AdMobBanner';
+import NotificationPrompt from './NotificationPrompt';
 
 interface Props {
   schedules: DailySchedule[];
@@ -338,6 +339,12 @@ export default function Calendar({
           <p className="text-[10px] lg:text-lg text-blue-700 font-medium leading-tight">
             Dates with <span className="inline-block w-2 h-2 lg:w-4 lg:h-4 bg-yellow-500 rounded-full mx-0.5" /> mark scheduled training days. A <span className="inline-flex w-3.5 h-3.5 lg:w-6 lg:h-6 bg-red-600 text-white rounded-full mx-0.5 items-center justify-center text-[9px] lg:text-sm font-black align-middle">!</span> indicates overlapping events. Tap a highlighted date to view details.
           </p>
+        </div>
+        <div className="mt-2 shrink-0">
+          <NotificationPrompt
+            role={role || null}
+            cycleName={role === 'STUDENT' ? schedules[0]?.cycleName : null}
+          />
         </div>
         <div className="py-2 text-center">
           <a

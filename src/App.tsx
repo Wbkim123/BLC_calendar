@@ -4,7 +4,6 @@ import Login from './components/Login';
 import Calendar from './components/Calendar';
 import DailyView from './components/DailyView';
 import ScheduleImportModal from './components/ScheduleImportModal';
-import NotificationPrompt from './components/NotificationPrompt';
 import ScheduleNotificationModal, { PendingScheduleNotification } from './components/ScheduleNotificationModal';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
 import { mockSchedules } from './data/mockData';
@@ -265,12 +264,13 @@ function App() {
     }
   };
 
-  const queueScheduleNotification = (dateStr: string, changeType: string) => {
+  const queueScheduleNotification = (dateStr: string, changeType: string, targetId: string) => {
     const changedDay = schedules.find(day => day.date === dateStr);
     setPendingNotification({
       date: dateStr,
       cycleName: changedDay?.cycleName || null,
-      changeType
+      changeType,
+      targetId
     });
   };
 
@@ -284,7 +284,7 @@ function App() {
         const updates: any = {};
         updates[`/schedules/${dayIndex}/events/${eventIndex}`] = updatedEvent;
         update(ref(db), updates)
-          .then(() => queueScheduleNotification(dateStr, 'Event updated'))
+          .then(() => queueScheduleNotification(dateStr, 'Event updated', `event:${updatedEvent.id}`))
           .catch(err => {
             alert("Failed to save changes: " + err.message);
           });
@@ -298,7 +298,7 @@ function App() {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/notes`] = notes.trim();
       update(ref(db), updates)
-        .then(() => queueScheduleNotification(dateStr, 'Notes updated'))
+        .then(() => queueScheduleNotification(dateStr, 'Notes updated', 'notes'))
         .catch(err => {
           alert("Failed to save notes: " + err.message);
         });
@@ -311,7 +311,7 @@ function App() {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/notesHighlighted`] = !schedules[dayIndex].notesHighlighted;
       update(ref(db), updates)
-        .then(() => queueScheduleNotification(dateStr, 'Notes highlight changed'))
+        .then(() => queueScheduleNotification(dateStr, 'Notes highlight changed', 'notes'))
         .catch(err => {
           alert("Failed to highlight notes: " + err.message);
         });
@@ -326,7 +326,7 @@ function App() {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/events`] = [...currentEvents, newEvent];
       update(ref(db), updates)
-        .then(() => queueScheduleNotification(dateStr, 'Event added'))
+        .then(() => queueScheduleNotification(dateStr, 'Event added', `event:${newEvent.id}`))
         .catch(err => {
           alert("Failed to add event: " + err.message);
         });
@@ -342,7 +342,7 @@ function App() {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/events`] = updatedEvents;
       update(ref(db), updates)
-        .then(() => queueScheduleNotification(dateStr, 'Event deleted'))
+        .then(() => queueScheduleNotification(dateStr, 'Event deleted', 'day'))
         .catch(err => {
           alert("Failed to delete event: " + err.message);
         });
@@ -454,6 +454,17 @@ function App() {
   useEffect(() => {
     if (!role || selectedDateId || schedules.length === 0 || hasAutoSelectedTodayRef.current) return;
 
+    const linkedDate = new URLSearchParams(window.location.search).get('date');
+    const availableSchedules = role === 'STUDENT'
+      ? schedules.filter(schedule => schedule.cycleName === studentCycleName)
+      : schedules;
+
+    if (linkedDate && availableSchedules.some(schedule => schedule.date === linkedDate)) {
+      hasAutoSelectedTodayRef.current = true;
+      setSelectedDateId(linkedDate);
+      return;
+    }
+
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
@@ -461,7 +472,7 @@ function App() {
       hasAutoSelectedTodayRef.current = true;
       setSelectedDateId(todayStr);
     }
-  }, [role, schedules, selectedDateId]);
+  }, [role, schedules, selectedDateId, studentCycleName]);
 
   const activeCycleName = useMemo(() => {
     const today = new Date();
@@ -568,7 +579,6 @@ function App() {
 
     return (
       <>
-      <NotificationPrompt role={role} cycleName={role === 'STUDENT' ? studentCycleName : null} />
       <DailyView 
         schedule={selectedSchedule} 
         role={role}
@@ -584,6 +594,8 @@ function App() {
         onAddUniform={addUniform}
         onPrev={handlePrev}
         onNext={handleNext}
+        notificationHighlightTarget={new URLSearchParams(window.location.search).get('highlight')}
+        notificationChangeType={new URLSearchParams(window.location.search).get('change')}
       />
       {pendingNotification && (
         <ScheduleNotificationModal
@@ -597,7 +609,6 @@ function App() {
 
   return (
     <>
-      <NotificationPrompt role={role} cycleName={role === 'STUDENT' ? studentCycleName : null} />
       <Calendar 
         schedules={filteredSchedules} 
         onSelectDate={(date) => setSelectedDateId(date)} 

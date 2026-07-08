@@ -21,6 +21,7 @@ const sanitizeCycleName = value => String(value || '').replace(/[^a-zA-Z0-9_-]/g
 
 const getAudienceTopic = (role, cycleName) => {
   if (role === 'VIEWER') return 'audience-sgl';
+  if (role === 'ADMIN') return 'audience-admin';
 
   if (role === 'STUDENT') {
     const safeCycle = sanitizeCycleName(cycleName);
@@ -30,12 +31,11 @@ const getAudienceTopic = (role, cycleName) => {
     return `cycle-${safeCycle}`;
   }
 
-  if (role === 'ADMIN') return null;
   throw new HttpsError('invalid-argument', 'A valid user role is required.');
 };
 
 const isValidAudienceTopic = topic =>
-  topic === 'audience-sgl' || /^cycle-[a-zA-Z0-9_-]+$/.test(topic);
+  topic === 'audience-sgl' || topic === 'audience-admin' || /^cycle-[a-zA-Z0-9_-]+$/.test(topic);
 
 const requireText = (value, field, maxLength) => {
   if (typeof value !== 'string' || !value.trim() || value.length > maxLength) {
@@ -68,10 +68,6 @@ exports.registerPushToken = onCall({ region: 'us-central1' }, async request => {
   }
   await Promise.all(obsoleteTopics.map(item => getMessaging().unsubscribeFromTopic(token, item)));
 
-  if (!topic) {
-    return { subscribed: false, topic: null, reason: 'admin-does-not-receive-notifications' };
-  }
-
   await getMessaging().subscribeToTopic(token, topic);
   return { subscribed: true, topic };
 });
@@ -101,8 +97,9 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
     : '';
   const safeCycle = sanitizeCycleName(cycleName);
   const changeType = requireText(request.data?.changeType, 'change type', 40);
+  const targetId = requireText(request.data?.targetId, 'target ID', 100);
   const recipients = request.data?.recipients || {};
-  const topics = [];
+  const topics = ['audience-admin'];
 
   if (recipients.sgl === true) topics.push('audience-sgl');
   if (recipients.students === true) {
@@ -111,10 +108,6 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
     }
     topics.push(`cycle-${safeCycle}`);
   }
-  if (topics.length === 0) {
-    throw new HttpsError('invalid-argument', 'Select at least one notification recipient.');
-  }
-
   const cycleText = cycleName ? `${cycleName} · ` : '';
   const notification = {
     title: 'BLC Schedule Updated',
@@ -124,14 +117,21 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
     type: 'schedule-update',
     date,
     cycleName,
-    changeType
+    changeType,
+    targetId
   };
+
+  const linkParams = new URLSearchParams({
+    date,
+    highlight: targetId,
+    change: changeType
+  });
 
   const messageIds = await Promise.all(topics.map(topic => getMessaging().send({
     topic,
     notification,
     data,
-    webpush: { fcmOptions: { link: '/' } },
+    webpush: { fcmOptions: { link: `/?${linkParams.toString()}` } },
     android: { priority: 'high' }
   })));
 

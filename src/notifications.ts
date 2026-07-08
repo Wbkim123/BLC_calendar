@@ -26,6 +26,7 @@ export async function sendScheduleNotification(details: {
   date: string;
   cycleName?: string | null;
   changeType: string;
+  targetId: string;
   recipients: NotificationRecipients;
 }) {
   await httpsCallable(functions, 'sendScheduleNotification')(details);
@@ -110,6 +111,15 @@ export async function listenForForegroundNotifications() {
       body: payload.notification?.body || 'A schedule was updated.',
       icon: '/icon.png'
     });
-    notification.onclick = () => window.focus();
+    notification.onclick = () => {
+      const date = payload.data?.date;
+      const targetId = payload.data?.targetId;
+      const changeType = payload.data?.changeType;
+      const params = new URLSearchParams();
+      if (date) params.set('date', date);
+      if (targetId) params.set('highlight', targetId);
+      if (changeType) params.set('change', changeType);
+      window.location.href = params.size > 0 ? `/?${params.toString()}` : '/';
+    };
   });
 }
