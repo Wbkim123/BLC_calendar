@@ -4,6 +4,7 @@ import {
   disableNotifications,
   enableNotifications,
   getNotificationAvailability,
+  isPhoneDevice,
   NotificationAvailability,
   syncNotificationSubscription
 } from '../notifications';
@@ -16,15 +17,21 @@ interface Props {
 export default function NotificationPrompt({ role, cycleName }: Props) {
   const [status, setStatus] = useState<NotificationAvailability>('loading');
   const [busy, setBusy] = useState(false);
+  const isPhone = isPhoneDevice();
 
   useEffect(() => {
+    if (!isPhone) {
+      disableNotifications(role, cycleName, false).catch(console.error);
+      setStatus('unsupported');
+      return;
+    }
     getNotificationAvailability().then(setStatus);
-  }, []);
+  }, [isPhone, role, cycleName]);
 
   useEffect(() => {
-    if (status !== 'granted') return;
+    if (!isPhone || status !== 'granted') return;
     syncNotificationSubscription(role, cycleName).catch(console.error);
-  }, [role, cycleName, status]);
+  }, [isPhone, role, cycleName, status]);
 
   if (!role || status === 'loading' || status === 'unsupported' || status === 'unconfigured') return null;
 

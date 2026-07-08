@@ -10,7 +10,7 @@ import { mockSchedules } from './data/mockData';
 import { auth, db } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 import { signOut } from 'firebase/auth';
-import { createAdminSession, disableNotifications, listenForForegroundNotifications } from './notifications';
+import { createAdminSession, disableNotifications, isPhoneDevice, listenForForegroundNotifications } from './notifications';
 
 const LEGACY_06_26_START = '2026-04-20';
 const LEGACY_06_26_END = '2026-05-15';
@@ -462,7 +462,7 @@ function App() {
   };
   const handleLogout = async () => {
     try {
-      await disableNotifications(role, studentCycleName);
+      await disableNotifications(role, studentCycleName, isPhoneDevice());
     } catch (error) {
       console.error('Failed to unsubscribe from schedule notifications:', error);
     }

@@ -11,6 +11,12 @@ const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY
   || 'BHhrU-r2LR0CQuEHSoy4qzLXmFJRGV_35MJANS-pQfExxsnGRNFNWQO5vnUl2YtcejkyeDBc-2_pgKmDaWnjklc';
 const functions = getFunctions(app, 'us-central1');
 
+export const isPhoneDevice = () => {
+  if (typeof navigator === 'undefined') return false;
+  const userAgent = navigator.userAgent;
+  return /iPhone|iPod/i.test(userAgent) || (/Android/i.test(userAgent) && /Mobile/i.test(userAgent));
+};
+
 export type NotificationRecipients = {
   sgl: boolean;
   students: boolean;
@@ -50,6 +56,7 @@ const isStandalone = () =>
   (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
 export async function getNotificationAvailability(): Promise<NotificationAvailability> {
+  if (!isPhoneDevice()) return 'unsupported';
   if (!VAPID_KEY) return 'unconfigured';
   if (!('Notification' in window) || !('serviceWorker' in navigator) || !(await isSupported())) {
     return 'unsupported';
@@ -62,6 +69,7 @@ export async function getNotificationAvailability(): Promise<NotificationAvailab
 }
 
 export async function enableNotifications(role: UserRole, cycleName?: string | null) {
+  if (!isPhoneDevice()) throw new Error('unsupported');
   const availability = await getNotificationAvailability();
   if (availability === 'unconfigured' || availability === 'unsupported' || availability === 'needs-install') {
     throw new Error(availability);
@@ -99,18 +107,27 @@ export async function syncNotificationSubscription(role: UserRole, cycleName?: s
   await enableNotifications(role, cycleName);
 }
 
-export async function disableNotifications(role?: UserRole, cycleName?: string | null) {
+export async function disableNotifications(
+  role?: UserRole,
+  cycleName?: string | null,
+  recoverMissingToken = true
+) {
   let token = window.localStorage.getItem(PUSH_TOKEN_KEY);
   const topic = window.localStorage.getItem(PUSH_TOPIC_KEY);
-  if (!token && Notification.permission === 'granted') {
+  if (!token && recoverMissingToken && Notification.permission === 'granted') {
     const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
     token = await getToken(getMessaging(app), {
       vapidKey: VAPID_KEY,
       serviceWorkerRegistration: registration
     });
   }
+  let unregisterError: unknown;
   if (token) {
-    await httpsCallable(functions, 'unregisterPushToken')({ token, topic, role, cycleName });
+    try {
+      await httpsCallable(functions, 'unregisterPushToken')({ token, topic, role, cycleName });
+    } catch (error) {
+      unregisterError = error;
+    }
     await deleteToken(getMessaging(app)).catch(error => {
       console.error('Failed to delete the local FCM token:', error);
     });
@@ -118,9 +135,11 @@ export async function disableNotifications(role?: UserRole, cycleName?: string |
   window.localStorage.removeItem(PUSH_TOKEN_KEY);
   window.localStorage.removeItem(PUSH_TOPIC_KEY);
   window.localStorage.setItem(PUSH_DISABLED_KEY, 'true');
+  if (unregisterError) throw unregisterError;
 }
 
 export async function listenForForegroundNotifications() {
+  if (!isPhoneDevice()) return () => undefined;
   if (!(await isSupported())) return () => undefined;
   return onMessage(getMessaging(app), payload => {
     if (Notification.permission !== 'granted') return;
