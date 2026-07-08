@@ -67,7 +67,7 @@ export default function AdMobBanner({ visible = true }: Props) {
   return (
     <div
       aria-hidden="true"
-      className={`shrink-0 w-full border-t border-gray-200 bg-gray-50 ${visible ? '' : 'hidden'}`}
+      className={`fixed inset-x-0 bottom-0 z-20 w-full border-t border-gray-200 bg-gray-50 ${visible ? '' : 'hidden'}`}
       style={{ minHeight: visible ? BANNER_HEIGHT_PX : 0 }}
     >
       {visible && !Capacitor.isNativePlatform() && (
