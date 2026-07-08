@@ -82,8 +82,8 @@ export default function NotificationPrompt({ role, cycleName }: Props) {
       onClick={status === 'granted' ? handleDisable : handleEnable}
       className={`w-full rounded-xl px-3 py-2 text-xs font-black shadow-sm transition-colors ${
         status === 'granted'
-          ? 'border border-green-200 bg-green-50 text-green-800'
-          : 'bg-blue-700 text-white hover:bg-blue-600'
+          ? 'border border-gray-300 bg-gray-200 text-gray-700 hover:bg-gray-300'
+          : 'bg-green-600 text-white hover:bg-green-700'
       }`}
     >
       {busy ? 'UPDATING...' : status === 'granted' ? 'TURN OFF SCHEDULE NOTIFICATIONS' : 'ENABLE SCHEDULE NOTIFICATIONS'}
