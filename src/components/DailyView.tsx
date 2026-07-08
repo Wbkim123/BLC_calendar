@@ -142,13 +142,6 @@ export default function DailyView({
     return currStartTime < prevEndTime;
   });
 
-  // Keep the phone layout as a single scrolling column. On larger displays,
-  // split long days into columns so the complete schedule stays visible.
-  const desktopColumnCount = Math.max(1, Math.ceil(sortedEvents.length / 6));
-  const desktopGridStyle = {
-    '--daily-event-columns': desktopColumnCount
-  } as React.CSSProperties;
-
   return (
     <div 
       className="app-safe-screen bg-gray-100 flex flex-col relative"
@@ -200,7 +193,8 @@ export default function DailyView({
           </div>
         )}
 
-        <div className="daily-events-grid space-y-3 lg:space-y-0" style={desktopGridStyle}>
+        <div className="daily-main-layout space-y-3 lg:space-y-0">
+        <div className="daily-events-grid space-y-3">
         {sortedEvents.map((ev, idx) => {
           // --- 현재 시각 기준 상태 계산 ---
           const now = new Date();
@@ -294,7 +288,7 @@ export default function DailyView({
 
         {/* 새 일정 추가 버튼 박스 (관리자 전용) */}
         {schedule.notes && (
-          <div className={`p-4 rounded-r-lg shadow-sm border-l-4 ${
+          <div className={`daily-notes-panel p-4 rounded-r-lg shadow-sm border-l-4 ${
             schedule.notesHighlighted
               ? 'bg-red-50 border-red-500 ring-2 ring-red-100'
               : 'bg-blue-50 border-blue-500'
@@ -330,6 +324,7 @@ export default function DailyView({
             }`}>{schedule.notes}</p>
           </div>
         )}
+        </div>
 
         {role === 'ADMIN' && (
           <>

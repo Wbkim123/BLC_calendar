@@ -27,21 +27,32 @@ body {
   padding-block-end: calc(1rem + env(safe-area-inset-bottom));
 }
 
-/* Daily schedule: phones retain the roomy scrolling list; laptop/TV screens
-   use horizontal space to keep the full day's events above the fold. */
+/* Phones retain the existing stacked layout. Laptop/TV screens place the
+   single-column event list beside a notes panel of matching height. */
 @media (min-width: 1024px) {
   .daily-content {
     overflow-y: auto;
   }
 
-  .daily-events-grid {
+  .daily-main-layout {
     display: grid;
-    grid-template-columns: repeat(var(--daily-event-columns, 1), minmax(0, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .daily-events-grid {
+    min-width: 0;
   }
 
   .daily-event-card {
     padding: 0.5rem 0.75rem;
+  }
+
+  .daily-notes-panel {
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
   }
 }
 
