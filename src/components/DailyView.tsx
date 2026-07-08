@@ -142,6 +142,13 @@ export default function DailyView({
     return currStartTime < prevEndTime;
   });
 
+  // Keep the phone layout as a single scrolling column. On larger displays,
+  // split long days into columns so the complete schedule stays visible.
+  const desktopColumnCount = Math.max(1, Math.ceil(sortedEvents.length / 6));
+  const desktopGridStyle = {
+    '--daily-event-columns': desktopColumnCount
+  } as React.CSSProperties;
+
   return (
     <div 
       className="app-safe-screen bg-gray-100 flex flex-col relative"
@@ -182,7 +189,7 @@ export default function DailyView({
       </div>
       
       {/* 스케줄 리스트 */}
-      <div className="flex-1 p-3 sm:p-4 space-y-3 overflow-y-auto">
+      <div className="daily-content flex-1 p-3 sm:p-4 space-y-3 overflow-y-auto">
         {/* 시간 중복 경고 메시지 */}
         {hasGlobalConflict && (
           <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-2 rounded-r-lg flex items-center gap-3">
@@ -193,6 +200,7 @@ export default function DailyView({
           </div>
         )}
 
+        <div className="daily-events-grid space-y-3 lg:space-y-0" style={desktopGridStyle}>
         {sortedEvents.map((ev, idx) => {
           // --- 현재 시각 기준 상태 계산 ---
           const now = new Date();
@@ -216,7 +224,7 @@ export default function DailyView({
           return (
             <div 
               key={ev.id} 
-              className={`py-2 px-3 lg:py-3 lg:px-4 rounded-xl shadow-sm border-l-4 transition-colors relative ${
+              className={`daily-event-card py-2 px-3 lg:py-3 lg:px-4 rounded-xl shadow-sm border-l-4 transition-colors relative ${
                 isPast 
                   ? 'bg-gray-200 border-gray-400 opacity-60' 
                   : isOngoing 
@@ -282,6 +290,7 @@ export default function DailyView({
             </div>
           );
         })}
+        </div>
 
         {/* 새 일정 추가 버튼 박스 (관리자 전용) */}
         {schedule.notes && (

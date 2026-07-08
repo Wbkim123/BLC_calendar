@@ -27,6 +27,30 @@ body {
   padding-block-end: calc(1rem + env(safe-area-inset-bottom));
 }
 
+/* Daily schedule: phones retain the roomy scrolling list; laptop/TV screens
+   use horizontal space to keep the full day's events above the fold. */
+@media (min-width: 1024px) {
+  .daily-content {
+    overflow-y: auto;
+  }
+
+  .daily-events-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--daily-event-columns, 1), minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .daily-event-card {
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+@media (min-width: 1024px) and (min-height: 720px) {
+  .daily-content {
+    overflow-y: hidden;
+  }
+}
+
 .schedule-import-control {
   box-sizing: border-box;
   display: block;
