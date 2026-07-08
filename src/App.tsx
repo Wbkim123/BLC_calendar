@@ -444,6 +444,34 @@ function App() {
     return schedules;
   }, [role, schedules, studentCycleName]);
 
+  useEffect(() => {
+    if (!role || !selectedDateId || filteredSchedules.length === 0) return;
+
+    let timerId: number;
+
+    const scheduleMidnightChange = () => {
+      const now = new Date();
+      const nextMidnight = new Date(now);
+      nextMidnight.setDate(now.getDate() + 1);
+      nextMidnight.setHours(0, 0, 1, 0);
+
+      timerId = window.setTimeout(() => {
+        const todayStr = getLocalTodayString();
+        const nextSchedule = filteredSchedules.find(schedule => schedule.date >= todayStr);
+
+        if (nextSchedule) {
+          hasAutoSelectedTodayRef.current = true;
+          setSelectedDateId(nextSchedule.date);
+        }
+
+        scheduleMidnightChange();
+      }, nextMidnight.getTime() - now.getTime());
+    };
+
+    scheduleMidnightChange();
+    return () => window.clearTimeout(timerId);
+  }, [role, selectedDateId, filteredSchedules]);
+
   const cycleTitle = useMemo(() => {
     const titleCycleName = role === 'STUDENT' ? studentCycleName : activeCycleName;
     return titleCycleName ? `BLC CLASS ${titleCycleName}` : 'BLC CLASS';
