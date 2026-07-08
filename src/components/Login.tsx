@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 
 interface Props {
-  onLogin: (code: string, rememberLogin: boolean) => boolean;
+  onLogin: (code: string, rememberLogin: boolean) => Promise<boolean>;
 }
 
 export default function Login({ onLogin }: Props) {
@@ -10,13 +10,17 @@ export default function Login({ onLogin }: Props) {
   const [error, setError] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(true);
 
-  const handleEnter = () => {
-    if (onLogin(code, rememberLogin)) {
+  const [busy, setBusy] = useState(false);
+
+  const handleEnter = async () => {
+    setBusy(true);
+    if (await onLogin(code, rememberLogin)) {
       setError(false);
     } else {
       setError(true);
       setCode('');
     }
+    setBusy(false);
   };
 
   return (
@@ -32,6 +36,7 @@ export default function Login({ onLogin }: Props) {
           type="password"
           value={code}
           onChange={(e) => setCode(e.target.value)}
+          disabled={busy}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               handleEnter();
@@ -55,9 +60,10 @@ export default function Login({ onLogin }: Props) {
 
         <button 
           onClick={handleEnter}
+          disabled={busy}
           className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 px-4 rounded-lg transition-colors"
         >
-          ENTER
+          {busy ? 'VERIFYING...' : 'ENTER'}
         </button>
       </div>
       <a

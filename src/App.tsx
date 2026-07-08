@@ -4,10 +4,14 @@ import Login from './components/Login';
 import Calendar from './components/Calendar';
 import DailyView from './components/DailyView';
 import ScheduleImportModal from './components/ScheduleImportModal';
+import NotificationPrompt from './components/NotificationPrompt';
+import ScheduleNotificationModal, { PendingScheduleNotification } from './components/ScheduleNotificationModal';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
 import { mockSchedules } from './data/mockData';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
+import { signOut } from 'firebase/auth';
+import { createAdminSession, disableNotifications, listenForForegroundNotifications } from './notifications';
 
 const LEGACY_06_26_START = '2026-04-20';
 const LEGACY_06_26_END = '2026-05-15';
@@ -33,7 +37,6 @@ const normalizeStudentCode = (cycleName: string) => cycleName.replace(/\D/g, '')
 
 function resolveLoginFromCode(code: string, schedules: DailySchedule[]): LoginResult | null {
   const normalizedCode = code.trim();
-  if (normalizedCode === '2002') return { role: 'ADMIN' };
   if (normalizedCode === '9876') return { role: 'VIEWER' };
 
   const todayStr = getLocalTodayString();
@@ -62,9 +65,9 @@ function App() {
       if (!saved) return null;
 
       const parsed = JSON.parse(saved) as SavedLogin | null;
+      if (parsed?.role === 'ADMIN') return 'ADMIN';
       if (!parsed?.code) return null;
-
-      if (parsed.role === 'ADMIN' || parsed.role === 'VIEWER') return parsed.role;
+      if (parsed.role === 'VIEWER') return parsed.role;
       return null;
     } catch {
       return null;
@@ -78,7 +81,16 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [pendingNotification, setPendingNotification] = useState<PendingScheduleNotification | null>(null);
   const hasAutoSelectedTodayRef = useRef(false);
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    listenForForegroundNotifications().then(listener => {
+      unsubscribe = listener;
+    }).catch(console.error);
+    return () => unsubscribe?.();
+  }, []);
 
   // 1. Firebase에서 실시간 데이터 불러오기
   useEffect(() => {
@@ -194,6 +206,7 @@ function App() {
       if (!saved) return;
 
       const parsed = JSON.parse(saved) as SavedLogin | null;
+      if (parsed?.role === 'ADMIN') return;
       if (!parsed?.code) return;
 
       const login = resolveLoginFromCode(parsed.code, schedules);
@@ -252,6 +265,15 @@ function App() {
     }
   };
 
+  const queueScheduleNotification = (dateStr: string, changeType: string) => {
+    const changedDay = schedules.find(day => day.date === dateStr);
+    setPendingNotification({
+      date: dateStr,
+      cycleName: changedDay?.cycleName || null,
+      changeType
+    });
+  };
+
   // 관리자가 이벤트를 수정했을 때 호출되는 함수 (Firebase 업데이트)
   const handleSaveEvent = (dateStr: string, updatedEvent: TrainingEvent) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
@@ -261,9 +283,11 @@ function App() {
       if (eventIndex !== -1) {
         const updates: any = {};
         updates[`/schedules/${dayIndex}/events/${eventIndex}`] = updatedEvent;
-        update(ref(db), updates).catch(err => {
-          alert("Failed to save changes: " + err.message);
-        });
+        update(ref(db), updates)
+          .then(() => queueScheduleNotification(dateStr, 'Event updated'))
+          .catch(err => {
+            alert("Failed to save changes: " + err.message);
+          });
       }
     }
   };
@@ -273,9 +297,11 @@ function App() {
     if (dayIndex !== -1) {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/notes`] = notes.trim();
-      update(ref(db), updates).catch(err => {
-        alert("Failed to save notes: " + err.message);
-      });
+      update(ref(db), updates)
+        .then(() => queueScheduleNotification(dateStr, 'Notes updated'))
+        .catch(err => {
+          alert("Failed to save notes: " + err.message);
+        });
     }
   };
 
@@ -284,9 +310,11 @@ function App() {
     if (dayIndex !== -1) {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/notesHighlighted`] = !schedules[dayIndex].notesHighlighted;
-      update(ref(db), updates).catch(err => {
-        alert("Failed to highlight notes: " + err.message);
-      });
+      update(ref(db), updates)
+        .then(() => queueScheduleNotification(dateStr, 'Notes highlight changed'))
+        .catch(err => {
+          alert("Failed to highlight notes: " + err.message);
+        });
     }
   };
 
@@ -297,9 +325,11 @@ function App() {
       const currentEvents = schedules[dayIndex].events || [];
       const updates: any = {};
       updates[`/schedules/${dayIndex}/events`] = [...currentEvents, newEvent];
-      update(ref(db), updates).catch(err => {
-        alert("Failed to add event: " + err.message);
-      });
+      update(ref(db), updates)
+        .then(() => queueScheduleNotification(dateStr, 'Event added'))
+        .catch(err => {
+          alert("Failed to add event: " + err.message);
+        });
     }
   };
 
@@ -311,9 +341,11 @@ function App() {
       const updatedEvents = currentEvents.filter(ev => ev.id !== eventId);
       const updates: any = {};
       updates[`/schedules/${dayIndex}/events`] = updatedEvents;
-      update(ref(db), updates).catch(err => {
-        alert("Failed to delete event: " + err.message);
-      });
+      update(ref(db), updates)
+        .then(() => queueScheduleNotification(dateStr, 'Event deleted'))
+        .catch(err => {
+          alert("Failed to delete event: " + err.message);
+        });
     }
   };
 
@@ -362,7 +394,17 @@ function App() {
       });
     }
   };
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await disableNotifications();
+    } catch (error) {
+      console.error('Failed to unsubscribe from schedule notifications:', error);
+    }
+
+    await signOut(auth).catch(error => {
+      console.error('Failed to end administrator session:', error);
+    });
+
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(LOGIN_STORAGE_KEY);
     }
@@ -372,9 +414,17 @@ function App() {
     setStudentCycleName(null);
     hasAutoSelectedTodayRef.current = false;
   };
-  const handleLogin = (code: string, rememberLogin: boolean) => {
-    const login = resolveLoginFromCode(code, schedules);
-    if (!login?.role) return false;
+  const handleLogin = async (code: string, rememberLogin: boolean) => {
+    let login = resolveLoginFromCode(code, schedules);
+
+    if (!login?.role) {
+      try {
+        await createAdminSession(code.trim());
+        login = { role: 'ADMIN' };
+      } catch {
+        return false;
+      }
+    }
 
     hasAutoSelectedTodayRef.current = false;
     setRole(login.role);
@@ -384,7 +434,9 @@ function App() {
       if (rememberLogin) {
         window.localStorage.setItem(
           LOGIN_STORAGE_KEY,
-          JSON.stringify({ code: code.trim(), role: login.role })
+          JSON.stringify(login.role === 'ADMIN'
+            ? { role: 'ADMIN' }
+            : { code: code.trim(), role: login.role })
         );
       } else {
         window.localStorage.removeItem(LOGIN_STORAGE_KEY);
@@ -515,6 +567,8 @@ function App() {
     const handleNext = hasNext ? () => setSelectedDateId(filteredSchedules[currentIndex + 1].date) : undefined;
 
     return (
+      <>
+      <NotificationPrompt role={role} cycleName={role === 'STUDENT' ? studentCycleName : null} />
       <DailyView 
         schedule={selectedSchedule} 
         role={role}
@@ -531,11 +585,19 @@ function App() {
         onPrev={handlePrev}
         onNext={handleNext}
       />
+      {pendingNotification && (
+        <ScheduleNotificationModal
+          change={pendingNotification}
+          onClose={() => setPendingNotification(null)}
+        />
+      )}
+      </>
     );
   }
 
   return (
     <>
+      <NotificationPrompt role={role} cycleName={role === 'STUDENT' ? studentCycleName : null} />
       <Calendar 
         schedules={filteredSchedules} 
         onSelectDate={(date) => setSelectedDateId(date)} 
