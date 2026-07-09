@@ -37,6 +37,10 @@ type NotificationFocus = {
   changedFields: string[];
 };
 
+type ForegroundNotification = NotificationFocus & {
+  id: number;
+};
+
 const getNotificationFocusFromUrl = (): NotificationFocus | null => {
   if (typeof window === 'undefined') return null;
   const params = new URLSearchParams(window.location.search);
@@ -106,6 +110,7 @@ function App() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [pendingNotification, setPendingNotification] = useState<PendingScheduleNotification | null>(null);
   const [notificationFocus, setNotificationFocus] = useState<NotificationFocus | null>(getNotificationFocusFromUrl);
+  const [foregroundNotification, setForegroundNotification] = useState<ForegroundNotification | null>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>(() => {
     if (typeof window === 'undefined') return 'auto';
     return window.localStorage.getItem(DISPLAY_MODE_STORAGE_KEY) === 'tv' ? 'tv' : 'auto';
@@ -131,20 +136,23 @@ function App() {
     const handleForegroundNotification = (event: Event) => {
       const detail = (event as CustomEvent<NotificationFocus>).detail;
       if (!detail?.date || !detail.targetId) return;
-      const availableSchedules = role === 'STUDENT'
-        ? schedules.filter(schedule => schedule.cycleName === studentCycleName)
-        : schedules;
-      if (!availableSchedules.some(schedule => schedule.date === detail.date)) return;
 
       hasAutoSelectedTodayRef.current = true;
       setSelectedDateId(detail.date);
       setNotificationFocus(null);
       window.setTimeout(() => setNotificationFocus(detail), 0);
+      setForegroundNotification({ ...detail, id: Date.now() });
     };
 
     window.addEventListener('blc-schedule-notification', handleForegroundNotification);
     return () => window.removeEventListener('blc-schedule-notification', handleForegroundNotification);
-  }, [role, schedules, studentCycleName]);
+  }, []);
+
+  useEffect(() => {
+    if (!foregroundNotification) return;
+    const clearTimer = window.setTimeout(() => setForegroundNotification(null), 8000);
+    return () => window.clearTimeout(clearTimer);
+  }, [foregroundNotification]);
 
   useEffect(() => {
     if (!notificationFocus || selectedDateId !== notificationFocus.date) return;
@@ -647,6 +655,37 @@ function App() {
     return <Login onLogin={handleLogin} />;
   }
 
+  const foregroundNotificationToast = foregroundNotification ? (
+    <button
+      type="button"
+      onClick={() => {
+        hasAutoSelectedTodayRef.current = true;
+        setSelectedDateId(foregroundNotification.date);
+        setNotificationFocus(null);
+        window.setTimeout(() => {
+          setNotificationFocus({
+            date: foregroundNotification.date,
+            targetId: foregroundNotification.targetId,
+            changeType: foregroundNotification.changeType,
+            changedFields: foregroundNotification.changedFields
+          });
+        }, 0);
+        setForegroundNotification(null);
+      }}
+      className="fixed left-3 right-3 top-3 z-[80] rounded-2xl border-2 border-blue-300 bg-white p-4 text-left shadow-2xl ring-4 ring-blue-100 sm:left-auto sm:right-4 sm:w-96"
+    >
+      <div className="text-[10px] font-black uppercase tracking-widest text-blue-600">
+        Schedule notification received
+      </div>
+      <div className="mt-1 text-sm font-black text-gray-900">
+        {foregroundNotification.changeType || 'Schedule updated'}
+      </div>
+      <div className="mt-1 text-xs font-bold text-gray-500">
+        {foregroundNotification.date} · Tap to view highlighted change
+      </div>
+    </button>
+  ) : null;
+
   const selectedSchedule = filteredSchedules.find(s => s.date === selectedDateId);
 
   if (selectedSchedule) {
@@ -659,6 +698,7 @@ function App() {
 
     return (
       <>
+      {foregroundNotificationToast}
       <DailyView 
         schedule={selectedSchedule} 
         role={role}
@@ -692,6 +732,7 @@ function App() {
 
   return (
     <>
+      {foregroundNotificationToast}
       <Calendar 
         schedules={filteredSchedules} 
         onSelectDate={(date) => setSelectedDateId(date)} 

@@ -48,6 +48,7 @@ export async function getCurrentDevicePushToken() {
   if (Notification.permission !== 'granted') throw new Error('permission-required');
 
   const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+  await registration.update().catch(() => undefined);
   const token = await getToken(getMessaging(app), {
     vapidKey: VAPID_KEY,
     serviceWorkerRegistration: registration
@@ -110,6 +111,7 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
   if (permission !== 'granted') throw new Error('denied');
 
   const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+  await registration.update().catch(() => undefined);
   const token = await getToken(getMessaging(app), {
     vapidKey: VAPID_KEY,
     serviceWorkerRegistration: registration
@@ -147,6 +149,7 @@ export async function disableNotifications(
   const topic = window.localStorage.getItem(PUSH_TOPIC_KEY);
   if (!token && recoverMissingToken && Notification.permission === 'granted') {
     const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    await registration.update().catch(() => undefined);
     token = await getToken(getMessaging(app), {
       vapidKey: VAPID_KEY,
       serviceWorkerRegistration: registration
@@ -183,21 +186,38 @@ export async function listenForForegroundNotifications() {
     window.dispatchEvent(new CustomEvent('blc-schedule-notification', { detail: notificationDetail }));
 
     const title = payload.notification?.title || 'BLC Schedule Updated';
-    const notification = new Notification(title, {
-      body: payload.notification?.body || 'A schedule was updated.',
-      icon: '/icon.png'
-    });
-    notification.onclick = () => {
-      const date = payload.data?.date;
-      const targetId = payload.data?.targetId;
-      const changeType = payload.data?.changeType;
-      const changedFields = payload.data?.changedFields;
-      const params = new URLSearchParams();
-      if (date) params.set('date', date);
-      if (targetId) params.set('highlight', targetId);
-      if (changeType) params.set('change', changeType);
-      if (changedFields) params.set('fields', changedFields);
-      window.location.href = params.size > 0 ? `/?${params.toString()}` : '/';
-    };
+    const date = payload.data?.date;
+    const targetId = payload.data?.targetId;
+    const changeType = payload.data?.changeType;
+    const changedFields = payload.data?.changedFields;
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    if (targetId) params.set('highlight', targetId);
+    if (changeType) params.set('change', changeType);
+    if (changedFields) params.set('fields', changedFields);
+    const url = params.size > 0 ? `/?${params.toString()}` : '/';
+
+    navigator.serviceWorker.ready
+      .then(registration => registration.showNotification(title, {
+        body: payload.notification?.body || 'A schedule was updated.',
+        icon: '/icon.png',
+        data: {
+          url,
+          date: date || '',
+          targetId: targetId || '',
+          changeType: changeType || '',
+          changedFields: changedFields || ''
+        }
+      }))
+      .catch(() => {
+        const notification = new Notification(title, {
+          body: payload.notification?.body || 'A schedule was updated.',
+          icon: '/icon.png',
+          data: { url }
+        });
+        notification.onclick = () => {
+          window.location.href = url;
+        };
+      });
   });
 }

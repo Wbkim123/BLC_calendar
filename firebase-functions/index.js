@@ -140,11 +140,21 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
     fields: changedFields.join(',')
   });
 
+  const clickUrl = `/?${linkParams.toString()}`;
+
   const messageIds = await Promise.all(topics.map(topic => getMessaging().send({
     topic,
     notification,
     data,
-    webpush: { fcmOptions: { link: `/?${linkParams.toString()}` } },
+    webpush: {
+      notification: {
+        title: notification.title,
+        body: notification.body,
+        icon: '/icon.png',
+        data: { url: clickUrl, ...data }
+      },
+      fcmOptions: { link: clickUrl }
+    },
     android: { priority: 'high' }
   })));
 
@@ -194,11 +204,21 @@ exports.sendTestScheduleNotification = onCall({ region: 'us-central1' }, async r
     fields: changedFields.join(',')
   });
 
+  const clickUrl = `/?${linkParams.toString()}`;
+
   const messageId = await getMessaging().send({
     token,
     notification,
     data,
-    webpush: { fcmOptions: { link: `/?${linkParams.toString()}` } },
+    webpush: {
+      notification: {
+        title: notification.title,
+        body: notification.body,
+        icon: '/icon.png',
+        data: { url: clickUrl, ...data }
+      },
+      fcmOptions: { link: clickUrl }
+    },
     android: { priority: 'high' }
   });
 

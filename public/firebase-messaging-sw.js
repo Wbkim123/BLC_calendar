@@ -12,12 +12,64 @@ firebase.initializeApp({
   appId: '1:245720895881:web:f55f09f0ca7c2510f15158'
 });
 
-firebase.messaging();
+const messaging = firebase.messaging();
+
+const getNotificationUrl = notification => {
+  const data = notification?.data || {};
+  const fcmMessage = data.FCM_MSG || {};
+  const fcmData = fcmMessage.data || {};
+  const directUrl = data.url || data.link || fcmMessage.fcmOptions?.link || fcmMessage.fcm_options?.link;
+  if (directUrl) return directUrl;
+
+  const date = data.date || fcmData.date;
+  const targetId = data.targetId || fcmData.targetId || data.highlight || fcmData.highlight;
+  const changeType = data.changeType || fcmData.changeType;
+  const changedFields = data.changedFields || fcmData.changedFields;
+  const params = new URLSearchParams();
+  if (date) params.set('date', date);
+  if (targetId) params.set('highlight', targetId);
+  if (changeType) params.set('change', changeType);
+  if (changedFields) params.set('fields', changedFields);
+  return params.size > 0 ? `/?${params.toString()}` : '/';
+};
+
+messaging.onBackgroundMessage(payload => {
+  const params = new URLSearchParams();
+  if (payload.data?.date) params.set('date', payload.data.date);
+  if (payload.data?.targetId) params.set('highlight', payload.data.targetId);
+  if (payload.data?.changeType) params.set('change', payload.data.changeType);
+  if (payload.data?.changedFields) params.set('fields', payload.data.changedFields);
+  const url = params.size > 0 ? `/?${params.toString()}` : '/';
+
+  return self.registration.showNotification(payload.notification?.title || 'BLC Schedule Updated', {
+    body: payload.notification?.body || 'A schedule was updated.',
+    icon: '/icon.png',
+    data: {
+      url,
+      date: payload.data?.date || '',
+      targetId: payload.data?.targetId || '',
+      changeType: payload.data?.changeType || '',
+      changedFields: payload.data?.changedFields || ''
+    }
+  });
+});
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
+  const targetUrl = new URL(getNotificationUrl(event.notification), self.location.origin).href;
+
   event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
     const existing = clientList.find(client => 'focus' in client);
-    return existing ? existing.focus() : clients.openWindow('/');
+    if (existing) {
+      if ('navigate' in existing) {
+        return existing.navigate(targetUrl).then(client => client ? client.focus() : existing.focus());
+      }
+      existing.postMessage({
+        type: 'BLC_NOTIFICATION_CLICK',
+        url: targetUrl
+      });
+      return existing.focus();
+    }
+    return clients.openWindow(targetUrl);
   }));
 });

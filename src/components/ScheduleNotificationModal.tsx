@@ -64,7 +64,9 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
     setTestMessage('');
     try {
       await sendTestScheduleNotification(change);
+      window.dispatchEvent(new CustomEvent('blc-schedule-notification', { detail: change }));
       setTestMessage('Test notification sent to this device only.');
+      onClose();
     } catch (sendError: any) {
       console.error('Failed to send test notification:', sendError);
       const code = sendError?.code || sendError?.message || '';
@@ -134,20 +136,28 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
           {error && <p className="text-xs font-bold text-red-600">{error}</p>}
         </div>
 
-        <div className="flex gap-3 bg-gray-50 p-4">
+        <div className="grid grid-cols-1 gap-3 bg-gray-50 p-4 sm:grid-cols-3">
           <button
             type="button"
-            disabled={sending}
+            disabled={sending || testing}
+            onClick={onClose}
+            className="rounded-xl border border-gray-300 bg-white py-3 font-bold text-gray-600 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={sending || testing}
             onClick={handleSkip}
-            className="flex-1 rounded-xl bg-gray-200 py-3 font-bold text-gray-700 disabled:opacity-50"
+            className="rounded-xl bg-gray-200 py-3 font-bold text-gray-700 disabled:opacity-50"
           >
             Skip SGL / Students
           </button>
           <button
             type="button"
-            disabled={sending}
+            disabled={sending || testing}
             onClick={handleSend}
-            className="flex-1 rounded-xl bg-blue-700 py-3 font-bold text-white shadow disabled:opacity-50"
+            className="rounded-xl bg-blue-700 py-3 font-bold text-white shadow disabled:opacity-50"
           >
             {sending ? 'Sending...' : 'Send Notification'}
           </button>
