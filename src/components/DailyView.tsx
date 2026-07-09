@@ -171,7 +171,7 @@ export default function DailyView({
       onTouchEnd={handleTouchEnd}
     >
       {/* 상단 헤더 */}
-      <div className="bg-blue-900 text-white p-3 sm:p-4 sticky top-0 shadow-md z-10 flex items-center justify-between gap-2">
+      <div className="daily-header bg-blue-900 text-white p-3 sm:p-4 sticky top-0 shadow-md z-10 flex items-center justify-between gap-2">
         <div className="flex items-center min-w-0 flex-1">
           <button onClick={onBack} className="mr-2 sm:mr-4 p-2 bg-blue-800 rounded-lg active:bg-blue-700 shrink-0">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -292,7 +292,7 @@ export default function DailyView({
             >
               <div className="flex justify-between items-start gap-2">
                 <div className="flex-1 min-w-0 pr-1 lg:pr-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-1">
+                    <div className="daily-event-meta-row flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-1">
                     <div className="flex items-center gap-1.5">
                       <span className={`inline-block px-2 py-0.5 text-[10px] lg:text-xs font-bold rounded ${
                         isOngoing ? 'bg-green-500 text-white animate-pulse' : 'bg-gray-100 text-gray-700'
@@ -328,7 +328,7 @@ export default function DailyView({
                         ★
                       </button>
                     )}
-                    <p className={`text-sm lg:text-base font-bold leading-tight break-words min-w-0 ${
+                    <p className={`daily-event-title text-sm lg:text-base font-bold leading-tight break-words min-w-0 ${
                       ev.highlighted
                         ? 'text-red-600'
                         : isPast
@@ -401,7 +401,7 @@ export default function DailyView({
                 NOTES highlight changed
               </span>
             )}
-            <p className={`text-sm font-semibold leading-relaxed whitespace-pre-wrap ${
+            <p className={`daily-notes-text text-sm font-semibold leading-relaxed whitespace-pre-wrap ${
               schedule.notesHighlighted ? 'text-red-700' : 'text-gray-700'
             } ${notificationHighlightTarget === 'notes' && notificationChangedFields.includes('notes') ? 'notification-field-highlight p-1' : ''}`}>{schedule.notes}</p>
           </div>

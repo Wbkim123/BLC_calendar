@@ -150,3 +150,57 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
 
   return { sent: true, topics, messageIds };
 });
+
+exports.sendTestScheduleNotification = onCall({ region: 'us-central1' }, async request => {
+  if (request.auth?.token?.admin !== true) {
+    throw new HttpsError('permission-denied', 'Administrator authentication is required.');
+  }
+
+  const token = requireToken(request);
+  const date = requireText(request.data?.date, 'date', 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new HttpsError('invalid-argument', 'The date must use YYYY-MM-DD format.');
+  }
+
+  const cycleName = request.data?.cycleName
+    ? requireText(request.data.cycleName, 'cycle name', 40)
+    : '';
+  const changeType = requireText(request.data?.changeType, 'change type', 40);
+  const targetId = requireText(request.data?.targetId, 'target ID', 100);
+  const changedFields = Array.isArray(request.data?.changedFields)
+    ? request.data.changedFields
+        .filter(field => typeof field === 'string' && /^[a-zA-Z]+$/.test(field))
+        .slice(0, 10)
+    : [];
+
+  const cycleText = cycleName ? `${cycleName} · ` : '';
+  const notification = {
+    title: 'BLC Test Notification',
+    body: `TEST ONLY · ${cycleText}${date} · ${changeType}`
+  };
+  const data = {
+    type: 'schedule-update',
+    date,
+    cycleName,
+    changeType: `TEST ONLY · ${changeType}`,
+    targetId,
+    changedFields: changedFields.join(',')
+  };
+
+  const linkParams = new URLSearchParams({
+    date,
+    highlight: targetId,
+    change: `TEST ONLY · ${changeType}`,
+    fields: changedFields.join(',')
+  });
+
+  const messageId = await getMessaging().send({
+    token,
+    notification,
+    data,
+    webpush: { fcmOptions: { link: `/?${linkParams.toString()}` } },
+    android: { priority: 'high' }
+  });
+
+  return { sent: true, testOnly: true, messageId };
+});

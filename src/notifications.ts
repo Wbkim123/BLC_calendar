@@ -40,6 +40,37 @@ export async function sendScheduleNotification(details: {
   await httpsCallable(functions, 'sendScheduleNotification')(details);
 }
 
+export async function getCurrentDevicePushToken() {
+  if (!VAPID_KEY) throw new Error('unconfigured');
+  if (!('Notification' in window) || !('serviceWorker' in navigator) || !(await isSupported())) {
+    throw new Error('unsupported');
+  }
+  if (Notification.permission !== 'granted') throw new Error('permission-required');
+
+  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+  const token = await getToken(getMessaging(app), {
+    vapidKey: VAPID_KEY,
+    serviceWorkerRegistration: registration
+  });
+  if (!token) throw new Error('token');
+  window.localStorage.setItem(PUSH_TOKEN_KEY, token);
+  return token;
+}
+
+export async function sendTestScheduleNotification(details: {
+  date: string;
+  cycleName?: string | null;
+  changeType: string;
+  targetId: string;
+  changedFields: string[];
+}) {
+  const token = await getCurrentDevicePushToken();
+  await httpsCallable(functions, 'sendTestScheduleNotification')({
+    ...details,
+    token
+  });
+}
+
 export type NotificationAvailability =
   | 'loading'
   | 'unconfigured'

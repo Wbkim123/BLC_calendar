@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { sendScheduleNotification } from '../notifications';
+import { sendScheduleNotification, sendTestScheduleNotification } from '../notifications';
 
 export type PendingScheduleNotification = {
   date: string;
@@ -18,11 +18,14 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
   const [sendToSgl, setSendToSgl] = useState(true);
   const [sendToStudents, setSendToStudents] = useState(Boolean(change.cycleName));
   const [sending, setSending] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
+  const [testMessage, setTestMessage] = useState('');
 
   const handleSend = async () => {
     setSending(true);
     setError('');
+    setTestMessage('');
     try {
       await sendScheduleNotification({
         ...change,
@@ -40,6 +43,7 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
   const handleSkip = async () => {
     setSending(true);
     setError('');
+    setTestMessage('');
     try {
       await sendScheduleNotification({
         ...change,
@@ -51,6 +55,30 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
       setError('The schedule was saved, but managers could not be notified.');
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleTestMyDevice = async () => {
+    setTesting(true);
+    setError('');
+    setTestMessage('');
+    try {
+      await sendTestScheduleNotification(change);
+      setTestMessage('Test notification sent to this device only.');
+    } catch (sendError: any) {
+      console.error('Failed to send test notification:', sendError);
+      const code = sendError?.code || sendError?.message || '';
+      if (code.includes('permission-required')) {
+        setError('Turn on notifications on this device first, then try the test again.');
+      } else if (code.includes('permission-denied')) {
+        setError('Admin authentication is required. Log out, log back in with 2002, then try again.');
+      } else if (code.includes('unsupported')) {
+        setError('This device/browser cannot receive web push notifications.');
+      } else {
+        setError('Test notification could not be sent to this device.');
+      }
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -91,6 +119,18 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
           </label>
 
           <p className="text-xs font-semibold text-gray-500">Change: {change.changeType}</p>
+          <button
+            type="button"
+            disabled={sending || testing}
+            onClick={handleTestMyDevice}
+            className="w-full rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-black text-purple-800 transition-colors hover:bg-purple-100 disabled:opacity-50"
+          >
+            {testing ? 'Sending test...' : 'Test My Device Only'}
+          </button>
+          <p className="text-[11px] font-semibold text-gray-500">
+            Test mode sends directly to this device token only. It does not notify managers, SGL users, or students.
+          </p>
+          {testMessage && <p className="text-xs font-bold text-green-700">{testMessage}</p>}
           {error && <p className="text-xs font-bold text-red-600">{error}</p>}
         </div>
 
