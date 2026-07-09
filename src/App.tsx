@@ -34,6 +34,7 @@ type NotificationFocus = {
   date: string;
   targetId: string;
   changeType: string;
+  previewText?: string;
   changedFields: string[];
 };
 
@@ -51,6 +52,7 @@ const getNotificationFocusFromUrl = (): NotificationFocus | null => {
     date,
     targetId,
     changeType: params.get('change') || 'Schedule updated',
+    previewText: params.get('preview') || undefined,
     changedFields: (params.get('fields') || '').split(',').filter(Boolean)
   };
 };
@@ -61,6 +63,35 @@ const getLocalTodayString = () => {
 };
 
 const normalizeStudentCode = (cycleName: string) => cycleName.replace(/\D/g, '');
+
+const truncateNotificationPreview = (value: string, maxLength = 90) => {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  if (compact.length <= maxLength) return compact;
+  return `${compact.slice(0, maxLength - 1)}…`;
+};
+
+const buildEventPreview = (event: TrainingEvent, fields: string[]) => {
+  if (fields.length === 0) return truncateNotificationPreview(event.eventName || 'Event updated');
+
+  const labels: Record<string, string> = {
+    time: 'TIME',
+    eventName: 'EVENT',
+    location: 'LOC',
+    uniform: 'UNI',
+    highlighted: 'HIGHLIGHT'
+  };
+  const values: Record<string, string> = {
+    time: event.time,
+    eventName: event.eventName,
+    location: event.location,
+    uniform: event.uniform,
+    highlighted: event.highlighted ? 'ON' : 'OFF'
+  };
+
+  return truncateNotificationPreview(
+    fields.map(field => `${labels[field] || field}: ${values[field] || ''}`).join(' · ')
+  );
+};
 
 function resolveLoginFromCode(code: string, schedules: DailySchedule[]): LoginResult | null {
   const normalizedCode = code.trim();
@@ -342,13 +373,15 @@ function App() {
     dateStr: string,
     changeType: string,
     targetId: string,
-    changedFields: string[] = []
+    changedFields: string[] = [],
+    previewText?: string
   ) => {
     const changedDay = schedules.find(day => day.date === dateStr);
     setPendingNotification({
       date: dateStr,
       cycleName: changedDay?.cycleName || null,
       changeType,
+      previewText,
       targetId,
       changedFields
     });
@@ -371,7 +404,8 @@ function App() {
             dateStr,
             'Event updated',
             `event:${updatedEvent.id}`,
-            changedFields
+            changedFields,
+            buildEventPreview(updatedEvent, changedFields)
           ))
           .catch(err => {
             alert("Failed to save changes: " + err.message);
@@ -386,7 +420,13 @@ function App() {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/notes`] = notes.trim();
       update(ref(db), updates)
-        .then(() => queueScheduleNotification(dateStr, 'Notes updated', 'notes', ['notes']))
+        .then(() => queueScheduleNotification(
+          dateStr,
+          'Notes updated',
+          'notes',
+          ['notes'],
+          `NOTE: ${truncateNotificationPreview(notes.trim() || 'Notes cleared')}`
+        ))
         .catch(err => {
           alert("Failed to save notes: " + err.message);
         });
@@ -399,7 +439,13 @@ function App() {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/notesHighlighted`] = !schedules[dayIndex].notesHighlighted;
       update(ref(db), updates)
-        .then(() => queueScheduleNotification(dateStr, 'Notes highlight changed', 'notes', ['highlighted']))
+        .then(() => queueScheduleNotification(
+          dateStr,
+          'Notes highlight changed',
+          'notes',
+          ['highlighted'],
+          `NOTE HIGHLIGHT: ${!schedules[dayIndex].notesHighlighted ? 'ON' : 'OFF'}`
+        ))
         .catch(err => {
           alert("Failed to highlight notes: " + err.message);
         });
@@ -414,7 +460,13 @@ function App() {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/events`] = [...currentEvents, newEvent];
       update(ref(db), updates)
-        .then(() => queueScheduleNotification(dateStr, 'Event added', `event:${newEvent.id}`))
+        .then(() => queueScheduleNotification(
+          dateStr,
+          'Event added',
+          `event:${newEvent.id}`,
+          ['eventName', 'time', 'location', 'uniform'],
+          buildEventPreview(newEvent, ['time', 'eventName', 'location', 'uniform'])
+        ))
         .catch(err => {
           alert("Failed to add event: " + err.message);
         });
@@ -430,7 +482,16 @@ function App() {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/events`] = updatedEvents;
       update(ref(db), updates)
-        .then(() => queueScheduleNotification(dateStr, 'Event deleted', 'day'))
+        .then(() => {
+          const deletedEvent = currentEvents.find(ev => ev.id === eventId);
+          queueScheduleNotification(
+            dateStr,
+            'Event deleted',
+            'day',
+            [],
+            deletedEvent ? `DELETED: ${truncateNotificationPreview(deletedEvent.eventName)}` : 'Event deleted'
+          );
+        })
         .catch(err => {
           alert("Failed to delete event: " + err.message);
         });
@@ -667,6 +728,7 @@ function App() {
             date: foregroundNotification.date,
             targetId: foregroundNotification.targetId,
             changeType: foregroundNotification.changeType,
+            previewText: foregroundNotification.previewText,
             changedFields: foregroundNotification.changedFields
           });
         }, 0);
@@ -678,7 +740,7 @@ function App() {
         Schedule notification received
       </div>
       <div className="mt-1 text-sm font-black text-gray-900">
-        {foregroundNotification.changeType || 'Schedule updated'}
+        {foregroundNotification.previewText || foregroundNotification.changeType || 'Schedule updated'}
       </div>
       <div className="mt-1 text-xs font-bold text-gray-500">
         {foregroundNotification.date} · Tap to view highlighted change
@@ -715,7 +777,7 @@ function App() {
         onPrev={handlePrev}
         onNext={handleNext}
         notificationHighlightTarget={notificationFocus?.targetId || null}
-        notificationChangeType={notificationFocus?.changeType || null}
+        notificationChangeType={notificationFocus?.previewText || notificationFocus?.changeType || null}
         notificationChangedFields={notificationFocus?.changedFields || []}
         displayMode={displayMode}
         onDisplayModeChange={handleDisplayModeChange}

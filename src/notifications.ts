@@ -33,6 +33,7 @@ export async function sendScheduleNotification(details: {
   date: string;
   cycleName?: string | null;
   changeType: string;
+  previewText?: string;
   targetId: string;
   changedFields: string[];
   recipients: NotificationRecipients;
@@ -62,6 +63,7 @@ export async function sendTestScheduleNotification(details: {
   date: string;
   cycleName?: string | null;
   changeType: string;
+  previewText?: string;
   targetId: string;
   changedFields: string[];
 }) {
@@ -181,6 +183,7 @@ export async function listenForForegroundNotifications() {
       date: payload.data?.date || '',
       targetId: payload.data?.targetId || '',
       changeType: payload.data?.changeType || '',
+      previewText: payload.data?.previewText || '',
       changedFields: (payload.data?.changedFields || '').split(',').filter(Boolean)
     };
     window.dispatchEvent(new CustomEvent('blc-schedule-notification', { detail: notificationDetail }));
@@ -189,11 +192,13 @@ export async function listenForForegroundNotifications() {
     const date = payload.data?.date;
     const targetId = payload.data?.targetId;
     const changeType = payload.data?.changeType;
+    const previewText = payload.data?.previewText;
     const changedFields = payload.data?.changedFields;
     const params = new URLSearchParams();
     if (date) params.set('date', date);
     if (targetId) params.set('highlight', targetId);
     if (changeType) params.set('change', changeType);
+    if (previewText) params.set('preview', previewText);
     if (changedFields) params.set('fields', changedFields);
     const url = params.size > 0 ? `/?${params.toString()}` : '/';
 
@@ -206,6 +211,7 @@ export async function listenForForegroundNotifications() {
           date: date || '',
           targetId: targetId || '',
           changeType: changeType || '',
+          previewText: previewText || '',
           changedFields: changedFields || ''
         }
       }))

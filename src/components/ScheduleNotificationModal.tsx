@@ -5,6 +5,7 @@ export type PendingScheduleNotification = {
   date: string;
   cycleName?: string | null;
   changeType: string;
+  previewText?: string;
   targetId: string;
   changedFields: string[];
 };
@@ -120,7 +121,9 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
             </span>
           </label>
 
-          <p className="text-xs font-semibold text-gray-500">Change: {change.changeType}</p>
+          <p className="text-xs font-semibold text-gray-500">
+            Change: {change.previewText || change.changeType}
+          </p>
           <button
             type="button"
             disabled={sending || testing}
@@ -136,20 +139,12 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
           {error && <p className="text-xs font-bold text-red-600">{error}</p>}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 bg-gray-50 p-4 sm:grid-cols-3">
-          <button
-            type="button"
-            disabled={sending || testing}
-            onClick={onClose}
-            className="rounded-xl border border-gray-300 bg-white py-3 font-bold text-gray-600 disabled:opacity-50"
-          >
-            Cancel
-          </button>
+        <div className="flex gap-3 bg-gray-50 p-4">
           <button
             type="button"
             disabled={sending || testing}
             onClick={handleSkip}
-            className="rounded-xl bg-gray-200 py-3 font-bold text-gray-700 disabled:opacity-50"
+            className="flex-1 rounded-xl bg-gray-200 py-3 font-bold text-gray-700 disabled:opacity-50"
           >
             Skip SGL / Students
           </button>
@@ -157,7 +152,7 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
             type="button"
             disabled={sending || testing}
             onClick={handleSend}
-            className="rounded-xl bg-blue-700 py-3 font-bold text-white shadow disabled:opacity-50"
+            className="flex-1 rounded-xl bg-blue-700 py-3 font-bold text-white shadow disabled:opacity-50"
           >
             {sending ? 'Sending...' : 'Send Notification'}
           </button>

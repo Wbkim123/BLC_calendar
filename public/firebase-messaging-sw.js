@@ -24,11 +24,13 @@ const getNotificationUrl = notification => {
   const date = data.date || fcmData.date;
   const targetId = data.targetId || fcmData.targetId || data.highlight || fcmData.highlight;
   const changeType = data.changeType || fcmData.changeType;
+  const previewText = data.previewText || fcmData.previewText;
   const changedFields = data.changedFields || fcmData.changedFields;
   const params = new URLSearchParams();
   if (date) params.set('date', date);
   if (targetId) params.set('highlight', targetId);
   if (changeType) params.set('change', changeType);
+  if (previewText) params.set('preview', previewText);
   if (changedFields) params.set('fields', changedFields);
   return params.size > 0 ? `/?${params.toString()}` : '/';
 };
@@ -38,6 +40,7 @@ messaging.onBackgroundMessage(payload => {
   if (payload.data?.date) params.set('date', payload.data.date);
   if (payload.data?.targetId) params.set('highlight', payload.data.targetId);
   if (payload.data?.changeType) params.set('change', payload.data.changeType);
+  if (payload.data?.previewText) params.set('preview', payload.data.previewText);
   if (payload.data?.changedFields) params.set('fields', payload.data.changedFields);
   const url = params.size > 0 ? `/?${params.toString()}` : '/';
 
@@ -49,6 +52,7 @@ messaging.onBackgroundMessage(payload => {
       date: payload.data?.date || '',
       targetId: payload.data?.targetId || '',
       changeType: payload.data?.changeType || '',
+      previewText: payload.data?.previewText || '',
       changedFields: payload.data?.changedFields || ''
     }
   });

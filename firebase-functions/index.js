@@ -44,6 +44,11 @@ const requireText = (value, field, maxLength) => {
   return value.trim();
 };
 
+const optionalText = (value, maxLength) => {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, maxLength);
+};
+
 exports.createAdminSession = onCall(
   { region: 'us-central1', secrets: [ADMIN_ACCESS_CODE] },
   async request => {
@@ -103,6 +108,7 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
     : '';
   const safeCycle = sanitizeCycleName(cycleName);
   const changeType = requireText(request.data?.changeType, 'change type', 40);
+  const previewText = optionalText(request.data?.previewText, 120);
   const targetId = requireText(request.data?.targetId, 'target ID', 100);
   const changedFields = Array.isArray(request.data?.changedFields)
     ? request.data.changedFields
@@ -122,13 +128,14 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
   const cycleText = cycleName ? `${cycleName} · ` : '';
   const notification = {
     title: 'BLC Schedule Updated',
-    body: `${cycleText}${date} — ${changeType}`
+    body: previewText || `${cycleText}${date} — ${changeType}`
   };
   const data = {
     type: 'schedule-update',
     date,
     cycleName,
     changeType,
+    previewText,
     targetId,
     changedFields: changedFields.join(',')
   };
@@ -137,6 +144,7 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
     date,
     highlight: targetId,
     change: changeType,
+    preview: previewText,
     fields: changedFields.join(',')
   });
 
@@ -176,6 +184,7 @@ exports.sendTestScheduleNotification = onCall({ region: 'us-central1' }, async r
     ? requireText(request.data.cycleName, 'cycle name', 40)
     : '';
   const changeType = requireText(request.data?.changeType, 'change type', 40);
+  const previewText = optionalText(request.data?.previewText, 120);
   const targetId = requireText(request.data?.targetId, 'target ID', 100);
   const changedFields = Array.isArray(request.data?.changedFields)
     ? request.data.changedFields
@@ -186,13 +195,14 @@ exports.sendTestScheduleNotification = onCall({ region: 'us-central1' }, async r
   const cycleText = cycleName ? `${cycleName} · ` : '';
   const notification = {
     title: 'BLC Test Notification',
-    body: `TEST ONLY · ${cycleText}${date} · ${changeType}`
+    body: `TEST ONLY · ${previewText || `${cycleText}${date} · ${changeType}`}`
   };
   const data = {
     type: 'schedule-update',
     date,
     cycleName,
     changeType: `TEST ONLY · ${changeType}`,
+    previewText: previewText ? `TEST ONLY · ${previewText}` : '',
     targetId,
     changedFields: changedFields.join(',')
   };
@@ -201,6 +211,7 @@ exports.sendTestScheduleNotification = onCall({ region: 'us-central1' }, async r
     date,
     highlight: targetId,
     change: `TEST ONLY · ${changeType}`,
+    preview: previewText ? `TEST ONLY · ${previewText}` : '',
     fields: changedFields.join(',')
   });
 
