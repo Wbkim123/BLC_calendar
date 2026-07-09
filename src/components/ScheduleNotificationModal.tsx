@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { sendScheduleNotification, sendTestScheduleNotification } from '../notifications';
 
+const SHOW_TEST_DEVICE_BUTTON = false;
+
 export type PendingScheduleNotification = {
   date: string;
   cycleName?: string | null;
@@ -124,18 +126,22 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
           <p className="text-xs font-semibold text-gray-500">
             Change: {change.previewText || change.changeType}
           </p>
-          <button
-            type="button"
-            disabled={sending || testing}
-            onClick={handleTestMyDevice}
-            className="w-full rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-black text-purple-800 transition-colors hover:bg-purple-100 disabled:opacity-50"
-          >
-            {testing ? 'Sending test...' : 'Test My Device Only'}
-          </button>
-          <p className="text-[11px] font-semibold text-gray-500">
-            Test mode sends directly to this device token only. It does not notify managers, SGL users, or students.
-          </p>
-          {testMessage && <p className="text-xs font-bold text-green-700">{testMessage}</p>}
+          {SHOW_TEST_DEVICE_BUTTON && (
+            <>
+              <button
+                type="button"
+                disabled={sending || testing}
+                onClick={handleTestMyDevice}
+                className="w-full rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-black text-purple-800 transition-colors hover:bg-purple-100 disabled:opacity-50"
+              >
+                {testing ? 'Sending test...' : 'Test My Device Only'}
+              </button>
+              <p className="text-[11px] font-semibold text-gray-500">
+                Test mode sends directly to this device token only. It does not notify managers, SGL users, or students.
+              </p>
+              {testMessage && <p className="text-xs font-bold text-green-700">{testMessage}</p>}
+            </>
+          )}
           {error && <p className="text-xs font-bold text-red-600">{error}</p>}
         </div>
 
