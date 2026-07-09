@@ -1,6 +1,7 @@
 // src/components/DailyView.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import { DailySchedule, UserRole, TrainingEvent } from '../types/schedule';
+import type { DisplayMode } from '../App';
 import AdMobBanner from './AdMobBanner';
 import NotificationPrompt from './NotificationPrompt';
 
@@ -22,6 +23,8 @@ interface Props {
   notificationHighlightTarget?: string | null;
   notificationChangeType?: string | null;
   notificationChangedFields?: string[];
+  displayMode: DisplayMode;
+  onDisplayModeChange: (mode: DisplayMode) => void;
 }
 
 export default function DailyView({ 
@@ -41,7 +44,9 @@ export default function DailyView({
   onNext,
   notificationHighlightTarget,
   notificationChangeType,
-  notificationChangedFields = []
+  notificationChangedFields = [],
+  displayMode,
+  onDisplayModeChange
 }: Props) {
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
@@ -160,7 +165,7 @@ export default function DailyView({
 
   return (
     <div 
-      className="app-safe-screen bg-gray-100 flex flex-col relative"
+      className={`app-safe-screen bg-gray-100 flex flex-col relative ${displayMode === 'tv' ? 'display-mode-tv' : ''}`}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -180,6 +185,17 @@ export default function DailyView({
 
         {/* 이전/다음 날짜 이동 버튼 */}
         <div className="flex gap-1 sm:gap-2 shrink-0">
+          <button
+            onClick={() => onDisplayModeChange(displayMode === 'tv' ? 'auto' : 'tv')}
+            className={`px-2 sm:px-3 py-2 rounded-lg text-[10px] sm:text-xs font-black tracking-wide transition-colors ${
+              displayMode === 'tv'
+                ? 'bg-green-500 text-white active:bg-green-600'
+                : 'bg-blue-800 text-blue-100 active:bg-blue-700'
+            }`}
+            title={displayMode === 'tv' ? 'Switch back to automatic responsive view' : 'Force TV/Desktop layout on this device'}
+          >
+            {displayMode === 'tv' ? 'TV VIEW' : 'AUTO'}
+          </button>
           <button 
             onClick={onPrev} 
             disabled={!onPrev}

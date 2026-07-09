@@ -1,6 +1,7 @@
 // src/components/Calendar.tsx
 import React, { useRef, useState } from 'react';
 import { DailySchedule, UserRole } from '../types/schedule';
+import type { DisplayMode } from '../App';
 import AdMobBanner from './AdMobBanner';
 import NotificationPrompt from './NotificationPrompt';
 
@@ -15,6 +16,8 @@ interface Props {
   onResetSchedules?: () => void;
   onDeleteCycle?: (cycleName: string) => void;
   showAdBanner?: boolean;
+  displayMode: DisplayMode;
+  onDisplayModeChange: (mode: DisplayMode) => void;
 }
 
 const hasScheduleConflict = (schedule: DailySchedule) => {
@@ -39,7 +42,9 @@ export default function Calendar({
   onOpenImport,
   onResetSchedules,
   onDeleteCycle,
-  showAdBanner = true
+  showAdBanner = true,
+  displayMode,
+  onDisplayModeChange
 }: Props) {
   // 현재 보고 있는 달 (초기값은 오늘 날짜 기준)
   const [viewDate, setViewDate] = useState(new Date());
@@ -107,9 +112,9 @@ export default function Calendar({
   };
 
   return (
-    <div className="app-safe-screen bg-gray-100 p-3 lg:p-10 font-sans flex flex-col items-center justify-start lg:justify-center overflow-y-auto">
+    <div className={`app-safe-screen calendar-root bg-gray-100 p-3 lg:p-10 font-sans flex flex-col items-center justify-start lg:justify-center overflow-y-auto ${displayMode === 'tv' ? 'display-mode-tv' : ''}`}>
       {/* 내부 컨테이너 (데스크탑에서 넓이 및 높이 제한으로 비율 조정) */}
-      <div className="w-full h-auto lg:max-w-5xl flex flex-col lg:h-[800px] relative">
+      <div className="calendar-container w-full h-auto lg:max-w-5xl flex flex-col lg:h-[800px] relative">
         
         {/* 상단 헤더 - 높이 축소 */}
         <div className="bg-blue-900 text-white rounded-xl py-2 px-4 lg:py-4 lg:px-8 mb-2 lg:mb-4 shadow-lg text-center flex flex-col items-center shrink-0">
@@ -259,9 +264,23 @@ export default function Calendar({
           </div>
         )}
 
+        <div className="mb-2 flex w-full justify-end shrink-0">
+          <button
+            onClick={() => onDisplayModeChange(displayMode === 'tv' ? 'auto' : 'tv')}
+            className={`rounded-lg px-3 py-2 text-[10px] lg:text-xs font-black tracking-wide shadow-sm transition-colors ${
+              displayMode === 'tv'
+                ? 'bg-green-600 text-white active:bg-green-700'
+                : 'bg-white text-blue-900 border border-blue-100 active:bg-blue-50'
+            }`}
+            title={displayMode === 'tv' ? 'Switch back to automatic responsive view' : 'Force TV/Desktop layout on this device'}
+          >
+            Display: {displayMode === 'tv' ? 'TV VIEW' : 'AUTO'}
+          </button>
+        </div>
+
         {/* 달력 본체 - 높이 확대 및 내부 패딩 조정 */}
         <div
-          className="bg-white rounded-xl lg:rounded-3xl shadow-sm p-3 lg:p-10 lg:flex-1 flex flex-col overflow-hidden min-h-0 border border-gray-200"
+          className="calendar-board bg-white rounded-xl lg:rounded-3xl shadow-sm p-3 lg:p-10 lg:flex-1 flex flex-col overflow-hidden min-h-0 border border-gray-200"
           onTouchStart={handleCalendarTouchStart}
           onTouchEnd={handleCalendarTouchEnd}
         >
@@ -287,9 +306,9 @@ export default function Calendar({
           </div>
 
           {/* 날짜 그리드 */}
-          <div className="grid grid-cols-7 gap-1 lg:gap-3 lg:auto-rows-fr lg:flex-1 min-h-0">
+          <div className="calendar-days-grid grid grid-cols-7 gap-1 lg:gap-3 lg:auto-rows-fr lg:flex-1 min-h-0">
             {calendarDays.map((day, idx) => {
-              if (day === null) return <div key={`empty-${idx}`} className="aspect-square lg:aspect-auto lg:h-full" />;
+              if (day === null) return <div key={`empty-${idx}`} className="calendar-empty-day aspect-square lg:aspect-auto lg:h-full" />;
               
               const schedule = isScheduled(day);
               const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
@@ -301,7 +320,7 @@ export default function Calendar({
                   onClick={() => schedule && onSelectDate(schedule.date)}
                   disabled={!schedule}
                   title={hasConflict ? 'Conflict detected: Overlapping schedule.' : undefined}
-                  className={`aspect-square lg:aspect-auto lg:h-full rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all border-2 ${
+                  className={`calendar-day aspect-square lg:aspect-auto lg:h-full rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all border-2 ${
                     hasConflict
                       ? 'bg-red-50 text-red-900 font-bold border-red-400 active:scale-95 hover:bg-red-100 shadow-sm'
                       : schedule 

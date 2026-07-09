@@ -16,6 +16,9 @@ const LEGACY_06_26_START = '2026-04-20';
 const LEGACY_06_26_END = '2026-05-15';
 const LEGACY_06_26_CYCLE = '06-26';
 const LOGIN_STORAGE_KEY = 'blc_calendar_login';
+const DISPLAY_MODE_STORAGE_KEY = 'blc_calendar_display_mode';
+
+export type DisplayMode = 'auto' | 'tv';
 
 type LoginResult = {
   role: UserRole;
@@ -103,7 +106,18 @@ function App() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [pendingNotification, setPendingNotification] = useState<PendingScheduleNotification | null>(null);
   const [notificationFocus, setNotificationFocus] = useState<NotificationFocus | null>(getNotificationFocusFromUrl);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(() => {
+    if (typeof window === 'undefined') return 'auto';
+    return window.localStorage.getItem(DISPLAY_MODE_STORAGE_KEY) === 'tv' ? 'tv' : 'auto';
+  });
   const hasAutoSelectedTodayRef = useRef(false);
+
+  const handleDisplayModeChange = (nextMode: DisplayMode) => {
+    setDisplayMode(nextMode);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(DISPLAY_MODE_STORAGE_KEY, nextMode);
+    }
+  };
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -663,6 +677,8 @@ function App() {
         notificationHighlightTarget={notificationFocus?.targetId || null}
         notificationChangeType={notificationFocus?.changeType || null}
         notificationChangedFields={notificationFocus?.changedFields || []}
+        displayMode={displayMode}
+        onDisplayModeChange={handleDisplayModeChange}
       />
       {pendingNotification && (
         <ScheduleNotificationModal
@@ -686,6 +702,8 @@ function App() {
         onResetSchedules={handleResetSchedules}
         onDeleteCycle={handleDeleteCycle}
         showAdBanner={!isImportModalOpen}
+        displayMode={displayMode}
+        onDisplayModeChange={handleDisplayModeChange}
       />
       {isImportModalOpen && (
         <ScheduleImportModal 
