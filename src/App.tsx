@@ -225,6 +225,8 @@ function App() {
               cycleName: LEGACY_06_26_CYCLE,
               notes: day.notes || "",
               notesHighlighted: Boolean(day.notesHighlighted),
+              sglNotes: day.sglNotes || "",
+              sglNotesHighlighted: Boolean(day.sglNotesHighlighted),
               events: (day.events || []).map((event: TrainingEvent) => ({
                 ...event,
                 highlighted: Boolean(event.highlighted)
@@ -236,6 +238,8 @@ function App() {
             ...day,
             notes: day.notes || "",
             notesHighlighted: Boolean(day.notesHighlighted),
+            sglNotes: day.sglNotes || "",
+            sglNotesHighlighted: Boolean(day.sglNotesHighlighted),
             events: (day.events || []).map((event: TrainingEvent) => ({
               ...event,
               highlighted: Boolean(event.highlighted)
@@ -452,6 +456,44 @@ function App() {
     }
   };
 
+  const handleSaveSglNotes = (dateStr: string, notes: string) => {
+    const dayIndex = schedules.findIndex(day => day.date === dateStr);
+    if (dayIndex !== -1) {
+      const updates: any = {};
+      updates[`/schedules/${dayIndex}/sglNotes`] = notes.trim();
+      update(ref(db), updates)
+        .then(() => queueScheduleNotification(
+          dateStr,
+          'SGL notes updated',
+          'sglNotes',
+          ['sglNotes'],
+          `SGL NOTE: ${truncateNotificationPreview(notes.trim() || 'SGL notes cleared')}`
+        ))
+        .catch(err => {
+          alert("Failed to save SGL notes: " + err.message);
+        });
+    }
+  };
+
+  const handleToggleSglNotesHighlight = (dateStr: string) => {
+    const dayIndex = schedules.findIndex(day => day.date === dateStr);
+    if (dayIndex !== -1) {
+      const updates: any = {};
+      updates[`/schedules/${dayIndex}/sglNotesHighlighted`] = !schedules[dayIndex].sglNotesHighlighted;
+      update(ref(db), updates)
+        .then(() => queueScheduleNotification(
+          dateStr,
+          'SGL notes highlight changed',
+          'sglNotes',
+          ['highlighted'],
+          `SGL NOTE HIGHLIGHT: ${!schedules[dayIndex].sglNotesHighlighted ? 'ON' : 'OFF'}`
+        ))
+        .catch(err => {
+          alert("Failed to highlight SGL notes: " + err.message);
+        });
+    }
+  };
+
   // 새로운 이벤트 추가 함수
   const handleCreateEvent = (dateStr: string, newEvent: TrainingEvent) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
@@ -509,6 +551,8 @@ function App() {
           ...updatedSchedules[existingIndex],
           notes: [updatedSchedules[existingIndex].notes, newDay.notes].filter(Boolean).join('\n'),
           notesHighlighted: Boolean(updatedSchedules[existingIndex].notesHighlighted || newDay.notesHighlighted),
+          sglNotes: [updatedSchedules[existingIndex].sglNotes, newDay.sglNotes].filter(Boolean).join('\n'),
+          sglNotesHighlighted: Boolean(updatedSchedules[existingIndex].sglNotesHighlighted || newDay.sglNotesHighlighted),
           events: [...(updatedSchedules[existingIndex].events || []), ...newDay.events]
         };
       } else {
@@ -768,6 +812,8 @@ function App() {
         onSave={handleSaveEvent}
         onSaveNotes={handleSaveDayNotes}
         onToggleNotesHighlight={handleToggleDayNotesHighlight}
+        onSaveSglNotes={handleSaveSglNotes}
+        onToggleSglNotesHighlight={handleToggleSglNotesHighlight}
         onCreateEvent={handleCreateEvent}
         onDeleteEvent={handleDeleteEvent}
         locations={locations}

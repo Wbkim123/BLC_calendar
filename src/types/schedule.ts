@@ -15,6 +15,8 @@ export interface DailySchedule {
   cycleName: string;
   notes?: string;
   notesHighlighted?: boolean;
+  sglNotes?: string;
+  sglNotesHighlighted?: boolean;
   events: TrainingEvent[];
 }
 

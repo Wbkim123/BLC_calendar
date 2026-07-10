@@ -12,6 +12,8 @@ interface Props {
   onSave: (dateStr: string, updatedEvent: TrainingEvent) => void;
   onSaveNotes: (dateStr: string, notes: string) => void;
   onToggleNotesHighlight: (dateStr: string) => void;
+  onSaveSglNotes: (dateStr: string, notes: string) => void;
+  onToggleSglNotesHighlight: (dateStr: string) => void;
   onCreateEvent: (dateStr: string, newEvent: TrainingEvent) => void;
   onDeleteEvent: (dateStr: string, eventId: string) => void;
   locations: string[];
@@ -34,6 +36,8 @@ export default function DailyView({
   onSave, 
   onSaveNotes,
   onToggleNotesHighlight,
+  onSaveSglNotes,
+  onToggleSglNotesHighlight,
   onCreateEvent,
   onDeleteEvent,
   locations, 
@@ -49,9 +53,10 @@ export default function DailyView({
   onDisplayModeChange
 }: Props) {
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
-  const [editingNotes, setEditingNotes] = useState(false);
+  const [editingNotes, setEditingNotes] = useState<'public' | 'sgl' | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const highlightedTargetRef = useRef<HTMLDivElement>(null);
+  const canViewSglNotes = role === 'ADMIN' || role === 'VIEWER';
 
   useEffect(() => {
     if (!notificationHighlightTarget) return;
@@ -252,6 +257,15 @@ export default function DailyView({
           </div>
         )}
 
+        {notificationHighlightTarget === 'sglNotes' && canViewSglNotes && !schedule.sglNotes && (
+          <div
+            ref={highlightedTargetRef}
+            className="notification-change-highlight rounded-xl border-2 border-purple-400 bg-purple-50 p-3 text-sm font-black text-purple-900"
+          >
+            SGL NOTES changed: no SGL-only notes for this day.
+          </div>
+        )}
+
         <div className="daily-main-layout space-y-3 lg:space-y-0">
         <div className="daily-events-grid space-y-3">
         {sortedEvents.map((ev, idx) => {
@@ -358,7 +372,7 @@ export default function DailyView({
         })}
         </div>
 
-        {/* 새 일정 추가 버튼 박스 (관리자 전용) */}
+        <div className="daily-notes-stack space-y-3">
         {schedule.notes && (
           <div
             ref={notificationHighlightTarget === 'notes' ? highlightedTargetRef : undefined}
@@ -387,7 +401,7 @@ export default function DailyView({
               </div>
               {role === 'ADMIN' && (
                 <button
-                  onClick={() => setEditingNotes(true)}
+                  onClick={() => setEditingNotes('public')}
                   className={`text-[10px] bg-white px-2 py-1 rounded-md font-black border hover:bg-blue-100 ${
                     schedule.notesHighlighted ? 'text-red-700 border-red-100' : 'text-blue-700 border-blue-100'
                   }`}
@@ -406,16 +420,72 @@ export default function DailyView({
             } ${notificationHighlightTarget === 'notes' && notificationChangedFields.includes('notes') ? 'notification-field-highlight p-1' : ''}`}>{schedule.notes}</p>
           </div>
         )}
+        {canViewSglNotes && schedule.sglNotes && (
+          <div
+            ref={notificationHighlightTarget === 'sglNotes' ? highlightedTargetRef : undefined}
+            className={`daily-notes-panel p-4 rounded-r-lg shadow-sm border-l-4 ${
+            notificationHighlightTarget === 'sglNotes' ? 'notification-change-highlight ' : ''
+          }${
+            schedule.sglNotesHighlighted
+              ? 'bg-purple-50 border-purple-600 ring-2 ring-purple-100'
+              : 'bg-violet-50 border-violet-500'
+          }`}
+          >
+            <div className="flex items-center justify-between gap-3 mb-1">
+              <div className="flex items-center gap-2">
+                {role === 'ADMIN' && (
+                  <button
+                    onClick={() => onToggleSglNotesHighlight(schedule.date)}
+                    className={`text-lg leading-none transition-colors ${
+                      schedule.sglNotesHighlighted ? 'text-purple-600' : 'text-violet-200 hover:text-purple-500'
+                    } ${notificationHighlightTarget === 'sglNotes' && notificationChangedFields.includes('highlighted') ? 'notification-field-highlight' : ''}`}
+                    title={schedule.sglNotesHighlighted ? "Remove SGL notes highlight" : "Highlight SGL notes"}
+                  >
+                    ★
+                  </button>
+                )}
+                <p className={`text-xs font-black ${schedule.sglNotesHighlighted ? 'text-purple-800' : 'text-violet-800'}`}>SGL NOTES:</p>
+              </div>
+              {role === 'ADMIN' && (
+                <button
+                  onClick={() => setEditingNotes('sgl')}
+                  className={`text-[10px] bg-white px-2 py-1 rounded-md font-black border hover:bg-violet-100 ${
+                    schedule.sglNotesHighlighted ? 'text-purple-800 border-purple-100' : 'text-violet-700 border-violet-100'
+                  }`}
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+            {notificationHighlightTarget === 'sglNotes' && notificationChangedFields.includes('highlighted') && (
+              <span className="notification-field-highlight mb-2 inline-block px-1.5 py-0.5 text-[10px] font-black">
+                SGL NOTES highlight changed
+              </span>
+            )}
+            <p className={`daily-notes-text text-sm font-semibold leading-relaxed whitespace-pre-wrap ${
+              schedule.sglNotesHighlighted ? 'text-purple-800' : 'text-gray-700'
+            } ${notificationHighlightTarget === 'sglNotes' && notificationChangedFields.includes('sglNotes') ? 'notification-field-highlight p-1' : ''}`}>{schedule.sglNotes}</p>
+          </div>
+        )}
+        </div>
         </div>
 
         {role === 'ADMIN' && (
           <>
           {!schedule.notes && (
             <button
-              onClick={() => setEditingNotes(true)}
+              onClick={() => setEditingNotes('public')}
               className="w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-blue-200 rounded-xl flex items-center justify-center text-blue-500 hover:border-blue-400 hover:bg-blue-50 transition-all active:scale-[0.98] text-xs lg:text-sm font-black uppercase tracking-widest"
             >
               + Add Notes
+            </button>
+          )}
+          {!schedule.sglNotes && (
+            <button
+              onClick={() => setEditingNotes('sgl')}
+              className="w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-purple-200 rounded-xl flex items-center justify-center text-purple-500 hover:border-purple-400 hover:bg-purple-50 transition-all active:scale-[0.98] text-xs lg:text-sm font-black uppercase tracking-widest"
+            >
+              + Add SGL Notes
             </button>
           )}
           <button 
@@ -448,11 +518,18 @@ export default function DailyView({
       )}
       {editingNotes && (
         <NotesModal
-          initialNotes={schedule.notes || ""}
-          onClose={() => setEditingNotes(false)}
+          title={editingNotes === 'sgl' ? 'Edit SGL Notes' : 'Edit Notes'}
+          label={editingNotes === 'sgl' ? 'SGL NOTES:' : 'NOTES:'}
+          placeholder={editingNotes === 'sgl' ? 'Notes visible only to SGL users and admins' : 'Optional notes for this day'}
+          initialNotes={editingNotes === 'sgl' ? schedule.sglNotes || "" : schedule.notes || ""}
+          onClose={() => setEditingNotes(null)}
           onSave={(notes) => {
-            onSaveNotes(schedule.date, notes);
-            setEditingNotes(false);
+            if (editingNotes === 'sgl') {
+              onSaveSglNotes(schedule.date, notes);
+            } else {
+              onSaveNotes(schedule.date, notes);
+            }
+            setEditingNotes(null);
           }}
         />
       )}
@@ -462,10 +539,16 @@ export default function DailyView({
 
 // ---- 수정 모달 컴포넌트 ----
 function NotesModal({
+  title,
+  label,
+  placeholder,
   initialNotes,
   onClose,
   onSave
 }: {
+  title: string,
+  label: string,
+  placeholder: string,
   initialNotes: string,
   onClose: () => void,
   onSave: (notes: string) => void
@@ -476,15 +559,15 @@ function NotesModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
       <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
         <div className="bg-blue-900 p-4 text-white">
-          <h3 className="font-bold text-lg">Edit Notes</h3>
+          <h3 className="font-bold text-lg">{title}</h3>
         </div>
         <div className="p-5">
-          <label className="block text-xs font-bold text-gray-500 mb-1">NOTES:</label>
+          <label className="block text-xs font-bold text-gray-500 mb-1">{label}</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={6}
-            placeholder="Optional notes for this day"
+            placeholder={placeholder}
             className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none leading-relaxed"
           />
         </div>
