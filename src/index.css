@@ -72,6 +72,11 @@ body {
   padding-block-end: calc(1rem + env(safe-area-inset-bottom));
 }
 
+.daily-content {
+  padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+
 /* Phones retain the existing stacked layout. Laptop/TV screens place the
    single-column event list beside a notes panel of matching height. */
 @media (min-width: 1024px) {
@@ -193,12 +198,6 @@ body {
 
 .calendar-root.display-mode-tv .calendar-day {
   border-radius: 1rem;
-}
-
-@media (min-width: 1024px) and (min-height: 720px) {
-  .daily-content:not(.daily-content-admin) {
-    overflow-y: hidden;
-  }
 }
 
 .daily-content-admin {

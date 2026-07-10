@@ -62,6 +62,31 @@ const getLocalTodayString = () => {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 };
 
+const getScheduleEndDateTime = (schedule?: DailySchedule | null) => {
+  if (!schedule?.events?.length) return null;
+
+  const latestEndTime = schedule.events.reduce<string | null>((latest, event) => {
+    const [, rawEndTime] = event.time.split('-');
+    const normalizedEndTime = rawEndTime?.trim().padStart(4, '0');
+    if (!normalizedEndTime || !/^\d{4}$/.test(normalizedEndTime)) return latest;
+    return !latest || normalizedEndTime > latest ? normalizedEndTime : latest;
+  }, null);
+
+  if (!latestEndTime) return null;
+
+  const [year, month, day] = schedule.date.split('-').map(Number);
+  if (!year || !month || !day) return null;
+
+  const endDate = new Date(year, month - 1, day);
+  endDate.setHours(
+    Number(latestEndTime.slice(0, 2)),
+    Number(latestEndTime.slice(2, 4)),
+    0,
+    0
+  );
+  return endDate;
+};
+
 const normalizeStudentCode = (cycleName: string) => cycleName.replace(/\D/g, '');
 
 const truncateNotificationPreview = (value: string, maxLength = 90) => {
@@ -703,30 +728,36 @@ function App() {
   useEffect(() => {
     if (!role || !selectedDateId || filteredSchedules.length === 0) return;
 
-    let timerId: number;
+    const advanceScheduleIfNeeded = () => {
+      if (displayMode === 'tv') {
+        const currentSchedule = filteredSchedules.find(schedule => schedule.date === selectedDateId);
+        const nextSchedule = filteredSchedules.find(schedule => schedule.date > selectedDateId);
+        const currentScheduleEnd = getScheduleEndDateTime(currentSchedule);
 
-    const scheduleMidnightChange = () => {
-      const now = new Date();
-      const nextMidnight = new Date(now);
-      nextMidnight.setDate(now.getDate() + 1);
-      nextMidnight.setHours(0, 0, 1, 0);
-
-      timerId = window.setTimeout(() => {
-        const todayStr = getLocalTodayString();
-        const nextSchedule = filteredSchedules.find(schedule => schedule.date >= todayStr);
-
-        if (nextSchedule) {
+        if (nextSchedule && currentScheduleEnd && Date.now() > currentScheduleEnd.getTime()) {
           hasAutoSelectedTodayRef.current = true;
           setSelectedDateId(nextSchedule.date);
         }
+        return;
+      }
 
-        scheduleMidnightChange();
-      }, nextMidnight.getTime() - now.getTime());
+      const todayStr = getLocalTodayString();
+
+      if (selectedDateId < todayStr) {
+        const nextSchedule = filteredSchedules.find(schedule => schedule.date >= todayStr);
+
+        if (nextSchedule && nextSchedule.date !== selectedDateId) {
+          hasAutoSelectedTodayRef.current = true;
+          setSelectedDateId(nextSchedule.date);
+        }
+        return;
+      }
     };
 
-    scheduleMidnightChange();
-    return () => window.clearTimeout(timerId);
-  }, [role, selectedDateId, filteredSchedules]);
+    advanceScheduleIfNeeded();
+    const intervalId = window.setInterval(advanceScheduleIfNeeded, 30000);
+    return () => window.clearInterval(intervalId);
+  }, [role, selectedDateId, filteredSchedules, displayMode]);
 
   const cycleTitle = useMemo(() => {
     const titleCycleName = role === 'STUDENT' ? studentCycleName : activeCycleName;

@@ -138,6 +138,33 @@ export default function DailyView({
 
   // --- 시간순 정렬 및 겹침 감지 로직 ---
   const sortedEvents = [...(schedule.events || [])].sort((a, b) => a.time.localeCompare(b.time));
+  const now = new Date();
+
+  const getEventDate = (timeStr?: string) => {
+    if (!timeStr) return null;
+    const normalizedTime = timeStr.trim().padStart(4, '0');
+    if (!/^\d{4}$/.test(normalizedTime)) return null;
+
+    const [year, month, day] = schedule.date.split('-').map(Number);
+    if (!year || !month || !day) return null;
+
+    const eventDate = new Date(year, month - 1, day);
+    eventDate.setHours(
+      Number(normalizedTime.slice(0, 2)),
+      Number(normalizedTime.slice(2, 4)),
+      0,
+      0
+    );
+    return eventDate;
+  };
+
+  const visibleEvents = displayMode === 'tv'
+    ? sortedEvents.filter(event => {
+        const [, endTimeStr] = event.time.split('-');
+        const endTime = getEventDate(endTimeStr);
+        return !endTime || now <= endTime;
+      })
+    : sortedEvents;
 
   // 각 이벤트가 충돌하는지 여부를 판단하는 함수
   const checkConflict = (idx: number) => {
@@ -268,24 +295,23 @@ export default function DailyView({
 
         <div className="daily-main-layout space-y-3 lg:space-y-0">
         <div className="daily-events-grid space-y-3">
-        {sortedEvents.map((ev, idx) => {
+        {displayMode === 'tv' && sortedEvents.length > 0 && visibleEvents.length === 0 && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm font-black text-blue-900">
+            All events for this day are complete. Moving to the next schedule when available.
+          </div>
+        )}
+
+        {visibleEvents.map((ev) => {
           // --- 현재 시각 기준 상태 계산 ---
-          const now = new Date();
           const [startTimeStr, endTimeStr] = ev.time.split('-');
-          
-          const getEventDate = (timeStr: string) => {
-            const [hours, mins] = [parseInt(timeStr.slice(0, 2)), parseInt(timeStr.slice(2, 4))];
-            const d = new Date(schedule.date);
-            d.setHours(hours, mins, 0, 0);
-            return d;
-          };
 
           const startTime = getEventDate(startTimeStr);
           const endTime = getEventDate(endTimeStr);
 
-          const isPast = now > endTime;
-          const isOngoing = now >= startTime && now <= endTime;
-          const isConflicting = checkConflict(idx);
+          const isPast = endTime ? now > endTime : false;
+          const isOngoing = Boolean(startTime && endTime && now >= startTime && now <= endTime);
+          const sortedIndex = sortedEvents.findIndex(event => event.id === ev.id);
+          const isConflicting = sortedIndex >= 0 ? checkConflict(sortedIndex) : false;
           // ----------------------------
 
           return (

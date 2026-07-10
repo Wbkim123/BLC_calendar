@@ -41,24 +41,19 @@ interface Props {
 export default function ScheduleNotificationModal({ change, onClose }: Props) {
   const isSglOnlyChange = change.targetId === 'sglNotes';
   const isPublicNotesChange = change.targetId === 'notes';
-  const [sendToSgl, setSendToSgl] = useState(true);
-  const [sendToStudents, setSendToStudents] = useState(Boolean(change.cycleName) && !isSglOnlyChange);
   const [sending, setSending] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
   const [testMessage, setTestMessage] = useState('');
 
-  const handleSend = async () => {
+  const sendWithRecipients = async (recipients: { sgl: boolean; students: boolean }) => {
     setSending(true);
     setError('');
     setTestMessage('');
     try {
       await sendScheduleNotification({
         ...change,
-        recipients: {
-          sgl: isPublicNotesChange ? true : sendToSgl,
-          students: sendToStudents
-        }
+        recipients
       });
       onClose();
     } catch (sendError) {
@@ -69,25 +64,24 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
     }
   };
 
-  const handleSkip = async () => {
-    setSending(true);
-    setError('');
-    setTestMessage('');
-    try {
-      await sendScheduleNotification({
-        ...change,
-        recipients: {
-          sgl: isPublicNotesChange,
-          students: false
-        }
-      });
-      onClose();
-    } catch (sendError) {
-      console.error('Failed to notify schedule managers:', sendError);
-      setError(getSendErrorMessage(sendError));
-    } finally {
-      setSending(false);
+  const handleYes = () => {
+    if (isPublicNotesChange) {
+      sendWithRecipients({ sgl: true, students: Boolean(change.cycleName) });
+      return;
     }
+    if (isSglOnlyChange) {
+      sendWithRecipients({ sgl: true, students: false });
+      return;
+    }
+    sendWithRecipients({ sgl: true, students: Boolean(change.cycleName) });
+  };
+
+  const handleNo = () => {
+    if (isPublicNotesChange) {
+      sendWithRecipients({ sgl: true, students: false });
+      return;
+    }
+    sendWithRecipients({ sgl: false, students: false });
   };
 
   const handleTestMyDevice = async () => {
@@ -116,12 +110,28 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
     }
   };
 
+  const question = isSglOnlyChange
+    ? 'Send notification to all SGLs?'
+    : isPublicNotesChange
+      ? 'Send notification to all students?'
+      : 'Send notification to SGLs and students?';
+
+  const description = isSglOnlyChange
+    ? 'Yes sends to SGLs and managers. No sends to managers only.'
+    : isPublicNotesChange
+      ? 'SGLs and managers are notified automatically. Choose whether students should also be notified.'
+      : change.cycleName
+        ? `Yes sends to SGLs, managers, and Cycle ${change.cycleName}. No sends to managers only.`
+        : 'No cycle is assigned. Yes sends to SGLs and managers only.';
+
+  const disableYes = isPublicNotesChange && !change.cycleName;
+
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="bg-blue-900 p-4 text-white">
           <h2 className="text-lg font-black">Schedule Saved</h2>
-          <p className="mt-1 text-xs text-blue-200">Send a notification for {change.date}?</p>
+          <p className="mt-1 text-xs text-blue-200">Choose whether to send a notification for {change.date}.</p>
         </div>
 
         <div className="space-y-3 p-5">
@@ -134,56 +144,35 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
             )}
           </div>
 
-          {!isPublicNotesChange && (
-            <AudienceChoice
-              question={isSglOnlyChange
-                ? 'Send notification to all SGLs?'
-                : 'Send notification to SGL users?'}
-              description={isSglOnlyChange
-                ? 'SGL-only notes are hidden from students.'
-                : 'SGL users can view this schedule change.'}
-              value={sendToSgl}
-              onChange={setSendToSgl}
-            />
-          )}
-
-          {!isSglOnlyChange && (
-            <AudienceChoice
-              question={isPublicNotesChange
-                ? 'Send notification to all students?'
-                : 'Send notification to students?'}
-              description={change.cycleName
-                ? `Cycle ${change.cycleName}`
-                : 'No cycle is assigned, so students cannot be selected.'}
-              value={sendToStudents}
-              onChange={setSendToStudents}
-              disabled={!change.cycleName}
-            />
-          )}
-
-          <label className={`hidden items-center gap-3 rounded-xl border p-3 ${change.cycleName && !isSglOnlyChange ? 'cursor-pointer border-gray-200' : 'cursor-not-allowed border-gray-100 opacity-50'}`}>
-            <input
-              type="checkbox"
-              checked={sendToStudents}
-              disabled={!change.cycleName || isSglOnlyChange}
-              onChange={event => setSendToStudents(event.target.checked)}
-              className="h-5 w-5"
-            />
-            <span className="font-bold text-gray-800">
-              {isSglOnlyChange
-                ? 'Students — hidden for SGL-only notes'
-                : change.cycleName
-                  ? `Students — Cycle ${change.cycleName}`
-                  : 'Students — No cycle assigned'}
-            </span>
-            <span className="hidden">
-              Students{change.cycleName ? ` — Cycle ${change.cycleName}` : ' — No cycle assigned'}
-            </span>
-          </label>
+          <div className="rounded-xl border border-gray-200 bg-white p-3">
+            <div className="text-sm font-black text-gray-900">{question}</div>
+            <div className="mt-1 text-[11px] font-semibold text-gray-500">
+              {disableYes ? 'No cycle is assigned, so students cannot be selected.' : description}
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={sending || testing}
+                onClick={handleNo}
+                className="rounded-lg bg-gray-700 py-2 text-xs font-black text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                No
+              </button>
+              <button
+                type="button"
+                disabled={sending || testing || disableYes}
+                onClick={handleYes}
+                className="rounded-lg bg-green-600 py-2 text-xs font-black text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {sending ? 'Sending...' : 'Yes'}
+              </button>
+            </div>
+          </div>
 
           <p className="text-xs font-semibold text-gray-500">
             Change: {change.previewText || change.changeType}
           </p>
+
           {SHOW_TEST_DEVICE_BUTTON && (
             <>
               <button
@@ -200,74 +189,9 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
               {testMessage && <p className="text-xs font-bold text-green-700">{testMessage}</p>}
             </>
           )}
+
           {error && <p className="text-xs font-bold text-red-600">{error}</p>}
         </div>
-
-        <div className="flex gap-3 bg-gray-50 p-4">
-          <button
-            type="button"
-            disabled={sending || testing}
-            onClick={handleSkip}
-            className="flex-1 rounded-xl bg-gray-200 py-3 font-bold text-gray-700 disabled:opacity-50"
-          >
-            {isPublicNotesChange ? 'Skip Students' : 'Notify Managers Only'}
-          </button>
-          <button
-            type="button"
-            disabled={sending || testing}
-            onClick={handleSend}
-            className="flex-1 rounded-xl bg-blue-700 py-3 font-bold text-white shadow disabled:opacity-50"
-          >
-            {sending ? 'Sending...' : 'Send Notification'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AudienceChoice({
-  question,
-  description,
-  value,
-  onChange,
-  disabled = false
-}: {
-  question: string;
-  description: string;
-  value: boolean;
-  onChange: (value: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className={`rounded-xl border p-3 ${disabled ? 'border-gray-100 bg-gray-50 opacity-60' : 'border-gray-200 bg-white'}`}>
-      <div className="text-sm font-black text-gray-900">{question}</div>
-      <div className="mt-1 text-[11px] font-semibold text-gray-500">{description}</div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(true)}
-          className={`rounded-lg py-2 text-xs font-black transition-colors disabled:cursor-not-allowed ${
-            value
-              ? 'bg-green-600 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          Yes
-        </button>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(false)}
-          className={`rounded-lg py-2 text-xs font-black transition-colors disabled:cursor-not-allowed ${
-            !value
-              ? 'bg-gray-700 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          No
-        </button>
       </div>
     </div>
   );
