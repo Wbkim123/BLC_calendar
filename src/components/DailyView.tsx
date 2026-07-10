@@ -658,13 +658,16 @@ function EditModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center px-4 pt-4 z-50 backdrop-blur-sm overflow-y-auto"
+      style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
+    >
+      <div className="bg-white w-full max-w-sm max-h-full rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col">
         <div className="bg-blue-900 p-4 text-white">
           <h3 className="font-bold text-lg">Edit Event</h3>
         </div>
         
-        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div className="p-5 space-y-4 overflow-y-auto min-h-0">
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1">TIME</label>
             <input type="text" name="time" value={formData.time} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
@@ -767,7 +770,7 @@ function EditModal({
 
         </div>
 
-        <div className="p-4 bg-gray-50 flex flex-col gap-3">
+        <div className="p-4 bg-gray-50 flex flex-col gap-3 shrink-0">
           <div className="flex gap-3">
             <button onClick={onClose} className="flex-1 py-3 bg-gray-200 text-gray-700 font-bold rounded-xl active:bg-gray-300">Cancel</button>
             <button onClick={() => onSave(formData)} className="flex-1 py-3 bg-blue-700 text-white font-bold rounded-xl active:bg-blue-800 shadow-md">
