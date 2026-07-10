@@ -57,6 +57,13 @@ export default function DailyView({
   const [isCreating, setIsCreating] = useState(false);
   const highlightedTargetRef = useRef<HTMLDivElement>(null);
   const canViewSglNotes = role === 'ADMIN' || role === 'VIEWER';
+  const scheduleDayName = (() => {
+    const [year, month, day] = schedule.date.split('-').map(Number);
+    if (!year || !month || !day) return '';
+    return new Date(year, month - 1, day)
+      .toLocaleDateString('en-US', { weekday: 'short' })
+      .toUpperCase();
+  })();
 
   useEffect(() => {
     if (!notificationHighlightTarget) return;
@@ -210,7 +217,9 @@ export default function DailyView({
           </button>
           <img src="/NCOA_Logo.png" alt="NCOA Logo" className="hidden sm:block w-10 h-10 object-contain mr-3 shrink-0" />
           <div className="min-w-0">
-            <h1 className="text-base sm:text-xl font-black truncate">{schedule.date}</h1>
+            <h1 className="text-base sm:text-xl font-black truncate">
+              {schedule.date}{scheduleDayName ? ` (${scheduleDayName})` : ''}
+            </h1>
             <p className="text-xs sm:text-sm text-blue-200 truncate">{schedule.dayLabel}</p>
           </div>
         </div>
