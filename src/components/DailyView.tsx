@@ -512,7 +512,7 @@ export default function DailyView({
               onClick={() => setEditingNotes('public')}
               className="w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-blue-200 rounded-xl flex items-center justify-center text-blue-500 hover:border-blue-400 hover:bg-blue-50 transition-all active:scale-[0.98] text-xs lg:text-sm font-black uppercase tracking-widest"
             >
-              + Add Notes
+              + Add Student Notes
             </button>
           )}
           {!schedule.sglNotes && (
@@ -525,9 +525,10 @@ export default function DailyView({
           )}
           <button 
             onClick={openCreateModal}
-            className="w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all active:scale-[0.98]"
+            className="w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center gap-2 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all active:scale-[0.98] text-xs lg:text-sm font-black uppercase tracking-widest"
           >
-            <span className="text-2xl lg:text-3xl font-light">+</span>
+            <span className="text-2xl lg:text-3xl font-light leading-none">+</span>
+            <span>Add Event</span>
           </button>
           </>
         )}
