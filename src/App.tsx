@@ -729,18 +729,6 @@ function App() {
     if (!role || !selectedDateId || filteredSchedules.length === 0) return;
 
     const advanceScheduleIfNeeded = () => {
-      if (displayMode === 'tv') {
-        const currentSchedule = filteredSchedules.find(schedule => schedule.date === selectedDateId);
-        const nextSchedule = filteredSchedules.find(schedule => schedule.date > selectedDateId);
-        const currentScheduleEnd = getScheduleEndDateTime(currentSchedule);
-
-        if (nextSchedule && currentScheduleEnd && Date.now() > currentScheduleEnd.getTime()) {
-          hasAutoSelectedTodayRef.current = true;
-          setSelectedDateId(nextSchedule.date);
-        }
-        return;
-      }
-
       const todayStr = getLocalTodayString();
 
       if (selectedDateId < todayStr) {
@@ -751,6 +739,17 @@ function App() {
           setSelectedDateId(nextSchedule.date);
         }
         return;
+      }
+
+      if (displayMode !== 'tv') return;
+
+      const currentSchedule = filteredSchedules.find(schedule => schedule.date === selectedDateId);
+      const nextSchedule = filteredSchedules.find(schedule => schedule.date > selectedDateId);
+      const currentScheduleEnd = getScheduleEndDateTime(currentSchedule);
+
+      if (nextSchedule && currentScheduleEnd && Date.now() > currentScheduleEnd.getTime()) {
+        hasAutoSelectedTodayRef.current = true;
+        setSelectedDateId(nextSchedule.date);
       }
     };
 
