@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
-import { getDatabase } from "firebase/database";
+import { forceLongPolling, getDatabase } from "firebase/database";
 import { getAuth } from "firebase/auth";
+import { Capacitor } from "@capacitor/core";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDNjoIVSKyIRjFm7LQD-yH7pemRZ7c_nyc",
@@ -14,5 +15,12 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
+
+// WKWebView can prevent the Realtime Database WebSocket transport from
+// completing. Use Firebase's supported HTTP long-polling transport on iOS.
+if (Capacitor.getPlatform() === 'ios') {
+  forceLongPolling();
+}
+
 export const db = getDatabase(app);
 export const auth = getAuth(app);

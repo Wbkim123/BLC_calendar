@@ -226,10 +226,19 @@ function App() {
     const schedulesRef = ref(db, 'schedules');
     const locationsRef = ref(db, 'locations');
     const uniformsRef = ref(db, 'uniforms');
+    let receivedSchedules = false;
+    const loadingTimeout = window.setTimeout(() => {
+      if (receivedSchedules) return;
+      setApiError('Unable to connect to the schedule database. Check your internet connection and try again.');
+      setIsLoading(false);
+    }, 15000);
 
     // 사이클 제목 감시
     // 스케줄 감시
     const unsubSchedules = onValue(schedulesRef, (snapshot) => {
+      receivedSchedules = true;
+      window.clearTimeout(loadingTimeout);
+      setApiError(null);
       console.log("Schedules snapshot received:", snapshot.val());
       const data = snapshot.val();
       if (data) {
@@ -293,6 +302,8 @@ function App() {
           });
       }
     }, (error) => {
+      receivedSchedules = true;
+      window.clearTimeout(loadingTimeout);
       console.error("Schedules sync error:", error);
       setApiError("Permission denied or database error: " + error.message);
       setIsLoading(false);
@@ -325,6 +336,7 @@ function App() {
     });
 
     return () => {
+      window.clearTimeout(loadingTimeout);
       unsubSchedules();
       unsubLocations();
       unsubUniforms();
