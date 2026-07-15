@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { AdMob, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 
-const BANNER_AD_ID = 'ca-app-pub-1251095758735054/6937828493';
+const ANDROID_BANNER_AD_ID = 'ca-app-pub-1251095758735054/6937828493';
+const IOS_TEST_BANNER_AD_ID = 'ca-app-pub-3940256099942544/2435281174';
 const BANNER_HEIGHT_PX = 64;
 
 let initializePromise: Promise<void> | null = null;
@@ -18,10 +19,14 @@ const initializeAdMob = () => {
 };
 
 const showAdMobBanner = () => {
+  const bannerAdId = Capacitor.getPlatform() === 'ios'
+    ? IOS_TEST_BANNER_AD_ID
+    : ANDROID_BANNER_AD_ID;
+
   if (!showBannerPromise) {
     showBannerPromise = initializeAdMob()
       .then(() => AdMob.showBanner({
-        adId: BANNER_AD_ID,
+        adId: bannerAdId,
         adSize: BannerAdSize.ADAPTIVE_BANNER,
         position: BannerAdPosition.BOTTOM_CENTER
       }))
