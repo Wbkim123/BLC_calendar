@@ -10,7 +10,7 @@ import { mockSchedules } from './data/mockData';
 import { auth, db, firebaseDatabaseUrl } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 import { signOut } from 'firebase/auth';
-import { createAdminSession, disableNotifications, isPhoneDevice, listenForForegroundNotifications } from './notifications';
+import { createAdminSession, disableNotifications, listenForForegroundNotifications } from './notifications';
 
 const LEGACY_06_26_START = '2026-04-20';
 const LEGACY_06_26_END = '2026-05-15';
@@ -676,17 +676,12 @@ function App() {
       });
     }
   };
-  const handleLogout = async () => {
-    try {
-      await disableNotifications(role, studentCycleName, isPhoneDevice());
-    } catch (error) {
-      console.error('Failed to unsubscribe from schedule notifications:', error);
-    }
+  const handleLogout = () => {
+    const previousRole = role;
+    const previousStudentCycleName = studentCycleName;
 
-    await signOut(auth).catch(error => {
-      console.error('Failed to end administrator session:', error);
-    });
-
+    // Clear the local session first so slow notification/auth requests cannot
+    // leave the user stuck on the calendar after pressing LOGOUT.
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(LOGIN_STORAGE_KEY);
     }
@@ -695,6 +690,19 @@ function App() {
     setSelectedDateId(null);
     setStudentCycleName(null);
     hasAutoSelectedTodayRef.current = false;
+
+    void Promise.allSettled([
+      disableNotifications(previousRole, previousStudentCycleName, false),
+      signOut(auth)
+    ]).then(results => {
+      const [notificationResult, authResult] = results;
+      if (notificationResult.status === 'rejected') {
+        console.error('Failed to unsubscribe from schedule notifications:', notificationResult.reason);
+      }
+      if (authResult.status === 'rejected') {
+        console.error('Failed to end administrator session:', authResult.reason);
+      }
+    });
   };
   const handleLogin = async (code: string, rememberLogin: boolean) => {
     let login = resolveLoginFromCode(code, schedules);
