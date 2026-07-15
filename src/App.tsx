@@ -793,6 +793,8 @@ function App() {
     if (!role || !selectedDateId || filteredSchedules.length === 0) return;
 
     const advanceScheduleIfNeeded = () => {
+      if (displayMode !== 'tv') return;
+
       const todayStr = getLocalTodayString();
 
       if (selectedDateId < todayStr) {
@@ -804,8 +806,6 @@ function App() {
         }
         return;
       }
-
-      if (displayMode !== 'tv') return;
 
       const currentSchedule = filteredSchedules.find(schedule => schedule.date === selectedDateId);
       const nextSchedule = filteredSchedules.find(schedule => schedule.date > selectedDateId);

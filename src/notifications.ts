@@ -23,10 +23,38 @@ export type NotificationRecipients = {
 };
 
 export async function createAdminSession(code: string) {
-  const result = await httpsCallable(functions, 'createAdminSession')({ code });
-  const data = result.data as { token?: string };
-  if (!data.token) throw new Error('admin-session');
-  await signInWithCustomToken(auth, data.token);
+  const abortController = new AbortController();
+  const timeoutId = window.setTimeout(() => abortController.abort(), 15000);
+  let response: Response;
+
+  try {
+    response = await fetch(
+      'https://us-central1-blc-calendar-e302f.cloudfunctions.net/createAdminSession',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: { code } }),
+        signal: abortController.signal
+      }
+    );
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+
+  const payload = await response.json().catch(() => null) as {
+    result?: { token?: string };
+    error?: { message?: string };
+  } | null;
+  if (!response.ok || payload?.error) throw new Error(payload?.error?.message || 'admin-session');
+
+  const data = payload?.result;
+  if (!data?.token) throw new Error('admin-session');
+
+  // Authentication can finish in the background; the verified function
+  // response is enough to continue past the login screen on iOS.
+  void signInWithCustomToken(auth, data.token).catch(error => {
+    console.error('Failed to attach Firebase administrator credentials:', error);
+  });
 }
 
 export async function sendScheduleNotification(details: {
