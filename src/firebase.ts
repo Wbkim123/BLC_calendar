@@ -14,6 +14,8 @@ const firebaseConfig = {
   measurementId: "G-074Q0C8YQE"
 };
 
+export const firebaseDatabaseUrl = firebaseConfig.databaseURL;
+
 export const app = initializeApp(firebaseConfig);
 
 // WKWebView can prevent the Realtime Database WebSocket transport from

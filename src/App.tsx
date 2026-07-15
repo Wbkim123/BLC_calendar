@@ -7,7 +7,7 @@ import ScheduleImportModal from './components/ScheduleImportModal';
 import ScheduleNotificationModal, { PendingScheduleNotification } from './components/ScheduleNotificationModal';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
 import { mockSchedules } from './data/mockData';
-import { auth, db } from './firebase';
+import { auth, db, firebaseDatabaseUrl } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 import { signOut } from 'firebase/auth';
 import { createAdminSession, disableNotifications, isPhoneDevice, listenForForegroundNotifications } from './notifications';
@@ -233,6 +233,57 @@ function App() {
       setIsLoading(false);
     }, 15000);
 
+    // Bootstrap through ordinary HTTPS because Firebase's realtime transport
+    // can fail to establish inside an iOS WKWebView.
+    const abortController = new AbortController();
+    const fetchDatabaseValue = async (path: string) => {
+      const response = await fetch(`${firebaseDatabaseUrl}/${path}.json`, {
+        cache: 'no-store',
+        signal: abortController.signal
+      });
+      if (!response.ok) throw new Error(`Database request failed (${response.status})`);
+      return response.json();
+    };
+
+    Promise.all([
+      fetchDatabaseValue('schedules'),
+      fetchDatabaseValue('locations'),
+      fetchDatabaseValue('uniforms')
+    ]).then(([scheduleData, locationData, uniformData]) => {
+      const rawSchedules = scheduleData
+        ? (Array.isArray(scheduleData) ? scheduleData : Object.values(scheduleData))
+        : mockSchedules;
+      const initialSchedules = rawSchedules
+        .filter((day): day is DailySchedule => Boolean(day && typeof day === 'object' && day.date))
+        .map(day => ({
+          ...day,
+          notes: day.notes || '',
+          notesHighlighted: Boolean(day.notesHighlighted),
+          sglNotes: day.sglNotes || '',
+          sglNotesHighlighted: Boolean(day.sglNotesHighlighted),
+          events: (day.events || []).map((event: TrainingEvent) => ({
+            ...event,
+            highlighted: Boolean(event.highlighted)
+          }))
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      receivedSchedules = true;
+      window.clearTimeout(loadingTimeout);
+      setSchedules(initialSchedules);
+      setLocations(locationData
+        ? (Array.isArray(locationData) ? locationData : Object.values(locationData)) as string[]
+        : ['MPR', 'CR', 'DFC', 'AUD', 'ACA', 'FLD', 'HMP']);
+      setUniforms(uniformData
+        ? (Array.isArray(uniformData) ? uniformData : Object.values(uniformData)) as string[]
+        : ['PT', 'ACU', 'ASU']);
+      setApiError(null);
+      setIsLoading(false);
+    }).catch(error => {
+      if (abortController.signal.aborted) return;
+      console.error('Initial database HTTPS load failed:', error);
+    });
+
     // 사이클 제목 감시
     // 스케줄 감시
     const unsubSchedules = onValue(schedulesRef, (snapshot) => {
@@ -336,6 +387,7 @@ function App() {
     });
 
     return () => {
+      abortController.abort();
       window.clearTimeout(loadingTimeout);
       unsubSchedules();
       unsubLocations();
