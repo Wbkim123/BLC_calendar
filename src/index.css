@@ -5,11 +5,14 @@
 html,
 body,
 #root {
+  inline-size: 100%;
+  block-size: 100%;
   min-block-size: 100%;
 }
 
 body {
   margin: 0;
+  overflow: hidden;
 }
 
 @keyframes notification-change-bounce {
@@ -58,8 +61,10 @@ body {
 }
 
 .app-safe-screen {
-  min-block-size: 100vh;
-  min-block-size: 100dvh;
+  box-sizing: border-box;
+  block-size: 100vh;
+  block-size: 100dvh;
+  min-block-size: 0;
   padding-block-start: env(safe-area-inset-top);
   padding-block-end: env(safe-area-inset-bottom);
 }
@@ -72,9 +77,28 @@ body {
   padding-block-end: calc(1rem + env(safe-area-inset-bottom));
 }
 
+.daily-screen {
+  padding-block-start: 0;
+  padding-block-end: 0;
+  overflow: hidden;
+}
+
+.daily-header {
+  flex: 0 0 auto;
+  padding-block-start: calc(0.75rem + env(safe-area-inset-top));
+}
+
 .daily-content {
-  padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+  min-block-size: 0;
+  padding-bottom: calc(8rem + env(safe-area-inset-bottom));
+  scroll-padding-bottom: calc(8rem + env(safe-area-inset-bottom));
   overflow-y: auto;
+}
+
+@media (min-width: 640px) {
+  .daily-header {
+    padding-block-start: calc(1rem + env(safe-area-inset-top));
+  }
 }
 
 /* Phones retain the existing stacked layout. Laptop/TV screens place the
@@ -107,12 +131,13 @@ body {
 }
 
 .display-mode-tv .daily-content {
-  padding: 0.5rem 0.75rem calc(5.25rem + env(safe-area-inset-bottom));
+  padding: 0.5rem 0.75rem calc(8rem + env(safe-area-inset-bottom));
   overflow-y: auto;
 }
 
 .display-mode-tv .daily-header {
   padding: 0.5rem 0.75rem;
+  padding-block-start: calc(0.5rem + env(safe-area-inset-top));
 }
 
 .display-mode-tv .daily-main-layout {
@@ -165,7 +190,7 @@ body {
 }
 
 .display-mode-tv .admob-banner {
-  min-height: 4rem !important;
+  min-height: calc(6rem + env(safe-area-inset-bottom)) !important;
 }
 
 .calendar-root.display-mode-tv {
@@ -201,7 +226,8 @@ body {
 }
 
 .daily-content-admin {
-  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(8rem + env(safe-area-inset-bottom));
+  scroll-padding-bottom: calc(8rem + env(safe-area-inset-bottom));
   overflow-y: auto;
 }
 

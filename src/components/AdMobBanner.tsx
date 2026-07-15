@@ -4,7 +4,7 @@ import { AdMob, BannerAdPosition, BannerAdSize } from '@capacitor-community/admo
 
 const ANDROID_BANNER_AD_ID = 'ca-app-pub-1251095758735054/6937828493';
 const IOS_TEST_BANNER_AD_ID = 'ca-app-pub-3940256099942544/2435281174';
-const BANNER_HEIGHT_PX = 64;
+const BANNER_RESERVED_HEIGHT = 'calc(6rem + env(safe-area-inset-bottom))';
 
 let initializePromise: Promise<void> | null = null;
 let showBannerPromise: Promise<void> | null = null;
@@ -73,7 +73,7 @@ export default function AdMobBanner({ visible = true }: Props) {
     <div
       aria-hidden="true"
       className={`admob-banner fixed inset-x-0 bottom-0 z-20 w-full border-t border-gray-200 bg-gray-50 ${visible ? '' : 'hidden'}`}
-      style={{ minHeight: visible ? BANNER_HEIGHT_PX : 0 }}
+      style={{ minHeight: visible ? BANNER_RESERVED_HEIGHT : 0 }}
     >
       {visible && !Capacitor.isNativePlatform() && (
         <div className="h-16 flex items-center justify-center text-[10px] font-bold uppercase tracking-widest text-gray-400">

@@ -204,7 +204,7 @@ export default function DailyView({
 
   return (
     <div 
-      className={`app-safe-screen bg-gray-100 flex flex-col relative ${displayMode === 'tv' ? 'display-mode-tv' : ''}`}
+      className={`app-safe-screen daily-screen bg-gray-100 flex flex-col relative ${displayMode === 'tv' ? 'display-mode-tv' : ''}`}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
