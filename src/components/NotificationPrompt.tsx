@@ -64,6 +64,7 @@ export default function NotificationPrompt({ role, cycleName }: Props) {
       setStatus('disabled');
     } catch (error) {
       console.error('Failed to disable notifications:', error);
+      setStatus(await getNotificationAvailability());
     } finally {
       setBusy(false);
     }

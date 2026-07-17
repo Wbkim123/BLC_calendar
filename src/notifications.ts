@@ -246,7 +246,7 @@ export async function syncNotificationSubscription(role: UserRole, cycleName?: s
   await enableNotifications(role, cycleName);
 }
 
-export async function disableNotifications(
+async function disableNotificationsInternal(
   role?: UserRole,
   cycleName?: string | null,
   recoverMissingToken = true
@@ -290,6 +290,26 @@ export async function disableNotifications(
   window.localStorage.removeItem(PUSH_TOPIC_KEY);
   window.localStorage.setItem(PUSH_DISABLED_KEY, 'true');
   if (unregisterError) throw unregisterError;
+}
+
+export async function disableNotifications(
+  role?: UserRole,
+  cycleName?: string | null,
+  recoverMissingToken = true
+) {
+  const operation = disableNotificationsInternal(role, cycleName, recoverMissingToken);
+  if (!isNativePlatform()) return operation;
+
+  try {
+    await withNativeNotificationTimeout(operation, 'disable');
+  } catch (error) {
+    // Never leave the native toggle stuck ON because APNs/FCM cleanup is slow.
+    // The underlying cleanup promise continues and can finish in the background.
+    window.localStorage.removeItem(PUSH_TOKEN_KEY);
+    window.localStorage.removeItem(PUSH_TOPIC_KEY);
+    window.localStorage.setItem(PUSH_DISABLED_KEY, 'true');
+    throw error;
+  }
 }
 
 export async function listenForForegroundNotifications() {
