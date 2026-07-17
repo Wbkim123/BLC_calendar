@@ -13,6 +13,19 @@ const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY
   || 'BHhrU-r2LR0CQuEHSoy4qzLXmFJRGV_35MJANS-pQfExxsnGRNFNWQO5vnUl2YtcejkyeDBc-2_pgKmDaWnjklc';
 const functions = getFunctions(app, 'us-central1');
 const isNativePlatform = () => Capacitor.isNativePlatform();
+const NATIVE_NOTIFICATION_TIMEOUT_MS = 15000;
+
+const withNativeNotificationTimeout = <T>(promise: Promise<T>, operation: string): Promise<T> => {
+  let timeoutId: number;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(
+      () => reject(new Error(`notification-${operation}-timeout`)),
+      NATIVE_NOTIFICATION_TIMEOUT_MS
+    );
+  });
+
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+};
 
 export const isPhoneDevice = () => {
   if (isNativePlatform()) return true;
@@ -155,19 +168,28 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
   if (!isPhoneDevice()) throw new Error('unsupported');
 
   if (isNativePlatform()) {
-    const permission = await FirebaseMessaging.requestPermissions();
+    const permission = await withNativeNotificationTimeout(
+      FirebaseMessaging.requestPermissions(),
+      'permission'
+    );
     if (permission.receive !== 'granted') throw new Error('denied');
 
-    const { token } = await FirebaseMessaging.getToken();
+    const { token } = await withNativeNotificationTimeout(
+      FirebaseMessaging.getToken(),
+      'token'
+    );
     if (!token) throw new Error('token');
 
-    const result = await httpsCallable(functions, 'registerPushToken')({
-      token,
-      role: role || 'UNKNOWN',
-      cycleName: cycleName || null,
-      platform: `${Capacitor.getPlatform()}-native`,
-      previousTopic: window.localStorage.getItem(PUSH_TOPIC_KEY)
-    });
+    const result = await withNativeNotificationTimeout(
+      httpsCallable(functions, 'registerPushToken')({
+        token,
+        role: role || 'UNKNOWN',
+        cycleName: cycleName || null,
+        platform: `${Capacitor.getPlatform()}-native`,
+        previousTopic: window.localStorage.getItem(PUSH_TOPIC_KEY)
+      }),
+      'registration'
+    );
     const subscription = result.data as { subscribed?: boolean; topic?: string | null };
     window.localStorage.setItem(PUSH_TOKEN_KEY, token);
     if (subscription.topic) {

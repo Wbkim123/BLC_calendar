@@ -96,7 +96,7 @@ export default function NotificationPrompt({ role, cycleName }: Props) {
           : 'bg-green-600 text-white hover:bg-green-700'
       }`}
     >
-      {busy ? 'UPDATING...' : status === 'granted' ? 'NOTIFICATIONS ON' : 'NOTIFICATIONS OFF'}
+      {busy ? 'UPDATING...' : status === 'granted' ? 'NOTIFICATIONS OFF' : 'NOTIFICATIONS ON'}
     </button>
   );
 }
