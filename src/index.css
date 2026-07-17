@@ -15,6 +15,17 @@ body {
   overflow: hidden;
 }
 
+/* iOS zooms the entire WebView when a focused form control uses text smaller
+   than 16px. Keep compact labels/buttons while making every editable field
+   large enough to avoid leaving the app stuck at the zoomed scale. */
+@supports (-webkit-touch-callout: none) {
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 @keyframes notification-change-bounce {
   0%, 100% {
     transform: translateY(0) scale(1);
