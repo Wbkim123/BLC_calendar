@@ -1,6 +1,8 @@
 import { deleteToken, getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { signInWithCustomToken } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseMessaging } from '@capacitor-firebase/messaging';
 import { app, auth } from './firebase';
 import { UserRole } from './types/schedule';
 
@@ -10,8 +12,10 @@ const PUSH_DISABLED_KEY = 'blc_push_disabled';
 const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY
   || 'BHhrU-r2LR0CQuEHSoy4qzLXmFJRGV_35MJANS-pQfExxsnGRNFNWQO5vnUl2YtcejkyeDBc-2_pgKmDaWnjklc';
 const functions = getFunctions(app, 'us-central1');
+const isNativePlatform = () => Capacitor.isNativePlatform();
 
 export const isPhoneDevice = () => {
+  if (isNativePlatform()) return true;
   if (typeof navigator === 'undefined') return false;
   const userAgent = navigator.userAgent;
   return /iPhone|iPod/i.test(userAgent) || (/Android/i.test(userAgent) && /Mobile/i.test(userAgent));
@@ -70,6 +74,15 @@ export async function sendScheduleNotification(details: {
 }
 
 export async function getCurrentDevicePushToken() {
+  if (isNativePlatform()) {
+    const permission = await FirebaseMessaging.checkPermissions();
+    if (permission.receive !== 'granted') throw new Error('permission-required');
+    const { token } = await FirebaseMessaging.getToken();
+    if (!token) throw new Error('token');
+    window.localStorage.setItem(PUSH_TOKEN_KEY, token);
+    return token;
+  }
+
   if (!VAPID_KEY) throw new Error('unconfigured');
   if (!('Notification' in window) || !('serviceWorker' in navigator) || !(await isSupported())) {
     throw new Error('unsupported');
@@ -119,12 +132,20 @@ const isStandalone = () =>
 
 export async function getNotificationAvailability(): Promise<NotificationAvailability> {
   if (!isPhoneDevice()) return 'unsupported';
+  if (window.localStorage.getItem(PUSH_DISABLED_KEY) === 'true') return 'disabled';
+
+  if (isNativePlatform()) {
+    const permission = await FirebaseMessaging.checkPermissions();
+    if (permission.receive === 'granted') return 'granted';
+    if (permission.receive === 'denied') return 'denied';
+    return 'prompt';
+  }
+
   if (!VAPID_KEY) return 'unconfigured';
   if (!('Notification' in window) || !('serviceWorker' in navigator) || !(await isSupported())) {
     return 'unsupported';
   }
   if (isIos() && !isStandalone()) return 'needs-install';
-  if (window.localStorage.getItem(PUSH_DISABLED_KEY) === 'true') return 'disabled';
   if (Notification.permission === 'granted') return 'granted';
   if (Notification.permission === 'denied') return 'denied';
   return 'prompt';
@@ -132,6 +153,32 @@ export async function getNotificationAvailability(): Promise<NotificationAvailab
 
 export async function enableNotifications(role: UserRole, cycleName?: string | null) {
   if (!isPhoneDevice()) throw new Error('unsupported');
+
+  if (isNativePlatform()) {
+    const permission = await FirebaseMessaging.requestPermissions();
+    if (permission.receive !== 'granted') throw new Error('denied');
+
+    const { token } = await FirebaseMessaging.getToken();
+    if (!token) throw new Error('token');
+
+    const result = await httpsCallable(functions, 'registerPushToken')({
+      token,
+      role: role || 'UNKNOWN',
+      cycleName: cycleName || null,
+      platform: `${Capacitor.getPlatform()}-native`,
+      previousTopic: window.localStorage.getItem(PUSH_TOPIC_KEY)
+    });
+    const subscription = result.data as { subscribed?: boolean; topic?: string | null };
+    window.localStorage.setItem(PUSH_TOKEN_KEY, token);
+    if (subscription.topic) {
+      window.localStorage.setItem(PUSH_TOPIC_KEY, subscription.topic);
+    } else {
+      window.localStorage.removeItem(PUSH_TOPIC_KEY);
+    }
+    window.localStorage.removeItem(PUSH_DISABLED_KEY);
+    return;
+  }
+
   const availability = await getNotificationAvailability();
   if (availability === 'unconfigured' || availability === 'unsupported' || availability === 'needs-install') {
     throw new Error(availability);
@@ -166,6 +213,13 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
 }
 
 export async function syncNotificationSubscription(role: UserRole, cycleName?: string | null) {
+  if (isNativePlatform()) {
+    const permission = await FirebaseMessaging.checkPermissions();
+    if (permission.receive !== 'granted') return;
+    await enableNotifications(role, cycleName);
+    return;
+  }
+
   if (Notification.permission !== 'granted' || !window.localStorage.getItem(PUSH_TOKEN_KEY)) return;
   await enableNotifications(role, cycleName);
 }
@@ -177,13 +231,21 @@ export async function disableNotifications(
 ) {
   let token = window.localStorage.getItem(PUSH_TOKEN_KEY);
   const topic = window.localStorage.getItem(PUSH_TOPIC_KEY);
-  if (!token && recoverMissingToken && Notification.permission === 'granted') {
-    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-    await registration.update().catch(() => undefined);
-    token = await getToken(getMessaging(app), {
-      vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: registration
-    });
+
+  if (!token && recoverMissingToken) {
+    if (isNativePlatform()) {
+      const permission = await FirebaseMessaging.checkPermissions();
+      if (permission.receive === 'granted') {
+        token = (await FirebaseMessaging.getToken()).token;
+      }
+    } else if (Notification.permission === 'granted') {
+      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      await registration.update().catch(() => undefined);
+      token = await getToken(getMessaging(app), {
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: registration
+      });
+    }
   }
   let unregisterError: unknown;
   if (token) {
@@ -192,9 +254,15 @@ export async function disableNotifications(
     } catch (error) {
       unregisterError = error;
     }
-    await deleteToken(getMessaging(app)).catch(error => {
-      console.error('Failed to delete the local FCM token:', error);
-    });
+    if (isNativePlatform()) {
+      await FirebaseMessaging.deleteToken().catch(error => {
+        console.error('Failed to delete the native FCM token:', error);
+      });
+    } else {
+      await deleteToken(getMessaging(app)).catch(error => {
+        console.error('Failed to delete the local FCM token:', error);
+      });
+    }
   }
   window.localStorage.removeItem(PUSH_TOKEN_KEY);
   window.localStorage.removeItem(PUSH_TOPIC_KEY);
@@ -204,6 +272,40 @@ export async function disableNotifications(
 
 export async function listenForForegroundNotifications() {
   if (!isPhoneDevice()) return () => undefined;
+
+  if (isNativePlatform()) {
+    const getNotificationDetail = (data: unknown) => {
+      const payload = data && typeof data === 'object'
+        ? data as Record<string, unknown>
+        : {};
+      const value = (key: string) => typeof payload[key] === 'string' ? payload[key] as string : '';
+      return {
+        date: value('date'),
+        targetId: value('targetId'),
+        changeType: value('changeType'),
+        previewText: value('previewText'),
+        changedFields: value('changedFields').split(',').filter(Boolean)
+      };
+    };
+    const dispatchNotification = (data: unknown) => {
+      const detail = getNotificationDetail(data);
+      if (!detail.date || !detail.targetId) return;
+      window.dispatchEvent(new CustomEvent('blc-schedule-notification', { detail }));
+    };
+
+    const receivedListener = await FirebaseMessaging.addListener('notificationReceived', event => {
+      dispatchNotification(event.notification.data);
+    });
+    const actionListener = await FirebaseMessaging.addListener('notificationActionPerformed', event => {
+      dispatchNotification(event.notification.data);
+    });
+
+    return () => {
+      void receivedListener.remove();
+      void actionListener.remove();
+    };
+  }
+
   if (!(await isSupported())) return () => undefined;
   return onMessage(getMessaging(app), payload => {
     if (Notification.permission !== 'granted') return;

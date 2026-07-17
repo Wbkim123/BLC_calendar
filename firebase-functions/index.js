@@ -163,6 +163,10 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
       },
       fcmOptions: { link: clickUrl }
     },
+    apns: {
+      headers: { 'apns-priority': '10' },
+      payload: { aps: { sound: 'default' } }
+    },
     android: { priority: 'high' }
   })));
 
@@ -229,6 +233,10 @@ exports.sendTestScheduleNotification = onCall({ region: 'us-central1' }, async r
         data: { url: clickUrl, ...data }
       },
       fcmOptions: { link: clickUrl }
+    },
+    apns: {
+      headers: { 'apns-priority': '10' },
+      payload: { aps: { sound: 'default' } }
     },
     android: { priority: 'high' }
   });
