@@ -27,6 +27,36 @@ const withNativeNotificationTimeout = <T>(promise: Promise<T>, operation: string
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
 };
 
+const callNativeFunction = async <T>(name: string, data: Record<string, unknown>): Promise<T> => {
+  const abortController = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => abortController.abort(),
+    NATIVE_NOTIFICATION_TIMEOUT_MS
+  );
+
+  try {
+    const response = await fetch(
+      `https://us-central1-blc-calendar-e302f.cloudfunctions.net/${name}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data }),
+        signal: abortController.signal
+      }
+    );
+    const payload = await response.json().catch(() => null) as {
+      result?: T;
+      error?: { message?: string };
+    } | null;
+    if (!response.ok || payload?.error || payload?.result === undefined) {
+      throw new Error(payload?.error?.message || `notification-${name}`);
+    }
+    return payload.result;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+};
+
 export const isPhoneDevice = () => {
   if (isNativePlatform()) return true;
   if (typeof navigator === 'undefined') return false;
@@ -180,17 +210,16 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
     );
     if (!token) throw new Error('token');
 
-    const result = await withNativeNotificationTimeout(
-      httpsCallable(functions, 'registerPushToken')({
+    const subscription = await callNativeFunction<{ subscribed?: boolean; topic?: string | null }>(
+      'registerPushToken',
+      {
         token,
         role: role || 'UNKNOWN',
         cycleName: cycleName || null,
         platform: `${Capacitor.getPlatform()}-native`,
         previousTopic: window.localStorage.getItem(PUSH_TOPIC_KEY)
-      }),
-      'registration'
+      }
     );
-    const subscription = result.data as { subscribed?: boolean; topic?: string | null };
     window.localStorage.setItem(PUSH_TOKEN_KEY, token);
     if (subscription.topic) {
       window.localStorage.setItem(PUSH_TOPIC_KEY, subscription.topic);
@@ -249,7 +278,8 @@ export async function syncNotificationSubscription(role: UserRole, cycleName?: s
 async function disableNotificationsInternal(
   role?: UserRole,
   cycleName?: string | null,
-  recoverMissingToken = true
+  recoverMissingToken = true,
+  deleteNativeToken = true
 ) {
   let token = window.localStorage.getItem(PUSH_TOKEN_KEY);
   const topic = window.localStorage.getItem(PUSH_TOPIC_KEY);
@@ -272,15 +302,19 @@ async function disableNotificationsInternal(
   let unregisterError: unknown;
   if (token) {
     try {
-      await httpsCallable(functions, 'unregisterPushToken')({ token, topic, role, cycleName });
+      if (isNativePlatform()) {
+        await callNativeFunction('unregisterPushToken', { token, topic, role, cycleName });
+      } else {
+        await httpsCallable(functions, 'unregisterPushToken')({ token, topic, role, cycleName });
+      }
     } catch (error) {
       unregisterError = error;
     }
-    if (isNativePlatform()) {
+    if (isNativePlatform() && deleteNativeToken) {
       await FirebaseMessaging.deleteToken().catch(error => {
         console.error('Failed to delete the native FCM token:', error);
       });
-    } else {
+    } else if (!isNativePlatform()) {
       await deleteToken(getMessaging(app)).catch(error => {
         console.error('Failed to delete the local FCM token:', error);
       });
@@ -295,9 +329,15 @@ async function disableNotificationsInternal(
 export async function disableNotifications(
   role?: UserRole,
   cycleName?: string | null,
-  recoverMissingToken = true
+  recoverMissingToken = true,
+  deleteNativeToken = true
 ) {
-  const operation = disableNotificationsInternal(role, cycleName, recoverMissingToken);
+  const operation = disableNotificationsInternal(
+    role,
+    cycleName,
+    recoverMissingToken,
+    deleteNativeToken
+  );
   if (!isNativePlatform()) return operation;
 
   try {

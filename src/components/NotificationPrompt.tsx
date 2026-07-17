@@ -60,7 +60,9 @@ export default function NotificationPrompt({ role, cycleName }: Props) {
   const handleDisable = async () => {
     setBusy(true);
     try {
-      await disableNotifications(role, cycleName);
+      // Keep the native FCM token for a reliable same-session re-enable.
+      // Logout still uses the default behavior and deletes the token.
+      await disableNotifications(role, cycleName, true, false);
       setStatus('disabled');
     } catch (error) {
       console.error('Failed to disable notifications:', error);
