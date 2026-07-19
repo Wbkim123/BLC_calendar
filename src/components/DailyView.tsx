@@ -145,7 +145,23 @@ export default function DailyView({
 
   // --- 시간순 정렬 및 겹침 감지 로직 ---
   const sortedEvents = [...(schedule.events || [])].sort((a, b) => a.time.localeCompare(b.time));
-  const now = new Date();
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    if (displayMode !== 'tv') {
+      setNow(new Date());
+      return;
+    }
+
+    const refreshCurrentTime = () => setNow(new Date());
+    refreshCurrentTime();
+    const intervalId = window.setInterval(refreshCurrentTime, 15000);
+    document.addEventListener('visibilitychange', refreshCurrentTime);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', refreshCurrentTime);
+    };
+  }, [displayMode]);
 
   const getEventDate = (timeStr?: string) => {
     if (!timeStr) return null;

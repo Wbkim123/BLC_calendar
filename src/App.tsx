@@ -10,6 +10,7 @@ import { mockSchedules } from './data/mockData';
 import { auth, db, firebaseDatabaseUrl } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 import { signOut } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
 import { createAdminSession, disableNotifications, listenForForegroundNotifications } from './notifications';
 
 const LEGACY_06_26_START = '2026-04-20';
@@ -17,6 +18,7 @@ const LEGACY_06_26_END = '2026-05-15';
 const LEGACY_06_26_CYCLE = '06-26';
 const LOGIN_STORAGE_KEY = 'blc_calendar_login';
 const DISPLAY_MODE_STORAGE_KEY = 'blc_calendar_display_mode';
+const DATABASE_WRITE_TIMEOUT_MS = 15000;
 
 export type DisplayMode = 'auto' | 'tv';
 
@@ -85,6 +87,30 @@ const getScheduleEndDateTime = (schedule?: DailySchedule | null) => {
     0
   );
   return endDate;
+};
+
+const updateDatabaseValues = async (updates: Record<string, unknown>) => {
+  if (!Capacitor.isNativePlatform()) {
+    await update(ref(db), updates);
+    return;
+  }
+
+  const abortController = new AbortController();
+  const timeoutId = window.setTimeout(() => abortController.abort(), DATABASE_WRITE_TIMEOUT_MS);
+  try {
+    const restUpdates = Object.fromEntries(
+      Object.entries(updates).map(([path, value]) => [path.replace(/^\/+/, ''), value])
+    );
+    const response = await fetch(`${firebaseDatabaseUrl}/.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(restUpdates),
+      signal: abortController.signal
+    });
+    if (!response.ok) throw new Error(`Database update failed (${response.status})`);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 };
 
 const normalizeStudentCode = (cycleName: string) => cycleName.replace(/\D/g, '');
@@ -480,6 +506,15 @@ function App() {
     });
   };
 
+  const updateScheduleLocally = (
+    dateStr: string,
+    updater: (schedule: DailySchedule) => DailySchedule
+  ) => {
+    setSchedules(current => current.map(schedule =>
+      schedule.date === dateStr ? updater(schedule) : schedule
+    ));
+  };
+
   // 관리자가 이벤트를 수정했을 때 호출되는 함수 (Firebase 업데이트)
   const handleSaveEvent = (dateStr: string, updatedEvent: TrainingEvent) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
@@ -492,14 +527,22 @@ function App() {
           .filter(field => originalEvent[field] !== updatedEvent[field]);
         const updates: any = {};
         updates[`/schedules/${dayIndex}/events/${eventIndex}`] = updatedEvent;
-        update(ref(db), updates)
-          .then(() => queueScheduleNotification(
-            dateStr,
-            'Event updated',
-            `event:${updatedEvent.id}`,
-            changedFields,
-            buildEventPreview(updatedEvent, changedFields)
-          ))
+        updateDatabaseValues(updates)
+          .then(() => {
+            updateScheduleLocally(dateStr, day => ({
+              ...day,
+              events: (day.events || []).map(event =>
+                event.id === updatedEvent.id ? updatedEvent : event
+              )
+            }));
+            queueScheduleNotification(
+              dateStr,
+              'Event updated',
+              `event:${updatedEvent.id}`,
+              changedFields,
+              buildEventPreview(updatedEvent, changedFields)
+            );
+          })
           .catch(err => {
             alert("Failed to save changes: " + err.message);
           });
@@ -512,14 +555,17 @@ function App() {
     if (dayIndex !== -1) {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/notes`] = notes.trim();
-      update(ref(db), updates)
-        .then(() => queueScheduleNotification(
-          dateStr,
-          'Notes updated',
-          'notes',
-          ['notes'],
-          `NOTE: ${truncateNotificationPreview(notes.trim() || 'Notes cleared')}`
-        ))
+      updateDatabaseValues(updates)
+        .then(() => {
+          updateScheduleLocally(dateStr, day => ({ ...day, notes: notes.trim() }));
+          queueScheduleNotification(
+            dateStr,
+            'Notes updated',
+            'notes',
+            ['notes'],
+            `NOTE: ${truncateNotificationPreview(notes.trim() || 'Notes cleared')}`
+          );
+        })
         .catch(err => {
           alert("Failed to save notes: " + err.message);
         });
@@ -531,14 +577,18 @@ function App() {
     if (dayIndex !== -1) {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/notesHighlighted`] = !schedules[dayIndex].notesHighlighted;
-      update(ref(db), updates)
-        .then(() => queueScheduleNotification(
-          dateStr,
-          'Notes highlight changed',
-          'notes',
-          ['highlighted'],
-          `NOTE HIGHLIGHT: ${!schedules[dayIndex].notesHighlighted ? 'ON' : 'OFF'}`
-        ))
+      updateDatabaseValues(updates)
+        .then(() => {
+          const highlighted = !schedules[dayIndex].notesHighlighted;
+          updateScheduleLocally(dateStr, day => ({ ...day, notesHighlighted: highlighted }));
+          queueScheduleNotification(
+            dateStr,
+            'Notes highlight changed',
+            'notes',
+            ['highlighted'],
+            `NOTE HIGHLIGHT: ${highlighted ? 'ON' : 'OFF'}`
+          );
+        })
         .catch(err => {
           alert("Failed to highlight notes: " + err.message);
         });
@@ -550,14 +600,17 @@ function App() {
     if (dayIndex !== -1) {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/sglNotes`] = notes.trim();
-      update(ref(db), updates)
-        .then(() => queueScheduleNotification(
-          dateStr,
-          'SGL notes updated',
-          'sglNotes',
-          ['sglNotes'],
-          `SGL NOTE: ${truncateNotificationPreview(notes.trim() || 'SGL notes cleared')}`
-        ))
+      updateDatabaseValues(updates)
+        .then(() => {
+          updateScheduleLocally(dateStr, day => ({ ...day, sglNotes: notes.trim() }));
+          queueScheduleNotification(
+            dateStr,
+            'SGL notes updated',
+            'sglNotes',
+            ['sglNotes'],
+            `SGL NOTE: ${truncateNotificationPreview(notes.trim() || 'SGL notes cleared')}`
+          );
+        })
         .catch(err => {
           alert("Failed to save SGL notes: " + err.message);
         });
@@ -569,14 +622,18 @@ function App() {
     if (dayIndex !== -1) {
       const updates: any = {};
       updates[`/schedules/${dayIndex}/sglNotesHighlighted`] = !schedules[dayIndex].sglNotesHighlighted;
-      update(ref(db), updates)
-        .then(() => queueScheduleNotification(
-          dateStr,
-          'SGL notes highlight changed',
-          'sglNotes',
-          ['highlighted'],
-          `SGL NOTE HIGHLIGHT: ${!schedules[dayIndex].sglNotesHighlighted ? 'ON' : 'OFF'}`
-        ))
+      updateDatabaseValues(updates)
+        .then(() => {
+          const highlighted = !schedules[dayIndex].sglNotesHighlighted;
+          updateScheduleLocally(dateStr, day => ({ ...day, sglNotesHighlighted: highlighted }));
+          queueScheduleNotification(
+            dateStr,
+            'SGL notes highlight changed',
+            'sglNotes',
+            ['highlighted'],
+            `SGL NOTE HIGHLIGHT: ${highlighted ? 'ON' : 'OFF'}`
+          );
+        })
         .catch(err => {
           alert("Failed to highlight SGL notes: " + err.message);
         });
@@ -590,14 +647,20 @@ function App() {
       const currentEvents = schedules[dayIndex].events || [];
       const updates: any = {};
       updates[`/schedules/${dayIndex}/events`] = [...currentEvents, newEvent];
-      update(ref(db), updates)
-        .then(() => queueScheduleNotification(
-          dateStr,
-          'Event added',
-          `event:${newEvent.id}`,
-          ['eventName', 'time', 'location', 'uniform'],
-          buildEventPreview(newEvent, ['time', 'eventName', 'location', 'uniform'])
-        ))
+      updateDatabaseValues(updates)
+        .then(() => {
+          updateScheduleLocally(dateStr, day => ({
+            ...day,
+            events: [...(day.events || []), newEvent]
+          }));
+          queueScheduleNotification(
+            dateStr,
+            'Event added',
+            `event:${newEvent.id}`,
+            ['eventName', 'time', 'location', 'uniform'],
+            buildEventPreview(newEvent, ['time', 'eventName', 'location', 'uniform'])
+          );
+        })
         .catch(err => {
           alert("Failed to add event: " + err.message);
         });
@@ -612,9 +675,13 @@ function App() {
       const updatedEvents = currentEvents.filter(ev => ev.id !== eventId);
       const updates: any = {};
       updates[`/schedules/${dayIndex}/events`] = updatedEvents;
-      update(ref(db), updates)
+      updateDatabaseValues(updates)
         .then(() => {
           const deletedEvent = currentEvents.find(ev => ev.id === eventId);
+          updateScheduleLocally(dateStr, day => ({
+            ...day,
+            events: (day.events || []).filter(event => event.id !== eventId)
+          }));
           queueScheduleNotification(
             dateStr,
             'Event deleted',
