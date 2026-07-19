@@ -18,6 +18,24 @@ const initializeAdMob = () => {
   return initializePromise;
 };
 
+const getSafeAreaBottom = () => {
+  if (Capacitor.getPlatform() !== 'ios') return 0;
+
+  const probe = document.createElement('div');
+  probe.style.cssText = [
+    'position:fixed',
+    'left:0',
+    'bottom:0',
+    'height:env(safe-area-inset-bottom)',
+    'visibility:hidden',
+    'pointer-events:none'
+  ].join(';');
+  document.body.appendChild(probe);
+  const inset = Math.round(probe.getBoundingClientRect().height);
+  probe.remove();
+  return inset;
+};
+
 const showAdMobBanner = () => {
   const bannerAdId = Capacitor.getPlatform() === 'ios'
     ? IOS_TEST_BANNER_AD_ID
@@ -28,7 +46,10 @@ const showAdMobBanner = () => {
       .then(() => AdMob.showBanner({
         adId: bannerAdId,
         adSize: BannerAdSize.ADAPTIVE_BANNER,
-        position: BannerAdPosition.BOTTOM_CENTER
+        position: BannerAdPosition.BOTTOM_CENTER,
+        // The iOS plugin anchors to safeAreaLayoutGuide. A negative margin
+        // offsets that inset so the banner itself reaches the screen bottom.
+        margin: -getSafeAreaBottom()
       }))
       .catch((error) => {
         showBannerPromise = null;
@@ -58,8 +79,10 @@ interface Props {
 }
 
 export default function AdMobBanner({ visible = true }: Props) {
+  const isNative = Capacitor.isNativePlatform();
+
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable('AdMob')) return;
+    if (!isNative || !Capacitor.isPluginAvailable('AdMob')) return;
 
     const bannerAction = visible ? showAdMobBanner() : hideAdMobBanner();
 
@@ -67,15 +90,15 @@ export default function AdMobBanner({ visible = true }: Props) {
       .catch((error) => {
         console.error('Failed to update AdMob banner:', error);
       });
-  }, [visible]);
+  }, [isNative, visible]);
 
   return (
     <div
       aria-hidden="true"
-      className={`admob-banner fixed inset-x-0 bottom-0 z-20 w-full border-t border-gray-200 bg-gray-50 ${visible ? '' : 'hidden'}`}
-      style={{ minHeight: visible ? BANNER_RESERVED_HEIGHT : 0 }}
+      className={`admob-banner ${isNative ? 'admob-banner-native pointer-events-none' : 'border-t border-gray-200 bg-gray-50'} fixed inset-x-0 bottom-0 z-20 w-full ${visible ? '' : 'hidden'}`}
+      style={{ minHeight: visible && !isNative ? BANNER_RESERVED_HEIGHT : 0 }}
     >
-      {visible && !Capacitor.isNativePlatform() && (
+      {visible && !isNative && (
         <div className="h-16 flex items-center justify-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
           AdMob Banner
         </div>

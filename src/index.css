@@ -200,8 +200,15 @@ body {
   line-height: 1.25;
 }
 
-.display-mode-tv .admob-banner {
+.display-mode-tv .admob-banner:not(.admob-banner-native) {
   min-height: calc(6rem + env(safe-area-inset-bottom)) !important;
+}
+
+.admob-banner-native {
+  height: 0;
+  min-height: 0 !important;
+  border: 0;
+  background: transparent;
 }
 
 .calendar-root.display-mode-tv {
