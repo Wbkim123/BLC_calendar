@@ -159,7 +159,7 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
                 onClick={handleNo}
                 className="rounded-lg bg-gray-700 py-2 text-xs font-black text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {sendingChoice === 'no' ? 'Sending...' : 'Managers only'}
+                {sendingChoice === 'no' ? 'Sending...' : 'No'}
               </button>
               <button
                 type="button"
@@ -167,7 +167,7 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
                 onClick={handleYes}
                 className="rounded-lg bg-green-600 py-2 text-xs font-black text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {sendingChoice === 'yes' ? 'Sending...' : 'Send to all'}
+                {sendingChoice === 'yes' ? 'Sending...' : 'Yes'}
               </button>
             </div>
           </div>
