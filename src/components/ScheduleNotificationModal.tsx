@@ -41,13 +41,16 @@ interface Props {
 export default function ScheduleNotificationModal({ change, onClose }: Props) {
   const isSglOnlyChange = change.targetId === 'sglNotes';
   const isPublicNotesChange = change.targetId === 'notes';
-  const [sending, setSending] = useState(false);
+  const [sendingChoice, setSendingChoice] = useState<'yes' | 'no' | null>(null);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
   const [testMessage, setTestMessage] = useState('');
 
-  const sendWithRecipients = async (recipients: { sgl: boolean; students: boolean }) => {
-    setSending(true);
+  const sendWithRecipients = async (
+    recipients: { sgl: boolean; students: boolean },
+    choice: 'yes' | 'no'
+  ) => {
+    setSendingChoice(choice);
     setError('');
     setTestMessage('');
     try {
@@ -60,28 +63,28 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
       console.error('Failed to send schedule notification:', sendError);
       setError(getSendErrorMessage(sendError));
     } finally {
-      setSending(false);
+      setSendingChoice(null);
     }
   };
 
   const handleYes = () => {
     if (isPublicNotesChange) {
-      sendWithRecipients({ sgl: true, students: Boolean(change.cycleName) });
+      sendWithRecipients({ sgl: true, students: Boolean(change.cycleName) }, 'yes');
       return;
     }
     if (isSglOnlyChange) {
-      sendWithRecipients({ sgl: true, students: false });
+      sendWithRecipients({ sgl: true, students: false }, 'yes');
       return;
     }
-    sendWithRecipients({ sgl: true, students: Boolean(change.cycleName) });
+    sendWithRecipients({ sgl: true, students: Boolean(change.cycleName) }, 'yes');
   };
 
   const handleNo = () => {
     if (isPublicNotesChange) {
-      sendWithRecipients({ sgl: true, students: false });
+      sendWithRecipients({ sgl: true, students: false }, 'no');
       return;
     }
-    sendWithRecipients({ sgl: false, students: false });
+    sendWithRecipients({ sgl: false, students: false }, 'no');
   };
 
   const handleTestMyDevice = async () => {
@@ -152,19 +155,19 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
-                disabled={sending || testing}
+                disabled={sendingChoice !== null || testing}
                 onClick={handleNo}
                 className="rounded-lg bg-gray-700 py-2 text-xs font-black text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                No
+                {sendingChoice === 'no' ? 'Sending...' : 'Managers only'}
               </button>
               <button
                 type="button"
-                disabled={sending || testing || disableYes}
+                disabled={sendingChoice !== null || testing || disableYes}
                 onClick={handleYes}
                 className="rounded-lg bg-green-600 py-2 text-xs font-black text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {sending ? 'Sending...' : 'Yes'}
+                {sendingChoice === 'yes' ? 'Sending...' : 'Send to all'}
               </button>
             </div>
           </div>
@@ -177,7 +180,7 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
             <>
               <button
                 type="button"
-                disabled={sending || testing}
+                disabled={sendingChoice !== null || testing}
                 onClick={handleTestMyDevice}
                 className="w-full rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-black text-purple-800 transition-colors hover:bg-purple-100 disabled:opacity-50"
               >

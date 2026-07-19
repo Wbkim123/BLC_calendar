@@ -9,6 +9,9 @@ import { UserRole } from './types/schedule';
 const PUSH_TOKEN_KEY = 'blc_push_token';
 const PUSH_TOPIC_KEY = 'blc_push_topic';
 const PUSH_DISABLED_KEY = 'blc_push_disabled';
+const ADMIN_ID_TOKEN_KEY = 'blc_admin_id_token';
+const ADMIN_REFRESH_TOKEN_KEY = 'blc_admin_refresh_token';
+const FIREBASE_API_KEY = 'AIzaSyDNjoIVSKyIRjFm7LQD-yH7pemRZ7c_nyc';
 const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY
   || 'BHhrU-r2LR0CQuEHSoy4qzLXmFJRGV_35MJANS-pQfExxsnGRNFNWQO5vnUl2YtcejkyeDBc-2_pgKmDaWnjklc';
 const functions = getFunctions(app, 'us-central1');
@@ -27,7 +30,11 @@ const withNativeNotificationTimeout = <T>(promise: Promise<T>, operation: string
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
 };
 
-const callNativeFunction = async <T>(name: string, data: Record<string, unknown>): Promise<T> => {
+const callNativeFunction = async <T>(
+  name: string,
+  data: Record<string, unknown>,
+  idToken?: string
+): Promise<T> => {
   const abortController = new AbortController();
   const timeoutId = window.setTimeout(
     () => abortController.abort(),
@@ -39,7 +46,10 @@ const callNativeFunction = async <T>(name: string, data: Record<string, unknown>
       `https://us-central1-blc-calendar-e302f.cloudfunctions.net/${name}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+        },
         body: JSON.stringify({ data }),
         signal: abortController.signal
       }
@@ -55,6 +65,36 @@ const callNativeFunction = async <T>(name: string, data: Record<string, unknown>
   } finally {
     window.clearTimeout(timeoutId);
   }
+};
+
+const refreshNativeAdminIdToken = async () => {
+  const refreshToken = window.localStorage.getItem(ADMIN_REFRESH_TOKEN_KEY);
+  if (!refreshToken) return window.localStorage.getItem(ADMIN_ID_TOKEN_KEY);
+
+  const response = await withNativeNotificationTimeout(
+    fetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken
+      }).toString()
+    }),
+    'admin-auth'
+  );
+  const payload = await response.json().catch(() => null) as {
+    id_token?: string;
+    refresh_token?: string;
+    error?: { message?: string };
+  } | null;
+  if (!response.ok || !payload?.id_token) {
+    throw new Error(payload?.error?.message || 'permission-denied');
+  }
+  window.localStorage.setItem(ADMIN_ID_TOKEN_KEY, payload.id_token);
+  if (payload.refresh_token) {
+    window.localStorage.setItem(ADMIN_REFRESH_TOKEN_KEY, payload.refresh_token);
+  }
+  return payload.id_token;
 };
 
 export const isPhoneDevice = () => {
@@ -97,12 +137,40 @@ export async function createAdminSession(code: string) {
   const data = payload?.result;
   if (!data?.token) throw new Error('admin-session');
 
-  // Authentication can finish in the background; the verified function
-  // response is enough to continue past the login screen on iOS.
-  void signInWithCustomToken(auth, data.token).catch(error => {
-    console.error('Failed to attach Firebase administrator credentials:', error);
-  });
+  if (isNativePlatform()) {
+    const authResponse = await withNativeNotificationTimeout(
+      fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: data.token, returnSecureToken: true })
+        }
+      ),
+      'admin-auth'
+    );
+    const authPayload = await authResponse.json().catch(() => null) as {
+      idToken?: string;
+      refreshToken?: string;
+      error?: { message?: string };
+    } | null;
+    if (!authResponse.ok || !authPayload?.idToken) {
+      throw new Error(authPayload?.error?.message || 'admin-auth');
+    }
+    window.localStorage.setItem(ADMIN_ID_TOKEN_KEY, authPayload.idToken);
+    if (authPayload.refreshToken) {
+      window.localStorage.setItem(ADMIN_REFRESH_TOKEN_KEY, authPayload.refreshToken);
+    }
+    return;
+  }
+
+  await signInWithCustomToken(auth, data.token);
 }
+
+export const clearAdminSessionToken = () => {
+  window.localStorage.removeItem(ADMIN_ID_TOKEN_KEY);
+  window.localStorage.removeItem(ADMIN_REFRESH_TOKEN_KEY);
+};
 
 export async function sendScheduleNotification(details: {
   date: string;
@@ -113,6 +181,16 @@ export async function sendScheduleNotification(details: {
   changedFields: string[];
   recipients: NotificationRecipients;
 }) {
+  if (isNativePlatform()) {
+    const currentUser = auth.currentUser;
+    const idToken = currentUser
+      ? await withNativeNotificationTimeout(currentUser.getIdToken(), 'admin-auth')
+      : await refreshNativeAdminIdToken();
+    if (!idToken) throw new Error('permission-denied');
+    await callNativeFunction('sendScheduleNotification', details, idToken);
+    return;
+  }
+
   await httpsCallable(functions, 'sendScheduleNotification')(details);
 }
 
