@@ -131,8 +131,8 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="bg-blue-900 p-4 text-white">
+      <div className="soft-modal w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="soft-modal-header bg-blue-900 p-4 text-white">
           <h2 className="text-lg font-black">Schedule Saved</h2>
           <p className="mt-1 text-xs text-blue-200">Choose whether to send a notification for {change.date}.</p>
         </div>

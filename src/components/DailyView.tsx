@@ -590,8 +590,8 @@ function NotesModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
-        <div className="bg-blue-900 p-4 text-white">
+      <div className="soft-modal bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
+        <div className="soft-modal-header bg-blue-900 p-4 text-white">
           <h3 className="font-bold text-lg">{title}</h3>
         </div>
         <div className="p-5">
@@ -669,8 +669,8 @@ function EditModal({
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center px-4 pt-4 z-50 backdrop-blur-sm overflow-y-auto"
       style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
     >
-      <div className="bg-white w-full max-w-sm max-h-full rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col">
-        <div className="bg-blue-900 p-4 text-white">
+      <div className="soft-modal bg-white w-full max-w-sm max-h-full rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col">
+        <div className="soft-modal-header bg-blue-900 p-4 text-white">
           <h3 className="font-bold text-lg">Edit Event</h3>
         </div>
         

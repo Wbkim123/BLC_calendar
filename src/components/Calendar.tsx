@@ -108,7 +108,7 @@ export default function Calendar({
       <div className="calendar-container w-full h-auto lg:max-w-5xl flex flex-col lg:h-[800px] relative">
         
         {/* 상단 헤더 - 높이 축소 */}
-        <div className="bg-blue-900 text-white rounded-xl py-2 px-4 lg:py-4 lg:px-8 mb-2 lg:mb-4 shadow-lg text-center flex flex-col items-center shrink-0">
+        <div className="calendar-header bg-blue-900 text-white rounded-xl py-2 px-4 lg:py-4 lg:px-8 mb-2 lg:mb-4 shadow-lg text-center flex flex-col items-center shrink-0">
           <div className="flex items-center justify-center gap-3 lg:gap-5 w-full relative">
             <img src="/NCOA_Logo.png" alt="NCOA Logo" className="w-8 h-8 lg:w-12 lg:h-12 object-contain" />
             {isEditingTitle ? (
@@ -146,7 +146,7 @@ export default function Calendar({
         </div>
 
         {/* 데이터 관리 패널 (ADMIN 전용) */}
-        <div className={`mb-2 flex w-full gap-2 ${role === 'ADMIN' ? '' : 'block'}`}>
+        <div className={`calendar-actions mb-2 flex w-full gap-2 ${role === 'ADMIN' ? '' : 'block'}`}>
           {role === 'ADMIN' && (
             <button
               onClick={onOpenImport}
@@ -234,7 +234,7 @@ export default function Calendar({
         </div>
 
         {/* 하단 범례 */}
-        <div className="mt-2 lg:mt-4 p-2 lg:p-4 bg-blue-50 rounded-lg lg:rounded-2xl flex items-start gap-2 lg:gap-4 border border-blue-100 shrink-0">
+        <div className="calendar-info mt-2 lg:mt-4 p-2 lg:p-4 bg-blue-50 rounded-lg lg:rounded-2xl flex items-start gap-2 lg:gap-4 border border-blue-100 shrink-0">
           <svg className="w-5 h-5 lg:w-7 lg:h-7 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           <p className="text-[10px] lg:text-lg text-blue-700 font-medium leading-tight">
             Dates with <span className="inline-block w-2 h-2 lg:w-4 lg:h-4 bg-yellow-500 rounded-full mx-0.5" /> mark scheduled training days. A <span className="inline-flex w-3.5 h-3.5 lg:w-6 lg:h-6 bg-red-600 text-white rounded-full mx-0.5 items-center justify-center text-[9px] lg:text-sm font-black align-middle">!</span> indicates overlapping events. Tap a highlighted date to view details.

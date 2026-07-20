@@ -664,8 +664,8 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-2 sm:p-4 z-[100] backdrop-blur-sm">
-      <div className="bg-white w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]">
-        <div className="bg-blue-900 p-4 sm:p-6 text-white shrink-0">
+      <div className="soft-modal bg-white w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]">
+        <div className="soft-modal-header bg-blue-900 p-4 sm:p-6 text-white shrink-0">
           <div>
             <h3 className="text-xl sm:text-2xl font-black">Smart Schedule Import</h3>
             <p className="text-blue-200 text-sm">PDF schedule parsing</p>

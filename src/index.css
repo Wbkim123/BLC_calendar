@@ -13,6 +13,229 @@ body,
 body {
   margin: 0;
   overflow: hidden;
+  color: #191f28;
+  background: #f2f4f6;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+:root {
+  --soft-bg: #f2f4f6;
+  --soft-surface: rgba(255, 255, 255, 0.96);
+  --soft-blue: #3182f6;
+  --soft-blue-deep: #1b64da;
+  --soft-text: #191f28;
+  --soft-muted: #8b95a1;
+  --soft-line: rgba(2, 32, 71, 0.06);
+  --soft-shadow: 10px 10px 24px rgba(30, 55, 85, 0.10), -8px -8px 20px rgba(255, 255, 255, 0.92);
+  --soft-shadow-small: 5px 5px 14px rgba(30, 55, 85, 0.09), -5px -5px 12px rgba(255, 255, 255, 0.88);
+  --soft-inset: inset 2px 2px 6px rgba(30, 55, 85, 0.08), inset -2px -2px 6px rgba(255, 255, 255, 0.9);
+}
+
+button,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.975);
+}
+
+.login-screen,
+.calendar-root,
+.daily-screen {
+  background: var(--soft-bg) !important;
+}
+
+.login-screen::before {
+  content: "";
+  position: fixed;
+  width: 22rem;
+  height: 22rem;
+  top: -10rem;
+  right: -9rem;
+  border-radius: 999px;
+  background: rgba(49, 130, 246, 0.16);
+  filter: blur(2px);
+}
+
+.login-card {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 2rem !important;
+  box-shadow: var(--soft-shadow) !important;
+}
+
+.login-card input,
+.soft-modal input,
+.soft-modal textarea,
+.soft-modal select {
+  border: 1px solid transparent !important;
+  border-radius: 1rem !important;
+  background: #f7f8fa !important;
+  box-shadow: var(--soft-inset);
+}
+
+.login-card input:focus,
+.soft-modal input:focus,
+.soft-modal textarea:focus,
+.soft-modal select:focus {
+  border-color: rgba(49, 130, 246, 0.34) !important;
+  box-shadow: 0 0 0 4px rgba(49, 130, 246, 0.10), var(--soft-inset) !important;
+}
+
+.primary-action,
+.calendar-actions > button {
+  border-radius: 1rem !important;
+  border: 0 !important;
+  background: linear-gradient(145deg, #4590f7, #2475e8) !important;
+  box-shadow: 0 8px 18px rgba(49, 130, 246, 0.25) !important;
+}
+
+.calendar-header,
+.daily-header,
+.soft-modal-header {
+  background: linear-gradient(135deg, #3182f6 0%, #1b64da 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 10px 24px rgba(27, 100, 218, 0.22) !important;
+}
+
+.calendar-header {
+  border-radius: 1.35rem !important;
+}
+
+.daily-header {
+  margin: 0.65rem 0.75rem 0;
+  border-radius: 1.35rem;
+  top: 0.65rem !important;
+}
+
+.daily-header button {
+  border-radius: 0.85rem !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.calendar-actions {
+  padding: 0.2rem;
+  border-radius: 1.15rem;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: var(--soft-shadow-small);
+}
+
+.calendar-actions > div > button {
+  border-radius: 1rem !important;
+  background: #ffffff !important;
+  color: #4e5968 !important;
+  box-shadow: 0 4px 12px rgba(30, 55, 85, 0.08) !important;
+}
+
+.calendar-board {
+  border: 1px solid rgba(255, 255, 255, 0.82) !important;
+  border-radius: 1.6rem !important;
+  background: var(--soft-surface) !important;
+  box-shadow: var(--soft-shadow) !important;
+}
+
+.calendar-board > div:first-child button {
+  background: #f2f4f6 !important;
+  box-shadow: var(--soft-shadow-small);
+}
+
+.calendar-day {
+  border-width: 1px !important;
+  border-color: transparent !important;
+  border-radius: 0.9rem !important;
+}
+
+.calendar-day:not(:disabled) {
+  background: #eef6ff !important;
+  color: var(--soft-text) !important;
+  box-shadow: 0 4px 10px rgba(49, 130, 246, 0.10);
+}
+
+.calendar-day:not(:disabled):active {
+  background: #dbeeff !important;
+  box-shadow: var(--soft-inset);
+}
+
+.calendar-info {
+  border: 0 !important;
+  border-radius: 1.15rem !important;
+  background: rgba(232, 243, 255, 0.8) !important;
+}
+
+.daily-content {
+  padding-top: 1.25rem !important;
+}
+
+.daily-event-card,
+.daily-notes-panel {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-top-color: var(--soft-line) !important;
+  border-right-color: var(--soft-line) !important;
+  border-bottom-color: var(--soft-line) !important;
+  border-radius: 1.25rem !important;
+  box-shadow: var(--soft-shadow-small) !important;
+}
+
+.daily-event-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 7px 7px 17px rgba(30, 55, 85, 0.11), -6px -6px 15px rgba(255, 255, 255, 0.94) !important;
+}
+
+.daily-content > button,
+.daily-events-grid > button,
+.daily-notes-stack > button {
+  border: 0 !important;
+  border-radius: 1.15rem !important;
+  background: rgba(255, 255, 255, 0.55) !important;
+  box-shadow: var(--soft-inset);
+}
+
+.settings-overlay,
+.fixed.inset-0.backdrop-blur-sm {
+  background: rgba(25, 31, 40, 0.36) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.settings-panel,
+.soft-modal {
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 1.75rem !important;
+  background: #f7f8fa !important;
+  box-shadow: 0 24px 70px rgba(25, 31, 40, 0.24) !important;
+}
+
+.settings-card {
+  border: 1px solid rgba(255, 255, 255, 0.9) !important;
+  border-radius: 1.25rem !important;
+  background: #ffffff !important;
+  box-shadow: var(--soft-shadow-small);
+}
+
+.settings-panel > div:first-child button {
+  background: #eef0f3 !important;
+  box-shadow: var(--soft-shadow-small);
+}
+
+.settings-panel button[role='switch'] {
+  box-shadow: var(--soft-inset);
+}
+
+.soft-modal-header {
+  border-radius: 0 !important;
+}
+
+.soft-modal button {
+  border-radius: 1rem !important;
 }
 
 .settings-overlay {
@@ -80,6 +303,39 @@ body {
   background-color: rgb(17 24 39) !important;
   color: rgb(243 244 246) !important;
   border-color: rgb(75 85 99) !important;
+}
+
+.theme-dark {
+  --soft-bg: #111827;
+  --soft-surface: rgba(31, 41, 55, 0.97);
+  --soft-text: #f9fafb;
+  --soft-muted: #cbd5e1;
+  --soft-line: rgba(255, 255, 255, 0.08);
+  --soft-shadow: 9px 9px 22px rgba(0, 0, 0, 0.28), -6px -6px 18px rgba(55, 65, 81, 0.34);
+  --soft-shadow-small: 5px 5px 13px rgba(0, 0, 0, 0.25), -4px -4px 11px rgba(55, 65, 81, 0.28);
+  --soft-inset: inset 2px 2px 6px rgba(0, 0, 0, 0.3), inset -2px -2px 6px rgba(75, 85, 99, 0.22);
+}
+
+.theme-dark .login-card,
+.theme-dark .calendar-board,
+.theme-dark .soft-modal,
+.theme-dark .settings-panel,
+.theme-dark .settings-card,
+.theme-dark .daily-event-card,
+.theme-dark .daily-notes-panel {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: var(--soft-shadow-small) !important;
+}
+
+.theme-dark .calendar-actions,
+.theme-dark .calendar-actions > div > button {
+  background: rgb(31 41 55) !important;
+  color: rgb(243 244 246) !important;
+}
+
+.theme-dark .calendar-day:not(:disabled) {
+  background: rgb(30 58 92) !important;
+  color: rgb(243 244 246) !important;
 }
 
 /* iOS zooms the entire WebView when a focused form control uses text smaller
