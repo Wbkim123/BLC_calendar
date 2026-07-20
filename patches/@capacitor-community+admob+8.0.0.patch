@@ -1,0 +1,14 @@
+diff --git a/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/Banner/BannerExecutor.swift b/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/Banner/BannerExecutor.swift
+index 70081af..8dfde20 100644
+--- a/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/Banner/BannerExecutor.swift
++++ b/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/Banner/BannerExecutor.swift
+@@ -46,8 +46,8 @@ class BannerExecutor: NSObject, BannerViewDelegate {
+             self.bannerView.adUnitID = adUnitID
+             self.bannerView.rootViewController = plugin?.getRootVC()
+ 
+-            self.bannerView.load(request)
+             self.bannerView.delegate = self
++            self.bannerView.load(request)
+ 
+             call.resolve([:])
+         }

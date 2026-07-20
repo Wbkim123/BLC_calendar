@@ -542,6 +542,12 @@ button:active:not(:disabled) {
   background: transparent;
 }
 
+.admob-banner-native.admob-banner-pending {
+  height: auto;
+  border-top: 1px solid rgba(139, 149, 161, 0.18);
+  background: var(--soft-bg);
+}
+
 .calendar-root.display-mode-tv {
   justify-content: center;
   padding: 2.5rem;

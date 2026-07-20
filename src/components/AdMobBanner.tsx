@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { AdMob, BannerAdPluginEvents, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
@@ -6,6 +6,7 @@ import { AdMob, BannerAdPluginEvents, BannerAdPosition, BannerAdSize } from '@ca
 const ANDROID_BANNER_AD_ID = 'ca-app-pub-1251095758735054/6937828493';
 const IOS_TEST_BANNER_AD_ID = 'ca-app-pub-3940256099942544/2435281174';
 const BANNER_RESERVED_HEIGHT = 'calc(6rem + env(safe-area-inset-bottom))';
+const NATIVE_BANNER_RESERVED_HEIGHT = 'calc(3.125rem + env(safe-area-inset-bottom))';
 
 let initializePromise: Promise<void> | null = null;
 let showBannerPromise: Promise<void> | null = null;
@@ -84,6 +85,7 @@ interface Props {
 
 export default function AdMobBanner({ visible = true }: Props) {
   const isNative = Capacitor.isNativePlatform();
+  const [nativeStatus, setNativeStatus] = useState<'loading' | 'loaded' | 'retrying'>('loading');
 
   useEffect(() => {
     if (!isNative || !Capacitor.isPluginAvailable('AdMob')) return;
@@ -95,6 +97,7 @@ export default function AdMobBanner({ visible = true }: Props) {
 
     AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
       console.info('AdMob banner loaded');
+      setNativeStatus('loaded');
     }).then(handle => {
       if (cancelled) handle.remove();
       else loadedListener = handle;
@@ -102,6 +105,7 @@ export default function AdMobBanner({ visible = true }: Props) {
 
     AdMob.addListener(BannerAdPluginEvents.FailedToLoad, (error) => {
       console.error('AdMob banner failed to load:', error);
+      setNativeStatus('retrying');
       if (cancelled || !visible || retryTimer !== undefined) return;
 
       showBannerPromise = null;
@@ -110,6 +114,7 @@ export default function AdMobBanner({ visible = true }: Props) {
         retryTimer = window.setTimeout(() => {
           retryTimer = undefined;
           if (!cancelled && visible) {
+            setNativeStatus('loading');
             showAdMobBanner().catch(retryError => {
               console.error('Failed to retry AdMob banner:', retryError);
             });
@@ -139,12 +144,17 @@ export default function AdMobBanner({ visible = true }: Props) {
   return (
     <div
       aria-hidden="true"
-      className={`admob-banner ${isNative ? 'admob-banner-native pointer-events-none' : 'border-t border-gray-200 bg-gray-50'} fixed inset-x-0 bottom-0 z-20 w-full ${visible ? '' : 'hidden'}`}
-      style={{ minHeight: visible && !isNative ? BANNER_RESERVED_HEIGHT : 0 }}
+      className={`admob-banner ${isNative ? `admob-banner-native pointer-events-none ${nativeStatus !== 'loaded' ? 'admob-banner-pending' : ''}` : 'border-t border-gray-200 bg-gray-50'} fixed inset-x-0 bottom-0 z-20 w-full ${visible ? '' : 'hidden'}`}
+      style={{ minHeight: visible ? (isNative && nativeStatus !== 'loaded' ? NATIVE_BANNER_RESERVED_HEIGHT : !isNative ? BANNER_RESERVED_HEIGHT : 0) : 0 }}
     >
       {visible && !isNative && (
         <div className="h-16 flex items-center justify-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
           AdMob Banner
+        </div>
+      )}
+      {visible && isNative && nativeStatus !== 'loaded' && (
+        <div className="flex h-[3.125rem] items-center justify-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
+          {nativeStatus === 'retrying' ? 'Test ad retrying…' : 'Loading test ad…'}
         </div>
       )}
     </div>

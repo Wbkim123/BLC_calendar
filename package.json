@@ -31,7 +31,8 @@
     "start": "react-scripts start",
     "build": "cross-env CI=false react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "postinstall": "patch-package"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -57,6 +58,7 @@
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.3.4",
-    "cross-env": "^10.1.0"
+    "cross-env": "^10.1.0",
+    "patch-package": "^8.0.1"
   }
 }
