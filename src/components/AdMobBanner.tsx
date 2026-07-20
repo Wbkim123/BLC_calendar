@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
-import { AdMob, BannerAdPluginEvents, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
+import { AdMob, AdmobConsentStatus, BannerAdPluginEvents, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 
 const ANDROID_BANNER_AD_ID = 'ca-app-pub-1251095758735054/6937828493';
 const IOS_TEST_BANNER_AD_ID = 'ca-app-pub-3940256099942544/2934735716';
@@ -14,10 +14,22 @@ let isBannerHidden = false;
 
 const initializeAdMob = () => {
   if (!initializePromise) {
-    initializePromise = AdMob.initialize().catch((error) => {
-      initializePromise = null;
-      throw error;
-    });
+    initializePromise = AdMob.initialize()
+      .then(async () => {
+        let consent = await AdMob.requestConsentInfo();
+
+        if (consent.status === AdmobConsentStatus.REQUIRED && consent.isConsentFormAvailable) {
+          consent = await AdMob.showConsentForm();
+        }
+
+        if (!consent.canRequestAds) {
+          throw new Error('Ad consent is required before Google can return an ad.');
+        }
+      })
+      .catch((error) => {
+        initializePromise = null;
+        throw error;
+      });
   }
 
   return initializePromise;
