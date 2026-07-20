@@ -98,7 +98,7 @@ export default function GeneralSettings({
                   <div className="text-sm font-black text-gray-900">Notifications</div>
                   <div className="text-[11px] font-semibold text-gray-500">Schedule update alerts</div>
                 </div>
-                <NotificationPrompt role={role} cycleName={cycleName} variant="toggle" />
+                <NotificationPrompt role={role} cycleName={cycleName} variant="toggle" autoPrompt={false} />
               </section>
 
               <section className="settings-card flex items-center justify-between rounded-2xl border border-gray-200 p-4">

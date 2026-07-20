@@ -13,11 +13,12 @@ interface Props {
   role: UserRole;
   cycleName?: string | null;
   variant?: 'button' | 'toggle';
+  autoPrompt?: boolean;
 }
 
 const AUTO_PROMPTED_KEY = 'blc_push_auto_prompted';
 
-export default function NotificationPrompt({ role, cycleName, variant = 'button' }: Props) {
+export default function NotificationPrompt({ role, cycleName, variant = 'button', autoPrompt = true }: Props) {
   const [status, setStatus] = useState<NotificationAvailability>('loading');
   const [busy, setBusy] = useState(false);
   const isPhone = isPhoneDevice();
@@ -49,12 +50,12 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
   }, [isPhone, role, cycleName, status]);
 
   useEffect(() => {
-    if (!role || !isPhone || status !== 'prompt' || busy) return;
+    if (!autoPrompt || !role || !isPhone || status !== 'prompt' || busy) return;
     if (window.localStorage.getItem(AUTO_PROMPTED_KEY) === 'true') return;
 
     window.localStorage.setItem(AUTO_PROMPTED_KEY, 'true');
     requestNotificationPermission();
-  }, [role, isPhone, status, busy, requestNotificationPermission]);
+  }, [autoPrompt, role, isPhone, status, busy, requestNotificationPermission]);
 
   if (!role || status === 'loading' || status === 'unsupported' || status === 'unconfigured') return null;
 
