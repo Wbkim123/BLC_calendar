@@ -111,9 +111,9 @@ button:active:not(:disabled) {
 }
 
 .daily-header {
-  margin: 0.65rem 0.75rem 0;
+  margin: calc(0.35rem + env(safe-area-inset-top)) 0.75rem 0;
   border-radius: 1.35rem;
-  top: 0.65rem !important;
+  top: calc(0.35rem + env(safe-area-inset-top)) !important;
 }
 
 .daily-header button {
@@ -419,7 +419,8 @@ button:active:not(:disabled) {
 
 .daily-header {
   flex: 0 0 auto;
-  padding-block-start: calc(0.75rem + env(safe-area-inset-top));
+  padding-block-start: 0.5rem;
+  padding-block-end: 0.5rem;
 }
 
 .daily-content {
@@ -431,7 +432,8 @@ button:active:not(:disabled) {
 
 @media (min-width: 640px) {
   .daily-header {
-    padding-block-start: calc(1rem + env(safe-area-inset-top));
+    padding-block-start: 0.65rem;
+    padding-block-end: 0.65rem;
   }
 }
 
@@ -471,7 +473,7 @@ button:active:not(:disabled) {
 
 .display-mode-tv .daily-header {
   padding: 0.5rem 0.75rem;
-  padding-block-start: calc(0.5rem + env(safe-area-inset-top));
+  margin-block-start: calc(0.35rem + env(safe-area-inset-top));
 }
 
 .display-mode-tv .daily-main-layout {
