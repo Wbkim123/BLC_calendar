@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { AdMob, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
+import type { PluginListenerHandle } from '@capacitor/core';
+import { AdMob, BannerAdPluginEvents, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 
 const ANDROID_BANNER_AD_ID = 'ca-app-pub-1251095758735054/6937828493';
 const IOS_TEST_BANNER_AD_ID = 'ca-app-pub-3940256099942544/2435281174';
@@ -12,7 +13,10 @@ let isBannerHidden = false;
 
 const initializeAdMob = () => {
   if (!initializePromise) {
-    initializePromise = AdMob.initialize();
+    initializePromise = AdMob.initialize().catch((error) => {
+      initializePromise = null;
+      throw error;
+    });
   }
 
   return initializePromise;
@@ -84,12 +88,52 @@ export default function AdMobBanner({ visible = true }: Props) {
   useEffect(() => {
     if (!isNative || !Capacitor.isPluginAvailable('AdMob')) return;
 
+    let cancelled = false;
+    let retryTimer: number | undefined;
+    let failedListener: PluginListenerHandle | undefined;
+    let loadedListener: PluginListenerHandle | undefined;
+
+    AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
+      console.info('AdMob banner loaded');
+    }).then(handle => {
+      if (cancelled) handle.remove();
+      else loadedListener = handle;
+    }).catch(error => console.error('Failed to attach AdMob loaded listener:', error));
+
+    AdMob.addListener(BannerAdPluginEvents.FailedToLoad, (error) => {
+      console.error('AdMob banner failed to load:', error);
+      if (cancelled || !visible || retryTimer !== undefined) return;
+
+      showBannerPromise = null;
+      isBannerHidden = false;
+      AdMob.removeBanner().catch(() => undefined).finally(() => {
+        retryTimer = window.setTimeout(() => {
+          retryTimer = undefined;
+          if (!cancelled && visible) {
+            showAdMobBanner().catch(retryError => {
+              console.error('Failed to retry AdMob banner:', retryError);
+            });
+          }
+        }, 3000);
+      });
+    }).then(handle => {
+      if (cancelled) handle.remove();
+      else failedListener = handle;
+    }).catch(error => console.error('Failed to attach AdMob failure listener:', error));
+
     const bannerAction = visible ? showAdMobBanner() : hideAdMobBanner();
 
     bannerAction
       .catch((error) => {
         console.error('Failed to update AdMob banner:', error);
       });
+
+    return () => {
+      cancelled = true;
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+      failedListener?.remove();
+      loadedListener?.remove();
+    };
   }, [isNative, visible]);
 
   return (
