@@ -89,6 +89,7 @@ interface Props {
 export default function AdMobBanner({ visible = true }: Props) {
   const isNative = Capacitor.isNativePlatform();
   const [nativeStatus, setNativeStatus] = useState<'loading' | 'loaded' | 'retrying'>('loading');
+  const [nativeError, setNativeError] = useState<{ code: string; message: string } | null>(null);
 
   useEffect(() => {
     if (!isNative || !Capacitor.isPluginAvailable('AdMob')) return;
@@ -101,6 +102,7 @@ export default function AdMobBanner({ visible = true }: Props) {
     AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
       console.info('AdMob banner loaded');
       setNativeStatus('loaded');
+      setNativeError(null);
     }).then(handle => {
       if (cancelled) handle.remove();
       else loadedListener = handle;
@@ -109,6 +111,7 @@ export default function AdMobBanner({ visible = true }: Props) {
     AdMob.addListener(BannerAdPluginEvents.FailedToLoad, (error) => {
       console.error('AdMob banner failed to load:', error);
       setNativeStatus('retrying');
+      setNativeError({ code: String(error.code), message: error.message || 'Unknown AdMob load error' });
       if (cancelled || !visible || retryTimer !== undefined) return;
 
       showBannerPromise = null;
@@ -120,6 +123,11 @@ export default function AdMobBanner({ visible = true }: Props) {
             setNativeStatus('loading');
             showAdMobBanner().catch(retryError => {
               console.error('Failed to retry AdMob banner:', retryError);
+              setNativeStatus('retrying');
+              setNativeError({
+                code: String(retryError?.code ?? 'INIT'),
+                message: retryError?.message || String(retryError)
+              });
             });
           }
         }, 3000);
@@ -134,6 +142,11 @@ export default function AdMobBanner({ visible = true }: Props) {
     bannerAction
       .catch((error) => {
         console.error('Failed to update AdMob banner:', error);
+        setNativeStatus('retrying');
+        setNativeError({
+          code: String(error?.code ?? 'INIT'),
+          message: error?.message || String(error)
+        });
       });
 
     return () => {
@@ -156,8 +169,15 @@ export default function AdMobBanner({ visible = true }: Props) {
         </div>
       )}
       {visible && isNative && nativeStatus !== 'loaded' && (
-        <div className="flex h-[3.125rem] items-center justify-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
-          {nativeStatus === 'retrying' ? 'Test ad retrying…' : 'Loading test ad…'}
+        <div className="flex min-h-[3.125rem] flex-col items-center justify-center px-3 py-1 text-center text-[10px] font-bold text-gray-500">
+          {nativeError ? (
+            <>
+              <span className="font-black text-red-600">AdMob error {nativeError.code}</span>
+              <span className="mt-0.5 max-w-full break-words leading-tight">{nativeError.message}</span>
+            </>
+          ) : (
+            <span className="uppercase tracking-widest">Loading test ad...</span>
+          )}
         </div>
       )}
     </div>
