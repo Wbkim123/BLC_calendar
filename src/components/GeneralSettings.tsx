@@ -62,8 +62,10 @@ export default function GeneralSettings({
         <span>SETTINGS</span>
       </button>
 
-      {open && (
-        <div className="settings-overlay fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-black/55 px-0 pt-4 backdrop-blur-sm sm:items-center sm:p-4">
+      <div
+        className={`settings-overlay fixed inset-0 z-[80] items-end justify-center overflow-y-auto bg-black/55 px-0 pt-4 backdrop-blur-sm sm:items-center sm:p-4 ${open ? 'flex' : 'hidden'}`}
+        aria-hidden={!open}
+      >
           <div className="settings-panel w-full overflow-y-auto overscroll-contain rounded-t-3xl bg-white p-5 pb-8 shadow-2xl sm:max-w-md sm:rounded-3xl">
             <div className="mb-5 flex items-center justify-between">
               <div>
@@ -140,8 +142,7 @@ export default function GeneralSettings({
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </div>
     </>
   );
 }

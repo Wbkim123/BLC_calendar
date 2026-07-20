@@ -24,6 +24,15 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+.calendar-root {
+  padding-block-start: calc(0.75rem + env(safe-area-inset-top));
+  padding-block-end: calc(3.875rem + env(safe-area-inset-bottom));
+}
+
+.calendar-container {
+  margin-block: auto;
+}
+
 .theme-dark {
   color-scheme: dark;
 }
