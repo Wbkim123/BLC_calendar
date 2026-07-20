@@ -15,6 +15,7 @@ interface Props {
   onOpenImport: () => void;
   onDeleteCycle: (cycleName: string) => void;
   onResetSchedules: () => void;
+  inlineLauncher?: boolean;
 }
 
 const Toggle = ({ enabled, onChange, label }: { enabled: boolean; onChange: () => void; label: string }) => (
@@ -41,7 +42,8 @@ export default function GeneralSettings({
   onLogout,
   onOpenImport,
   onDeleteCycle,
-  onResetSchedules
+  onResetSchedules,
+  inlineLauncher = false
 }: Props) {
   const [open, setOpen] = useState(false);
   const [showDatabase, setShowDatabase] = useState(false);
@@ -54,18 +56,21 @@ export default function GeneralSettings({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="settings-launcher fixed right-4 z-[60] flex h-11 w-11 items-center justify-center rounded-full bg-blue-900 text-white shadow-xl active:bg-blue-800"
+        className={inlineLauncher
+          ? 'flex w-full items-center justify-center gap-2 rounded-lg bg-gray-700 py-2 text-xs font-bold text-white shadow-md active:bg-gray-600'
+          : 'settings-launcher fixed right-4 z-[60] flex h-11 w-11 items-center justify-center rounded-full bg-blue-900 text-white shadow-xl active:bg-blue-800'}
         aria-label="Open settings"
       >
         <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
+        {inlineLauncher && <span>SETTINGS</span>}
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="settings-panel max-h-[88dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:max-w-md sm:rounded-3xl">
+        <div className="settings-overlay fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-black/55 px-0 pt-4 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="settings-panel w-full overflow-y-auto overscroll-contain rounded-t-3xl bg-white p-5 pb-8 shadow-2xl sm:max-w-md sm:rounded-3xl">
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-black text-gray-900">Settings</h2>
@@ -77,7 +82,7 @@ export default function GeneralSettings({
             </div>
 
             <div className="space-y-3">
-              <section className="settings-card rounded-2xl border border-gray-200 p-4">
+              {role === 'ADMIN' && <section className="settings-card rounded-2xl border border-gray-200 p-4">
                 <div className="mb-3 text-xs font-black uppercase tracking-wider text-gray-500">Display View</div>
                 <div className="grid grid-cols-2 rounded-xl bg-gray-100 p-1">
                   {(['auto', 'tv'] as DisplayMode[]).map(mode => (
@@ -90,7 +95,7 @@ export default function GeneralSettings({
                     </button>
                   ))}
                 </div>
-              </section>
+              </section>}
 
               <section className="settings-card flex items-center justify-between rounded-2xl border border-gray-200 p-4">
                 <div>

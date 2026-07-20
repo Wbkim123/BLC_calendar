@@ -1,5 +1,5 @@
 // src/components/Calendar.tsx
-import React, { useRef, useState } from 'react';
+import React, { ReactNode, useRef, useState } from 'react';
 import { DailySchedule, UserRole } from '../types/schedule';
 import type { DisplayMode } from '../App';
 import AdMobBanner from './AdMobBanner';
@@ -8,12 +8,10 @@ interface Props {
   schedules: DailySchedule[];
   onSelectDate: (date: string) => void;
   role?: UserRole;
-  onLogout?: () => void;
   cycleTitle?: string;
   onUpdateCycleTitle?: (title: string) => void;
   onOpenImport?: () => void;
-  onResetSchedules?: () => void;
-  onDeleteCycle?: (cycleName: string) => void;
+  settingsControl: ReactNode;
   showAdBanner?: boolean;
   displayMode: DisplayMode;
 }
@@ -34,12 +32,10 @@ export default function Calendar({
   schedules, 
   onSelectDate, 
   role, 
-  onLogout,
   cycleTitle = "BLC CLASS", 
   onUpdateCycleTitle,
   onOpenImport,
-  onResetSchedules,
-  onDeleteCycle,
+  settingsControl,
   showAdBanner = true,
   displayMode
 }: Props) {
@@ -47,14 +43,12 @@ export default function Calendar({
   const [viewDate, setViewDate] = useState(new Date());
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [newTitle, setNewTitle] = useState(cycleTitle);
-  const [showManageData, setShowManageData] = useState(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
 
   // 현재 데이터에 존재하는 기수(Cycle) 목록 추출
-  const uniqueCycles = Array.from(new Set(schedules.map(s => s.cycleName).filter(Boolean)));
 
   // 달력 계산 로직
   const firstDayOfMonth = new Date(year, month, 1).getDay();
@@ -147,118 +141,20 @@ export default function Calendar({
             )}
 
             {/* 관리자 전용 버튼들 (좌측 상단) */}
-            {onLogout && (
-              <button
-                onClick={onLogout}
-                className="absolute left-0 top-1/2 -translate-y-1/2 hidden lg:flex bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-xs font-bold items-center gap-1 shadow-md transition-all"
-                title="Sign out"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                LOGOUT
-              </button>
-            )}
-
-            {role === 'ADMIN' && (
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 hidden lg:flex gap-2">
-                <button 
-                  onClick={onOpenImport}
-                  className="bg-blue-700 hover:bg-blue-600 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md transition-all"
-                  title="Import from PDF/Image"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                  IMPORT
-                </button>
-                <button 
-                  onClick={() => setShowManageData(!showManageData)}
-                  className={`${showManageData ? 'bg-gray-700' : 'bg-red-800 hover:bg-red-700'} px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md transition-all`}
-                  title="Manage Data"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                  MANAGE
-                </button>
-              </div>
-            )}
           </div>
           <p className="text-blue-200 text-[10px] lg:text-sm font-medium uppercase tracking-widest">Cycle Calendar</p>
         </div>
 
         {/* 데이터 관리 패널 (ADMIN 전용) */}
-        {role === 'ADMIN' && showManageData && (
-          <div className="absolute right-0 top-20 bg-white border-2 border-red-100 rounded-2xl shadow-2xl p-6 z-50 w-72 animate-fade-in-up">
-            <h4 className="font-black text-red-900 text-sm mb-4 border-b pb-2 uppercase tracking-tight">Manage Cycle Data</h4>
-            
-            <div className="space-y-4">
-              {/* 기수별 삭제 */}
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 mb-2 uppercase">Select Cycle to Delete</label>
-                {uniqueCycles.length > 0 ? (
-                  <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-                    {uniqueCycles.map(cycle => (
-                      <div key={cycle} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg group">
-                        <span className="text-xs font-bold text-gray-700">{cycle}</span>
-                        <button 
-                          onClick={() => onDeleteCycle?.(cycle)}
-                          className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[10px] text-gray-400 italic">No cycle tags found.</p>
-                )}
-              </div>
-
-              {/* 전체 삭제 */}
-              <div className="pt-2 border-t">
-                <button 
-                  onClick={onResetSchedules}
-                  className="w-full bg-red-50 text-red-700 py-3 rounded-xl text-xs font-black hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  CLEAR ALL DATABASE
-                </button>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => setShowManageData(false)}
-              className="mt-6 w-full py-2 bg-gray-100 text-gray-500 rounded-lg text-[10px] font-bold uppercase"
-            >
-              Close
-            </button>
-          </div>
-        )}
-        {onLogout && (
-          <button
-            onClick={onLogout}
-            className="lg:hidden w-full mb-2 bg-gray-700 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-md"
-            title="Sign out"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            LOGOUT
-          </button>
-        )}
-
-        {/* 모바일 전용 관리자 버튼 */}
+        <div className="mb-2 w-full">{settingsControl}</div>
         {role === 'ADMIN' && (
-          <div className="lg:hidden flex gap-2 mb-2 w-full">
-            <button 
-              onClick={onOpenImport}
-              className="flex-1 bg-blue-900 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-md"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-              IMPORT
-            </button>
-            <button 
-              onClick={() => setShowManageData(!showManageData)}
-              className="flex-1 bg-red-900 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-md"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-              MANAGE
-            </button>
-          </div>
+          <button
+            onClick={onOpenImport}
+            className="mb-2 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-900 py-2 text-xs font-bold text-white shadow-md active:bg-blue-800"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+            IMPORT
+          </button>
         )}
 
         {/* 달력 본체 - 높이 확대 및 내부 패딩 조정 */}

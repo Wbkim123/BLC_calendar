@@ -1019,7 +1019,7 @@ function App() {
 
   const selectedSchedule = filteredSchedules.find(s => s.date === selectedDateId);
 
-  const generalSettings = role ? (
+  const renderGeneralSettings = (inlineLauncher = false) => role ? (
     <GeneralSettings
       role={role}
       cycleName={role === 'STUDENT' ? studentCycleName : null}
@@ -1036,6 +1036,7 @@ function App() {
       }}
       onDeleteCycle={handleDeleteCycle}
       onResetSchedules={handleResetSchedules}
+      inlineLauncher={inlineLauncher}
     />
   ) : null;
 
@@ -1050,7 +1051,7 @@ function App() {
     return (
       <>
       {foregroundNotificationToast}
-      {generalSettings}
+      {renderGeneralSettings()}
       <DailyView 
         schedule={selectedSchedule} 
         role={role}
@@ -1086,16 +1087,13 @@ function App() {
   return (
     <>
       {foregroundNotificationToast}
-      {generalSettings}
       <Calendar 
         schedules={filteredSchedules} 
         onSelectDate={(date) => setSelectedDateId(date)} 
         role={role}
-        onLogout={handleLogout}
         cycleTitle={cycleTitle}
         onOpenImport={() => setIsImportModalOpen(true)}
-        onResetSchedules={handleResetSchedules}
-        onDeleteCycle={handleDeleteCycle}
+        settingsControl={renderGeneralSettings(true)}
         showAdBanner={!isImportModalOpen}
         displayMode={displayMode}
       />
