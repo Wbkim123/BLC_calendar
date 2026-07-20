@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/Banner/BannerExecutor.swift b/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/Banner/BannerExecutor.swift
-index 70081af..8dfde20 100644
+index 70081af..74509be 100644
 --- a/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/Banner/BannerExecutor.swift
 +++ b/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/Banner/BannerExecutor.swift
 @@ -46,8 +46,8 @@ class BannerExecutor: NSObject, BannerViewDelegate {
@@ -12,3 +12,24 @@ index 70081af..8dfde20 100644
  
              call.resolve([:])
          }
+@@ -149,15 +149,18 @@ class BannerExecutor: NSObject, BannerViewDelegate {
+     /// Tells the delegate an ad request failed.
+     func bannerView(_ bannerView: BannerView,
+                     didFailToReceiveAdWithError error: Error) {
+-        NSLog("bannerView:didFailToReceiveAdWithError: \(error.localizedDescription)")
++        let nativeError = error as NSError
++        let responseInfo = nativeError.userInfo["gad_response_info"]
++        let diagnosticMessage = "\(nativeError.domain): \(nativeError.localizedDescription) | response: \(String(describing: responseInfo))"
++        NSLog("bannerView:didFailToReceiveAdWithError: \(diagnosticMessage)")
+         self.removeBannerViewToView()
+         self.plugin?.notifyListeners(BannerAdPluginEvents.SizeChanged.rawValue, data: [
+             "width": 0,
+             "height": 0
+         ])
+         self.plugin?.notifyListeners(BannerAdPluginEvents.FailedToLoad.rawValue, data: [
+-            "code": 0,
+-            "message": error.localizedDescription
++            "code": nativeError.code,
++            "message": diagnosticMessage
+         ])
+     }
