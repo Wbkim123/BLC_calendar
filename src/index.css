@@ -90,12 +90,18 @@ button:active:not(:disabled) {
   box-shadow: 0 0 0 4px rgba(49, 130, 246, 0.10), var(--soft-inset) !important;
 }
 
-.primary-action,
-.calendar-actions > button {
+.primary-action {
   border-radius: 1rem !important;
   border: 0 !important;
   background: linear-gradient(145deg, #4590f7, #2475e8) !important;
   box-shadow: 0 8px 18px rgba(49, 130, 246, 0.25) !important;
+}
+
+.calendar-actions > button {
+  border-radius: 1rem !important;
+  border: 0 !important;
+  background: linear-gradient(145deg, #20c9a6, #0ca887) !important;
+  box-shadow: 0 8px 18px rgba(12, 168, 135, 0.22) !important;
 }
 
 .calendar-header,
@@ -131,9 +137,9 @@ button:active:not(:disabled) {
 
 .calendar-actions > div > button {
   border-radius: 1rem !important;
-  background: #ffffff !important;
+  background: #e8ebef !important;
   color: #4e5968 !important;
-  box-shadow: 0 4px 12px rgba(30, 55, 85, 0.08) !important;
+  box-shadow: 0 4px 12px rgba(30, 55, 85, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
 }
 
 .calendar-board {
