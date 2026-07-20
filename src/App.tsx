@@ -15,6 +15,7 @@ import {
   clearAdminSessionToken,
   createAdminSession,
   disableNotifications,
+  getAdminIdToken,
   listenForForegroundNotifications
 } from './notifications';
 
@@ -94,28 +95,58 @@ const getScheduleEndDateTime = (schedule?: DailySchedule | null) => {
   return endDate;
 };
 
-const updateDatabaseValues = async (updates: Record<string, unknown>) => {
-  if (!Capacitor.isNativePlatform()) {
-    await update(ref(db), updates);
-    return;
-  }
-
+const requestNativeDatabaseWrite = async (
+  path: string,
+  method: 'PATCH' | 'PUT' | 'DELETE',
+  value?: unknown
+) => {
+  const idToken = await getAdminIdToken();
+  if (!idToken) throw new Error('Administrator authentication is required. Log out and sign in with 2002 again.');
   const abortController = new AbortController();
   const timeoutId = window.setTimeout(() => abortController.abort(), DATABASE_WRITE_TIMEOUT_MS);
   try {
-    const restUpdates = Object.fromEntries(
-      Object.entries(updates).map(([path, value]) => [path.replace(/^\/+/, ''), value])
-    );
-    const response = await fetch(`${firebaseDatabaseUrl}/.json`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(restUpdates),
+    const normalizedPath = path.replace(/^\/+|\/+$/g, '');
+    const response = await fetch(`${firebaseDatabaseUrl}/${normalizedPath}.json`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`
+      },
+      body: method === 'DELETE' ? undefined : JSON.stringify(value),
       signal: abortController.signal
     });
     if (!response.ok) throw new Error(`Database update failed (${response.status})`);
   } finally {
     window.clearTimeout(timeoutId);
   }
+};
+
+const updateDatabaseValues = async (updates: Record<string, unknown>) => {
+  if (!Capacitor.isNativePlatform()) {
+    await update(ref(db), updates);
+    return;
+  }
+
+  const restUpdates = Object.fromEntries(
+    Object.entries(updates).map(([path, value]) => [path.replace(/^\/+/, ''), value])
+  );
+  await requestNativeDatabaseWrite('', 'PATCH', restUpdates);
+};
+
+const setDatabaseValue = async (path: string, value: unknown) => {
+  if (Capacitor.isNativePlatform()) {
+    await requestNativeDatabaseWrite(path, 'PUT', value);
+    return;
+  }
+  await set(ref(db, path), value);
+};
+
+const removeDatabaseValue = async (path: string) => {
+  if (Capacitor.isNativePlatform()) {
+    await requestNativeDatabaseWrite(path, 'DELETE');
+    return;
+  }
+  await remove(ref(db, path));
 };
 
 const normalizeStudentCode = (cycleName: string) => cycleName.replace(/\D/g, '');
@@ -478,7 +509,7 @@ function App() {
   // 새로운 위치 추가 함수 (Firebase에 직접 반영)
   const addLocation = (loc: string) => {
     if (loc && !locations.includes(loc)) {
-      set(ref(db, 'locations'), [...locations, loc]).catch(err => {
+      setDatabaseValue('locations', [...locations, loc]).catch(err => {
         alert("Failed to add location: " + err.message);
       });
     }
@@ -487,7 +518,7 @@ function App() {
   // 새로운 복장 추가 함수 (Firebase에 직접 반영)
   const addUniform = (uni: string) => {
     if (uni && !uniforms.includes(uni)) {
-      set(ref(db, 'uniforms'), [...uniforms, uni]).catch(err => {
+      setDatabaseValue('uniforms', [...uniforms, uni]).catch(err => {
         alert("Failed to add uniform: " + err.message);
       });
     }
@@ -723,15 +754,17 @@ function App() {
 
     updatedSchedules.sort((a, b) => a.date.localeCompare(b.date));
 
-    set(ref(db, 'schedules'), updatedSchedules).catch(err => {
-      alert("Failed to import schedules: " + err.message);
-    });
+    setDatabaseValue('schedules', updatedSchedules)
+      .then(() => setSchedules(updatedSchedules))
+      .catch(err => {
+        alert("Failed to import schedules: " + err.message);
+      });
   };
 
   // 스케줄 초기화 함수 (전체 삭제)
   const handleResetSchedules = () => {
     if (window.confirm("Are you sure you want to CLEAR ALL schedules from the database?")) {
-      remove(ref(db, 'schedules')).then(() => {
+      removeDatabaseValue('schedules').then(() => {
         setSchedules([]);
       }).catch(err => {
         alert("Failed to reset schedules: " + err.message);
@@ -743,9 +776,11 @@ function App() {
   const handleDeleteCycle = (targetCycle: string) => {
     if (window.confirm(`Are you sure you want to delete ALL schedules for cycle [${targetCycle}]?`)) {
       const updatedSchedules = schedules.filter(s => s.cycleName !== targetCycle);
-      set(ref(db, 'schedules'), updatedSchedules).catch(err => {
-        alert("Failed to delete cycle: " + err.message);
-      });
+      setDatabaseValue('schedules', updatedSchedules)
+        .then(() => setSchedules(updatedSchedules))
+        .catch(err => {
+          alert("Failed to delete cycle: " + err.message);
+        });
     }
   };
   const handleLogout = () => {

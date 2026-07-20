@@ -172,6 +172,16 @@ export const clearAdminSessionToken = () => {
   window.localStorage.removeItem(ADMIN_REFRESH_TOKEN_KEY);
 };
 
+export const getAdminIdToken = async () => {
+  if (isNativePlatform()) {
+    return refreshNativeAdminIdToken();
+  }
+
+  const currentUser = auth.currentUser;
+  if (!currentUser) return null;
+  return currentUser.getIdToken();
+};
+
 export async function sendScheduleNotification(details: {
   date: string;
   cycleName?: string | null;
@@ -182,10 +192,7 @@ export async function sendScheduleNotification(details: {
   recipients: NotificationRecipients;
 }) {
   if (isNativePlatform()) {
-    const currentUser = auth.currentUser;
-    const idToken = currentUser
-      ? await withNativeNotificationTimeout(currentUser.getIdToken(), 'admin-auth')
-      : await refreshNativeAdminIdToken();
+    const idToken = await getAdminIdToken();
     if (!idToken) throw new Error('permission-denied');
     await callNativeFunction('sendScheduleNotification', details, idToken);
     return;
