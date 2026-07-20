@@ -15,16 +15,12 @@ body {
   overflow: hidden;
 }
 
-.settings-launcher {
-  bottom: calc(4.25rem + env(safe-area-inset-bottom));
-}
-
 .settings-overlay {
-  padding-bottom: calc(4.75rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(3.125rem + env(safe-area-inset-bottom));
 }
 
 .settings-panel {
-  max-height: calc(100dvh - 5.75rem - env(safe-area-inset-bottom));
+  max-height: calc(100dvh - 4.125rem - env(safe-area-inset-bottom));
   -webkit-overflow-scrolling: touch;
 }
 
