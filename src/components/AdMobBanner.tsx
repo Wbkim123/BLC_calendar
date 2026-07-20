@@ -4,7 +4,7 @@ import type { PluginListenerHandle } from '@capacitor/core';
 import { AdMob, BannerAdPluginEvents, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
 
 const ANDROID_BANNER_AD_ID = 'ca-app-pub-1251095758735054/6937828493';
-const IOS_TEST_BANNER_AD_ID = 'ca-app-pub-3940256099942544/2435281174';
+const IOS_TEST_BANNER_AD_ID = 'ca-app-pub-3940256099942544/2934735716';
 const BANNER_RESERVED_HEIGHT = 'calc(6rem + env(safe-area-inset-bottom))';
 const NATIVE_BANNER_RESERVED_HEIGHT = 'calc(3.125rem + env(safe-area-inset-bottom))';
 
@@ -42,7 +42,8 @@ const getSafeAreaBottom = () => {
 };
 
 const showAdMobBanner = () => {
-  const bannerAdId = Capacitor.getPlatform() === 'ios'
+  const isIos = Capacitor.getPlatform() === 'ios';
+  const bannerAdId = isIos
     ? IOS_TEST_BANNER_AD_ID
     : ANDROID_BANNER_AD_ID;
 
@@ -50,7 +51,9 @@ const showAdMobBanner = () => {
     showBannerPromise = initializeAdMob()
       .then(() => AdMob.showBanner({
         adId: bannerAdId,
-        adSize: BannerAdSize.ADAPTIVE_BANNER,
+        // The fixed iOS demo banner is the most reliable TestFlight diagnostic
+        // path. Android keeps its adaptive production banner configuration.
+        adSize: isIos ? BannerAdSize.BANNER : BannerAdSize.ADAPTIVE_BANNER,
         position: BannerAdPosition.BOTTOM_CENTER,
         // The iOS plugin anchors to safeAreaLayoutGuide. A negative margin
         // offsets that inset so the banner itself reaches the screen bottom.
