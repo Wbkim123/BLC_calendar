@@ -15,6 +15,59 @@ body {
   overflow: hidden;
 }
 
+.settings-launcher {
+  bottom: calc(4.25rem + env(safe-area-inset-bottom));
+}
+
+.theme-dark {
+  color-scheme: dark;
+}
+
+.theme-dark body,
+.theme-dark .calendar-root,
+.theme-dark .daily-screen {
+  background-color: rgb(17 24 39) !important;
+}
+
+.theme-dark .bg-white,
+.theme-dark .settings-panel,
+.theme-dark .settings-card {
+  background-color: rgb(31 41 55) !important;
+}
+
+.theme-dark .bg-gray-50,
+.theme-dark .bg-gray-100,
+.theme-dark .bg-gray-200 {
+  background-color: rgb(55 65 81) !important;
+}
+
+.theme-dark .text-gray-900,
+.theme-dark .text-gray-800,
+.theme-dark .text-gray-700,
+.theme-dark .text-blue-900 {
+  color: rgb(243 244 246) !important;
+}
+
+.theme-dark .text-gray-600,
+.theme-dark .text-gray-500,
+.theme-dark .text-gray-400 {
+  color: rgb(209 213 219) !important;
+}
+
+.theme-dark .border-gray-100,
+.theme-dark .border-gray-200,
+.theme-dark .border-gray-300 {
+  border-color: rgb(75 85 99) !important;
+}
+
+.theme-dark input,
+.theme-dark textarea,
+.theme-dark select {
+  background-color: rgb(17 24 39) !important;
+  color: rgb(243 244 246) !important;
+  border-color: rgb(75 85 99) !important;
+}
+
 /* iOS zooms the entire WebView when a focused form control uses text smaller
    than 16px. Keep compact labels/buttons while making every editable field
    large enough to avoid leaving the app stuck at the zoomed scale. */

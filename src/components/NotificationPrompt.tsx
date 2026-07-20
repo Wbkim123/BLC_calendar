@@ -12,11 +12,12 @@ import {
 interface Props {
   role: UserRole;
   cycleName?: string | null;
+  variant?: 'button' | 'toggle';
 }
 
 const AUTO_PROMPTED_KEY = 'blc_push_auto_prompted';
 
-export default function NotificationPrompt({ role, cycleName }: Props) {
+export default function NotificationPrompt({ role, cycleName, variant = 'button' }: Props) {
   const [status, setStatus] = useState<NotificationAvailability>('loading');
   const [busy, setBusy] = useState(false);
   const isPhone = isPhoneDevice();
@@ -81,10 +82,30 @@ export default function NotificationPrompt({ role, cycleName }: Props) {
   }
 
   if (status === 'denied') {
+    if (variant === 'toggle') {
+      return <span className="text-[10px] font-black text-amber-700">BLOCKED</span>;
+    }
     return (
       <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-[11px] font-bold text-amber-900 shadow-sm">
         Notifications are blocked. Enable them in your phone settings for BLC Tracker.
       </div>
+    );
+  }
+
+  if (variant === 'toggle') {
+    const enabled = status === 'granted';
+    return (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        aria-label="Notifications"
+        disabled={busy}
+        onClick={enabled ? handleDisable : requestNotificationPermission}
+        className={`relative h-7 w-12 rounded-full transition-colors disabled:opacity-60 ${enabled ? 'bg-green-600' : 'bg-gray-300'}`}
+      >
+        <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+      </button>
     );
   }
 

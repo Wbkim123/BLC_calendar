@@ -5,6 +5,7 @@ import Calendar from './components/Calendar';
 import DailyView from './components/DailyView';
 import ScheduleImportModal from './components/ScheduleImportModal';
 import ScheduleNotificationModal, { PendingScheduleNotification } from './components/ScheduleNotificationModal';
+import GeneralSettings from './components/GeneralSettings';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
 import { mockSchedules } from './data/mockData';
 import { auth, db, firebaseDatabaseUrl } from './firebase';
@@ -24,6 +25,7 @@ const LEGACY_06_26_END = '2026-05-15';
 const LEGACY_06_26_CYCLE = '06-26';
 const LOGIN_STORAGE_KEY = 'blc_calendar_login';
 const DISPLAY_MODE_STORAGE_KEY = 'blc_calendar_display_mode';
+const DARK_MODE_STORAGE_KEY = 'blc_calendar_dark_mode';
 const DATABASE_WRITE_TIMEOUT_MS = 15000;
 
 export type DisplayMode = 'auto' | 'tv';
@@ -233,6 +235,10 @@ function App() {
     if (typeof window === 'undefined') return 'auto';
     return window.localStorage.getItem(DISPLAY_MODE_STORAGE_KEY) === 'tv' ? 'tv' : 'auto';
   });
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(DARK_MODE_STORAGE_KEY) === 'true';
+  });
   const hasAutoSelectedTodayRef = useRef(false);
 
   const handleDisplayModeChange = (nextMode: DisplayMode) => {
@@ -241,6 +247,15 @@ function App() {
       window.localStorage.setItem(DISPLAY_MODE_STORAGE_KEY, nextMode);
     }
   };
+
+  const handleDarkModeChange = (enabled: boolean) => {
+    setDarkMode(enabled);
+    window.localStorage.setItem(DARK_MODE_STORAGE_KEY, String(enabled));
+  };
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('theme-dark', darkMode);
+  }, [darkMode]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -1004,6 +1019,26 @@ function App() {
 
   const selectedSchedule = filteredSchedules.find(s => s.date === selectedDateId);
 
+  const generalSettings = role ? (
+    <GeneralSettings
+      role={role}
+      cycleName={role === 'STUDENT' ? studentCycleName : null}
+      schedules={schedules}
+      displayMode={displayMode}
+      onDisplayModeChange={handleDisplayModeChange}
+      darkMode={darkMode}
+      onDarkModeChange={handleDarkModeChange}
+      onLogout={handleLogout}
+      onOpenImport={() => {
+        hasAutoSelectedTodayRef.current = true;
+        setSelectedDateId(null);
+        setIsImportModalOpen(true);
+      }}
+      onDeleteCycle={handleDeleteCycle}
+      onResetSchedules={handleResetSchedules}
+    />
+  ) : null;
+
   if (selectedSchedule) {
     const currentIndex = filteredSchedules.findIndex(s => s.date === selectedDateId);
     const hasPrev = currentIndex > 0;
@@ -1015,6 +1050,7 @@ function App() {
     return (
       <>
       {foregroundNotificationToast}
+      {generalSettings}
       <DailyView 
         schedule={selectedSchedule} 
         role={role}
@@ -1036,7 +1072,6 @@ function App() {
         notificationChangeType={notificationFocus?.previewText || notificationFocus?.changeType || null}
         notificationChangedFields={notificationFocus?.changedFields || []}
         displayMode={displayMode}
-        onDisplayModeChange={handleDisplayModeChange}
       />
       {pendingNotification && (
         <ScheduleNotificationModal
@@ -1051,6 +1086,7 @@ function App() {
   return (
     <>
       {foregroundNotificationToast}
+      {generalSettings}
       <Calendar 
         schedules={filteredSchedules} 
         onSelectDate={(date) => setSelectedDateId(date)} 
@@ -1062,7 +1098,6 @@ function App() {
         onDeleteCycle={handleDeleteCycle}
         showAdBanner={!isImportModalOpen}
         displayMode={displayMode}
-        onDisplayModeChange={handleDisplayModeChange}
       />
       {isImportModalOpen && (
         <ScheduleImportModal 

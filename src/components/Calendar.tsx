@@ -3,7 +3,6 @@ import React, { useRef, useState } from 'react';
 import { DailySchedule, UserRole } from '../types/schedule';
 import type { DisplayMode } from '../App';
 import AdMobBanner from './AdMobBanner';
-import NotificationPrompt from './NotificationPrompt';
 
 interface Props {
   schedules: DailySchedule[];
@@ -17,7 +16,6 @@ interface Props {
   onDeleteCycle?: (cycleName: string) => void;
   showAdBanner?: boolean;
   displayMode: DisplayMode;
-  onDisplayModeChange: (mode: DisplayMode) => void;
 }
 
 const hasScheduleConflict = (schedule: DailySchedule) => {
@@ -43,8 +41,7 @@ export default function Calendar({
   onResetSchedules,
   onDeleteCycle,
   showAdBanner = true,
-  displayMode,
-  onDisplayModeChange
+  displayMode
 }: Props) {
   // 현재 보고 있는 달 (초기값은 오늘 날짜 기준)
   const [viewDate, setViewDate] = useState(new Date());
@@ -264,20 +261,6 @@ export default function Calendar({
           </div>
         )}
 
-        <div className="mb-2 flex w-full justify-end shrink-0">
-          <button
-            onClick={() => onDisplayModeChange(displayMode === 'tv' ? 'auto' : 'tv')}
-            className={`rounded-lg px-3 py-2 text-[10px] lg:text-xs font-black tracking-wide shadow-sm transition-colors ${
-              displayMode === 'tv'
-                ? 'bg-green-600 text-white active:bg-green-700'
-                : 'bg-white text-blue-900 border border-blue-100 active:bg-blue-50'
-            }`}
-            title={displayMode === 'tv' ? 'Switch back to automatic responsive view' : 'Force TV/Desktop layout on this device'}
-          >
-            Display: {displayMode === 'tv' ? 'TV VIEW' : 'AUTO'}
-          </button>
-        </div>
-
         {/* 달력 본체 - 높이 확대 및 내부 패딩 조정 */}
         <div
           className="calendar-board bg-white rounded-xl lg:rounded-3xl shadow-sm p-3 lg:p-10 lg:flex-1 flex flex-col overflow-hidden min-h-0 border border-gray-200"
@@ -358,12 +341,6 @@ export default function Calendar({
           <p className="text-[10px] lg:text-lg text-blue-700 font-medium leading-tight">
             Dates with <span className="inline-block w-2 h-2 lg:w-4 lg:h-4 bg-yellow-500 rounded-full mx-0.5" /> mark scheduled training days. A <span className="inline-flex w-3.5 h-3.5 lg:w-6 lg:h-6 bg-red-600 text-white rounded-full mx-0.5 items-center justify-center text-[9px] lg:text-sm font-black align-middle">!</span> indicates overlapping events. Tap a highlighted date to view details.
           </p>
-        </div>
-        <div className="mt-2 shrink-0">
-          <NotificationPrompt
-            role={role || null}
-            cycleName={role === 'STUDENT' ? schedules[0]?.cycleName : null}
-          />
         </div>
         <div className="py-2 text-center">
           <a

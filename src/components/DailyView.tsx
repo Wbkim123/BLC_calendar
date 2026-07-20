@@ -3,7 +3,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { DailySchedule, UserRole, TrainingEvent } from '../types/schedule';
 import type { DisplayMode } from '../App';
 import AdMobBanner from './AdMobBanner';
-import NotificationPrompt from './NotificationPrompt';
 
 interface Props {
   schedule: DailySchedule;
@@ -26,7 +25,6 @@ interface Props {
   notificationChangeType?: string | null;
   notificationChangedFields?: string[];
   displayMode: DisplayMode;
-  onDisplayModeChange: (mode: DisplayMode) => void;
 }
 
 export default function DailyView({ 
@@ -49,8 +47,7 @@ export default function DailyView({
   notificationHighlightTarget,
   notificationChangeType,
   notificationChangedFields = [],
-  displayMode,
-  onDisplayModeChange
+  displayMode
 }: Props) {
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
   const [editingNotes, setEditingNotes] = useState<'public' | 'sgl' | null>(null);
@@ -242,17 +239,6 @@ export default function DailyView({
 
         {/* 이전/다음 날짜 이동 버튼 */}
         <div className="flex gap-1 sm:gap-2 shrink-0">
-          <button
-            onClick={() => onDisplayModeChange(displayMode === 'tv' ? 'auto' : 'tv')}
-            className={`px-2 sm:px-3 py-2 rounded-lg text-[10px] sm:text-xs font-black tracking-wide transition-colors ${
-              displayMode === 'tv'
-                ? 'bg-green-500 text-white active:bg-green-600'
-                : 'bg-blue-800 text-blue-100 active:bg-blue-700'
-            }`}
-            title={displayMode === 'tv' ? 'Switch back to automatic responsive view' : 'Force TV/Desktop layout on this device'}
-          >
-            {displayMode === 'tv' ? 'TV VIEW' : 'AUTO'}
-          </button>
           <button 
             onClick={onPrev} 
             disabled={!onPrev}
@@ -294,11 +280,6 @@ export default function DailyView({
             </p>
           </div>
         )}
-
-        <NotificationPrompt
-          role={role}
-          cycleName={role === 'STUDENT' ? schedule.cycleName : null}
-        />
 
         {notificationHighlightTarget === 'notes' && !schedule.notes && (
           <div
