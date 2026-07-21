@@ -344,6 +344,71 @@ button:active:not(:disabled) {
   color: rgb(243 244 246) !important;
 }
 
+.theme-dark .calendar-month-button {
+  background: rgb(30 58 92) !important;
+  border: 1px solid rgb(59 130 246) !important;
+  box-shadow: inset 1px 1px 3px rgba(255, 255, 255, 0.08), 0 5px 14px rgba(0, 0, 0, 0.24);
+}
+
+.theme-dark .calendar-month-button:hover,
+.theme-dark .calendar-month-button:active {
+  background: rgb(37 73 115) !important;
+}
+
+.theme-dark .calendar-month-button svg {
+  color: rgb(219 234 254) !important;
+}
+
+.theme-dark .calendar-info {
+  background: rgb(30 41 59) !important;
+  border-color: rgb(51 65 85) !important;
+  box-shadow: inset 1px 1px 3px rgba(255, 255, 255, 0.04), 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+.theme-dark .calendar-info > svg {
+  color: rgb(96 165 250) !important;
+}
+
+.theme-dark .calendar-info > p {
+  color: rgb(219 234 254) !important;
+}
+
+.theme-dark .daily-student-notes {
+  background: rgb(23 43 63) !important;
+  border-left-color: rgb(96 165 250) !important;
+}
+
+.theme-dark .daily-sgl-notes {
+  background: rgb(43 33 64) !important;
+  border-left-color: rgb(167 139 250) !important;
+}
+
+.theme-dark .daily-student-notes.notes-highlighted {
+  background: rgb(63 30 39) !important;
+  border-left-color: rgb(248 113 113) !important;
+}
+
+.theme-dark .daily-sgl-notes.notes-highlighted {
+  background: rgb(58 35 77) !important;
+  border-left-color: rgb(192 132 252) !important;
+}
+
+.theme-dark .daily-notes-panel p {
+  color: rgb(243 244 246) !important;
+}
+
+.theme-dark .add-student-notes {
+  background: rgb(23 43 63) !important;
+  border-color: rgb(59 130 246) !important;
+  color: rgb(147 197 253) !important;
+}
+
+.theme-dark .add-sgl-notes {
+  background: rgb(43 33 64) !important;
+  border-color: rgb(139 92 246) !important;
+  color: rgb(196 181 253) !important;
+}
+
 /* iOS zooms the entire WebView when a focused form control uses text smaller
    than 16px. Keep compact labels/buttons while making every editable field
    large enough to avoid leaving the app stuck at the zoomed scale. */

@@ -166,13 +166,13 @@ export default function Calendar({
           onTouchEnd={handleCalendarTouchEnd}
         >
           <div className="flex justify-between items-center mb-3 lg:mb-8 shrink-0">
-            <button onClick={() => changeMonth(-1)} className="p-2 lg:p-4 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
+            <button onClick={() => changeMonth(-1)} className="calendar-month-button p-2 lg:p-4 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
               <svg className="w-5 h-5 lg:w-8 lg:h-8 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
             <h3 className="text-lg lg:text-4xl font-black text-blue-900 tracking-tight">
               {viewDate.toLocaleString('default', { month: 'long', year: 'numeric' }).toUpperCase()}
             </h3>
-            <button onClick={() => changeMonth(1)} className="p-2 lg:p-4 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
+            <button onClick={() => changeMonth(1)} className="calendar-month-button p-2 lg:p-4 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
               <svg className="w-6 h-6 lg:w-8 lg:h-8 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
             </button>
           </div>

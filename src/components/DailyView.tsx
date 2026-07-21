@@ -408,11 +408,11 @@ export default function DailyView({
         {schedule.notes && (
           <div
             ref={notificationHighlightTarget === 'notes' ? highlightedTargetRef : undefined}
-            className={`daily-notes-panel p-4 rounded-r-lg shadow-sm border-l-4 ${
+            className={`daily-notes-panel daily-student-notes p-4 rounded-r-lg shadow-sm border-l-4 ${
             notificationHighlightTarget === 'notes' ? 'notification-change-highlight ' : ''
           }${
             schedule.notesHighlighted
-              ? 'bg-red-50 border-red-500 ring-2 ring-red-100'
+              ? 'notes-highlighted bg-red-50 border-red-500 ring-2 ring-red-100'
               : 'bg-blue-50 border-blue-500'
           }`}
           >
@@ -455,11 +455,11 @@ export default function DailyView({
         {canViewSglNotes && schedule.sglNotes && (
           <div
             ref={notificationHighlightTarget === 'sglNotes' ? highlightedTargetRef : undefined}
-            className={`daily-notes-panel p-4 rounded-r-lg shadow-sm border-l-4 ${
+            className={`daily-notes-panel daily-sgl-notes p-4 rounded-r-lg shadow-sm border-l-4 ${
             notificationHighlightTarget === 'sglNotes' ? 'notification-change-highlight ' : ''
           }${
             schedule.sglNotesHighlighted
-              ? 'bg-purple-50 border-purple-600 ring-2 ring-purple-100'
+              ? 'notes-highlighted bg-purple-50 border-purple-600 ring-2 ring-purple-100'
               : 'bg-violet-50 border-violet-500'
           }`}
           >
@@ -507,7 +507,7 @@ export default function DailyView({
           {!schedule.notes && (
             <button
               onClick={() => setEditingNotes('public')}
-              className="w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-blue-200 rounded-xl flex items-center justify-center text-blue-500 hover:border-blue-400 hover:bg-blue-50 transition-all active:scale-[0.98] text-xs lg:text-sm font-black uppercase tracking-widest"
+              className="add-student-notes w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-blue-200 rounded-xl flex items-center justify-center text-blue-500 hover:border-blue-400 hover:bg-blue-50 transition-all active:scale-[0.98] text-xs lg:text-sm font-black uppercase tracking-widest"
             >
               + Add Student Notes
             </button>
@@ -515,7 +515,7 @@ export default function DailyView({
           {!schedule.sglNotes && (
             <button
               onClick={() => setEditingNotes('sgl')}
-              className="w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-purple-200 rounded-xl flex items-center justify-center text-purple-500 hover:border-purple-400 hover:bg-purple-50 transition-all active:scale-[0.98] text-xs lg:text-sm font-black uppercase tracking-widest"
+              className="add-sgl-notes w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-purple-200 rounded-xl flex items-center justify-center text-purple-500 hover:border-purple-400 hover:bg-purple-50 transition-all active:scale-[0.98] text-xs lg:text-sm font-black uppercase tracking-widest"
             >
               + Add SGL Notes
             </button>
