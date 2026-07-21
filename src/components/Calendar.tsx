@@ -200,7 +200,12 @@ export default function Calendar({
               const hasConflict = schedule ? hasScheduleConflict(schedule) : false;
               const hasHighlightedEvent = Boolean(schedule?.events?.some(event => event.highlighted));
               const hasStudentNotes = Boolean(schedule?.notes?.trim());
-              const hasSglNotes = Boolean(schedule?.sglNotes?.trim());
+              const hasSglNotes = role !== 'STUDENT' && Boolean(schedule?.sglNotes?.trim());
+              const hasHighlightedNotes = Boolean(
+                schedule?.notesHighlighted
+                || (role !== 'STUDENT' && schedule?.sglNotesHighlighted)
+              );
+              const hasRedHighlight = hasHighlightedEvent || hasHighlightedNotes;
 
               return (
                 <button
@@ -216,18 +221,18 @@ export default function Calendar({
                       : 'text-gray-300 pointer-events-none border-transparent'
                   } ${isToday ? 'ring-2 lg:ring-4 ring-blue-900 ring-offset-1' : ''}`}
                 >
-                  <span className={`relative z-10 text-sm lg:text-2xl ${isPastScheduledDate ? 'calendar-past-text' : ''}`}>
+                  <span className={`absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-sm lg:text-2xl ${isPastScheduledDate ? 'calendar-past-text' : ''}`}>
                     {day}
                   </span>
                   {schedule && (
-                    <span className={`relative z-10 text-[8px] lg:text-xs font-black text-blue-500 mt-1 lg:mt-2 leading-none ${isPastScheduledDate ? 'calendar-past-text' : ''}`}>
+                    <span className={`absolute bottom-1 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap text-[8px] font-black leading-none text-blue-500 lg:bottom-2 lg:text-xs ${isPastScheduledDate ? 'calendar-past-text' : ''}`}>
                       {schedule.dayLabel.split(' ').slice(0, 2).join(' ')}
                     </span>
                   )}
-                  {(hasHighlightedEvent || hasStudentNotes || hasSglNotes) && (
+                  {(hasRedHighlight || hasStudentNotes || hasSglNotes) && (
                     <div className="absolute left-1/2 top-1 z-20 flex -translate-x-1/2 items-center gap-1 lg:top-2 lg:gap-1.5">
-                      {hasHighlightedEvent && (
-                        <span className="h-1.5 w-1.5 rounded-full bg-red-600 shadow-sm lg:h-2.5 lg:w-2.5" aria-label="Contains a highlighted event" />
+                      {hasRedHighlight && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-red-600 shadow-sm lg:h-2.5 lg:w-2.5" aria-label="Contains highlighted content" />
                       )}
                       {hasStudentNotes && (
                         <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shadow-sm lg:h-2.5 lg:w-2.5" aria-label="Contains student notes" />
@@ -255,7 +260,7 @@ export default function Calendar({
         <div className="calendar-info mt-2 lg:mt-4 p-2 lg:p-4 bg-blue-50 rounded-lg lg:rounded-2xl flex items-start gap-2 lg:gap-4 border border-blue-100 shrink-0">
           <svg className="w-5 h-5 lg:w-7 lg:h-7 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           <p className="text-[10px] lg:text-lg text-blue-700 font-medium leading-tight">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600 mx-0.5 lg:h-3 lg:w-3" /> Highlighted event · <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mx-0.5 lg:h-3 lg:w-3" /> Student notes · <span className="inline-block h-1.5 w-1.5 rounded-full bg-purple-500 mx-0.5 lg:h-3 lg:w-3" /> SGL notes. A <span className="inline-flex w-3.5 h-3.5 lg:w-6 lg:h-6 bg-red-700 text-white rounded-full mx-0.5 items-center justify-center text-[9px] lg:text-sm font-black align-middle">!</span> indicates overlapping events. Tap a scheduled date to view details.
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600 mx-0.5 lg:h-3 lg:w-3" /> Highlighted content · <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mx-0.5 lg:h-3 lg:w-3" /> Student notes{role !== 'STUDENT' && <><span> · </span><span className="inline-block h-1.5 w-1.5 rounded-full bg-purple-500 mx-0.5 lg:h-3 lg:w-3" /> SGL notes</>}. A <span className="inline-flex w-3.5 h-3.5 lg:w-6 lg:h-6 bg-red-700 text-white rounded-full mx-0.5 items-center justify-center text-[9px] lg:text-sm font-black align-middle">!</span> indicates overlapping events. Tap a scheduled date to view details.
           </p>
         </div>
         <AdMobBanner visible={showAdBanner} />
