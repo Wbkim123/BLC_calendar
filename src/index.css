@@ -362,25 +362,30 @@ button:active:not(:disabled) {
   filter: none;
 }
 
+.calendar-month-button svg {
+  color: rgb(15 23 42) !important;
+  stroke-width: 3.25;
+}
+
 .theme-dark .calendar-day-today {
   border-color: rgb(96 165 250) !important;
   box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.28), 0 8px 20px rgba(0, 0, 0, 0.36) !important;
 }
 
 .theme-dark .calendar-month-button {
-  background: rgb(37 99 235) !important;
-  border: 2px solid rgb(147 197 253) !important;
+  background: rgb(191 219 254) !important;
+  border: 2px solid rgb(96 165 250) !important;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2), 0 6px 16px rgba(0, 0, 0, 0.35) !important;
 }
 
 .theme-dark .calendar-month-button:hover,
 .theme-dark .calendar-month-button:active {
-  background: rgb(29 78 216) !important;
+  background: rgb(147 197 253) !important;
 }
 
 .theme-dark .calendar-month-button svg {
-  color: rgb(255 255 255) !important;
-  stroke-width: 3;
+  color: rgb(15 23 42) !important;
+  stroke-width: 3.25;
 }
 
 .theme-dark .calendar-info {
