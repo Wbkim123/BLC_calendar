@@ -213,9 +213,11 @@ export default function Calendar({
                       : 'text-gray-300 pointer-events-none border-transparent'
                   } ${isToday ? 'ring-2 lg:ring-4 ring-blue-900 ring-offset-1' : ''}`}
                 >
-                  <span className="relative z-10 text-sm lg:text-2xl">{day}</span>
+                  <span className={`relative z-10 text-sm lg:text-2xl ${isPastScheduledDate ? 'calendar-past-text' : ''}`}>
+                    {day}
+                  </span>
                   {schedule && (
-                    <span className="relative z-10 text-[8px] lg:text-xs font-black text-blue-500 mt-1 lg:mt-2 leading-none">
+                    <span className={`relative z-10 text-[8px] lg:text-xs font-black text-blue-500 mt-1 lg:mt-2 leading-none ${isPastScheduledDate ? 'calendar-past-text' : ''}`}>
                       {schedule.dayLabel.split(' ').slice(0, 2).join(' ')}
                     </span>
                   )}

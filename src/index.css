@@ -348,36 +348,18 @@ button:active:not(:disabled) {
   filter: saturate(0.72);
 }
 
-.calendar-day-past::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  border-radius: inherit;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    -45deg,
-    rgba(51, 65, 85, 0.38) 0,
-    rgba(51, 65, 85, 0.38) 3px,
-    transparent 5px,
-    transparent 10px
-  );
+.calendar-past-text {
+  text-decoration-line: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: currentColor;
+  text-decoration-skip-ink: none;
+  opacity: 0.68;
 }
 
 .calendar-day-today {
   border-color: rgb(37 99 235) !important;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2), 0 7px 18px rgba(30, 64, 175, 0.2) !important;
   filter: none;
-}
-
-.theme-dark .calendar-day-past::after {
-  background: repeating-linear-gradient(
-    -45deg,
-    rgba(203, 213, 225, 0.38) 0,
-    rgba(203, 213, 225, 0.38) 3px,
-    transparent 5px,
-    transparent 10px
-  );
 }
 
 .theme-dark .calendar-day-today {
