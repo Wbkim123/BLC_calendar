@@ -187,7 +187,7 @@ export default function Calendar({
           </div>
 
           {/* 날짜 그리드 */}
-          <div className="calendar-days-grid grid grid-cols-7 gap-1 lg:gap-3 lg:auto-rows-fr lg:flex-1 min-h-0">
+          <div className="calendar-days-grid grid grid-cols-7 gap-1.5 lg:gap-3.5 lg:auto-rows-fr lg:flex-1 min-h-0">
             {calendarDays.map((day, idx) => {
               if (day === null) return <div key={`empty-${idx}`} className="calendar-empty-day aspect-square lg:aspect-auto lg:h-full" />;
               
@@ -198,7 +198,11 @@ export default function Calendar({
               const isToday = cellDate.getTime() === today.getTime();
               const isPastScheduledDate = Boolean(schedule) && cellDate.getTime() < today.getTime();
               const hasConflict = schedule ? hasScheduleConflict(schedule) : false;
-              const hasHighlightedEvent = Boolean(schedule?.events?.some(event => event.highlighted));
+              const hasHighlightedContent = Boolean(
+                schedule?.events?.some(event => event.highlighted)
+                || schedule?.notesHighlighted
+                || schedule?.sglNotesHighlighted
+              );
 
               return (
                 <button
@@ -222,10 +226,10 @@ export default function Calendar({
                       {schedule.dayLabel.split(' ').slice(0, 2).join(' ')}
                     </span>
                   )}
-                  {hasHighlightedEvent && (
+                  {hasHighlightedContent && (
                     <div
                       className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-600 shadow-sm ring-1 ring-white lg:top-3 lg:right-3 lg:h-3.5 lg:w-3.5"
-                      aria-label="Contains a highlighted event"
+                      aria-label="Contains highlighted content"
                     />
                   )}
                   {hasConflict && (
@@ -246,7 +250,7 @@ export default function Calendar({
         <div className="calendar-info mt-2 lg:mt-4 p-2 lg:p-4 bg-blue-50 rounded-lg lg:rounded-2xl flex items-start gap-2 lg:gap-4 border border-blue-100 shrink-0">
           <svg className="w-5 h-5 lg:w-7 lg:h-7 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           <p className="text-[10px] lg:text-lg text-blue-700 font-medium leading-tight">
-            A <span className="inline-block w-2 h-2 lg:w-4 lg:h-4 bg-red-600 rounded-full mx-0.5" /> marks a date containing a red-highlighted event. A <span className="inline-flex w-3.5 h-3.5 lg:w-6 lg:h-6 bg-red-700 text-white rounded-full mx-0.5 items-center justify-center text-[9px] lg:text-sm font-black align-middle">!</span> indicates overlapping events. Tap a scheduled date to view details.
+            A <span className="inline-block w-2 h-2 lg:w-4 lg:h-4 bg-red-600 rounded-full mx-0.5" /> marks a date containing a highlighted event or note. A <span className="inline-flex w-3.5 h-3.5 lg:w-6 lg:h-6 bg-red-700 text-white rounded-full mx-0.5 items-center justify-center text-[9px] lg:text-sm font-black align-middle">!</span> indicates overlapping events. Tap a scheduled date to view details.
           </p>
         </div>
         <AdMobBanner visible={showAdBanner} />
