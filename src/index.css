@@ -345,14 +345,23 @@ button:active:not(:disabled) {
 }
 
 .calendar-day-past {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    rgba(71, 85, 105, 0.16) 0,
-    rgba(71, 85, 105, 0.16) 5px,
-    transparent 5px,
-    transparent 11px
-  ) !important;
   filter: saturate(0.72);
+}
+
+.calendar-day-past::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: inherit;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(51, 65, 85, 0.38) 0,
+    rgba(51, 65, 85, 0.38) 3px,
+    transparent 5px,
+    transparent 10px
+  );
 }
 
 .calendar-day-today {
@@ -361,24 +370,19 @@ button:active:not(:disabled) {
   filter: none;
 }
 
-.theme-dark .calendar-day-past {
-  background-image: repeating-linear-gradient(
+.theme-dark .calendar-day-past::after {
+  background: repeating-linear-gradient(
     -45deg,
-    rgba(148, 163, 184, 0.2) 0,
-    rgba(148, 163, 184, 0.2) 5px,
+    rgba(203, 213, 225, 0.38) 0,
+    rgba(203, 213, 225, 0.38) 3px,
     transparent 5px,
-    transparent 11px
-  ) !important;
+    transparent 10px
+  );
 }
 
 .theme-dark .calendar-day-today {
   border-color: rgb(96 165 250) !important;
   box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.28), 0 8px 20px rgba(0, 0, 0, 0.36) !important;
-}
-
-.theme-dark .calendar-today-badge {
-  background: rgb(37 99 235) !important;
-  color: rgb(255 255 255) !important;
 }
 
 .theme-dark .calendar-month-button {

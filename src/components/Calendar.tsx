@@ -213,11 +213,6 @@ export default function Calendar({
                       : 'text-gray-300 pointer-events-none border-transparent'
                   } ${isToday ? 'ring-2 lg:ring-4 ring-blue-900 ring-offset-1' : ''}`}
                 >
-                  {isToday && (
-                    <span className="calendar-today-badge absolute left-1 top-1 z-20 rounded-full bg-blue-700 px-1.5 py-0.5 text-[6px] font-black leading-none tracking-wide text-white lg:left-2 lg:top-2 lg:px-2 lg:py-1 lg:text-[10px]">
-                      TODAY
-                    </span>
-                  )}
                   <span className="relative z-10 text-sm lg:text-2xl">{day}</span>
                   {schedule && (
                     <span className="relative z-10 text-[8px] lg:text-xs font-black text-blue-500 mt-1 lg:mt-2 leading-none">
