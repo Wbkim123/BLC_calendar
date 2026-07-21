@@ -200,13 +200,13 @@ export default function GeneralSettings({
                 <div className="grid grid-cols-2 gap-2">
                   <a
                     href="/support.html"
-                    className="rounded-xl bg-blue-50 px-3 py-2.5 text-center text-xs font-black text-blue-900"
+                    className="help-support-button rounded-xl bg-blue-50 px-3 py-2.5 text-center text-xs font-black text-blue-900"
                   >
                     SUPPORT
                   </a>
                   <a
                     href="/privacy.html"
-                    className="rounded-xl bg-gray-100 px-3 py-2.5 text-center text-xs font-black text-gray-700"
+                    className="help-privacy-button rounded-xl bg-gray-100 px-3 py-2.5 text-center text-xs font-black text-gray-700"
                   >
                     PRIVACY POLICY
                   </a>
