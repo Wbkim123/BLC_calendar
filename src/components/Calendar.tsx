@@ -192,7 +192,11 @@ export default function Calendar({
               if (day === null) return <div key={`empty-${idx}`} className="calendar-empty-day aspect-square lg:aspect-auto lg:h-full" />;
               
               const schedule = isScheduled(day);
-              const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+              const cellDate = new Date(year, month, day);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const isToday = cellDate.getTime() === today.getTime();
+              const isPastScheduledDate = Boolean(schedule) && cellDate.getTime() < today.getTime();
               const hasConflict = schedule ? hasScheduleConflict(schedule) : false;
 
               return (
@@ -201,7 +205,7 @@ export default function Calendar({
                   onClick={() => schedule && onSelectDate(schedule.date)}
                   disabled={!schedule}
                   title={hasConflict ? 'Conflict detected: Overlapping schedule.' : undefined}
-                  className={`calendar-day aspect-square lg:aspect-auto lg:h-full rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all border-2 ${
+                  className={`calendar-day ${isToday ? 'calendar-day-today' : ''} ${isPastScheduledDate ? 'calendar-day-past' : ''} aspect-square lg:aspect-auto lg:h-full rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all border-2 ${
                     hasConflict
                       ? 'bg-red-50 text-red-900 font-bold border-red-400 active:scale-95 hover:bg-red-100 shadow-sm'
                       : schedule 
@@ -209,9 +213,14 @@ export default function Calendar({
                       : 'text-gray-300 pointer-events-none border-transparent'
                   } ${isToday ? 'ring-2 lg:ring-4 ring-blue-900 ring-offset-1' : ''}`}
                 >
-                  <span className="text-sm lg:text-2xl">{day}</span>
+                  {isToday && (
+                    <span className="calendar-today-badge absolute left-1 top-1 z-20 rounded-full bg-blue-700 px-1.5 py-0.5 text-[6px] font-black leading-none tracking-wide text-white lg:left-2 lg:top-2 lg:px-2 lg:py-1 lg:text-[10px]">
+                      TODAY
+                    </span>
+                  )}
+                  <span className="relative z-10 text-sm lg:text-2xl">{day}</span>
                   {schedule && (
-                    <span className="text-[8px] lg:text-xs font-black text-blue-500 mt-1 lg:mt-2 leading-none">
+                    <span className="relative z-10 text-[8px] lg:text-xs font-black text-blue-500 mt-1 lg:mt-2 leading-none">
                       {schedule.dayLabel.split(' ').slice(0, 2).join(' ')}
                     </span>
                   )}
