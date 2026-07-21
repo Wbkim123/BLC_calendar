@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { DisplayMode } from '../App';
 import { DailySchedule, UserRole } from '../types/schedule';
+import { isAdPrivacyOptionsRequired, showAdPrivacyOptions } from './AdMobBanner';
 import NotificationPrompt from './NotificationPrompt';
 
 interface Props {
@@ -43,9 +44,43 @@ export default function GeneralSettings({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [showDatabase, setShowDatabase] = useState(false);
+  const [showAdPrivacy, setShowAdPrivacy] = useState(false);
+  const [adPrivacyBusy, setAdPrivacyBusy] = useState(false);
+  const [adPrivacyError, setAdPrivacyError] = useState(false);
   const uniqueCycles = useMemo(() => Array.from(new Set(
     schedules.map(schedule => schedule.cycleName?.trim()).filter((value): value is string => Boolean(value))
   )).sort(), [schedules]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+    isAdPrivacyOptionsRequired()
+      .then(required => {
+        if (!cancelled) setShowAdPrivacy(required);
+      })
+      .catch(error => console.error('Failed to check AdMob privacy options:', error));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  const handleAdPrivacyChoices = async () => {
+    if (adPrivacyBusy) return;
+
+    setAdPrivacyBusy(true);
+    setAdPrivacyError(false);
+    try {
+      await showAdPrivacyOptions();
+      setShowAdPrivacy(await isAdPrivacyOptionsRequired());
+    } catch (error) {
+      console.error('Failed to show AdMob privacy options:', error);
+      setAdPrivacyError(true);
+    } finally {
+      setAdPrivacyBusy(false);
+    }
+  };
 
   return (
     <>
@@ -109,6 +144,26 @@ export default function GeneralSettings({
                 <Toggle enabled={darkMode} onChange={() => onDarkModeChange(!darkMode)} label="Dark mode" />
               </section>
 
+              {showAdPrivacy && (
+                <section className="settings-card rounded-2xl border border-gray-200 p-4">
+                  <button
+                    type="button"
+                    onClick={handleAdPrivacyChoices}
+                    disabled={adPrivacyBusy}
+                    className="flex w-full items-center justify-between gap-4 text-left disabled:opacity-60"
+                  >
+                    <div>
+                      <div className="text-sm font-black text-gray-900">Ad Privacy Choices</div>
+                      <div className="text-[11px] font-semibold text-gray-500">Review or change your advertising consent</div>
+                    </div>
+                    <span className="shrink-0 text-xs font-black text-blue-800">{adPrivacyBusy ? 'OPENING...' : 'OPEN'}</span>
+                  </button>
+                  {adPrivacyError && (
+                    <p className="mt-2 text-[11px] font-semibold text-red-600">Privacy choices could not be opened. Please try again.</p>
+                  )}
+                </section>
+              )}
+
               {role === 'ADMIN' && (
                 <section className="settings-card rounded-2xl border border-red-200 p-4">
                   <button onClick={() => setShowDatabase(value => !value)} className="flex w-full items-center justify-between text-left">
@@ -136,6 +191,27 @@ export default function GeneralSettings({
                   )}
                 </section>
               )}
+
+              <section className="settings-card rounded-2xl border border-gray-200 p-4">
+                <div className="mb-3">
+                  <div className="text-sm font-black text-gray-900">Help &amp; Legal</div>
+                  <div className="text-[11px] font-semibold text-gray-500">Get help or review our privacy policy</div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <a
+                    href="/support.html"
+                    className="rounded-xl bg-blue-50 px-3 py-2.5 text-center text-xs font-black text-blue-900"
+                  >
+                    SUPPORT
+                  </a>
+                  <a
+                    href="/privacy.html"
+                    className="rounded-xl bg-gray-100 px-3 py-2.5 text-center text-xs font-black text-gray-700"
+                  >
+                    PRIVACY POLICY
+                  </a>
+                </div>
+              </section>
 
               <button onClick={onLogout} className="w-full rounded-2xl bg-gray-800 py-3 text-sm font-black text-white">
                 LOGOUT

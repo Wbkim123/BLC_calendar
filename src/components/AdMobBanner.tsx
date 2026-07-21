@@ -1,25 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import type { PluginListenerHandle } from '@capacitor/core';
-import { AdMob, AdmobConsentStatus, BannerAdPluginEvents, BannerAdPosition, BannerAdSize } from '@capacitor-community/admob';
+import {
+  AdMob,
+  AdmobConsentStatus,
+  BannerAdPluginEvents,
+  BannerAdPosition,
+  BannerAdSize
+} from '@capacitor-community/admob';
 
 const ANDROID_BANNER_AD_ID = 'ca-app-pub-1251095758735054/6937828493';
-// RELEASE CHECK: Replace this demo unit with the production iOS banner unit.
-// See RELEASE_CHECKLIST.md before submitting the App Store build.
-const IOS_TEST_BANNER_AD_ID = 'ca-app-pub-3940256099942544/2435281174';
+const IOS_BANNER_AD_ID = 'ca-app-pub-1251095758735054/6980676000';
 const BANNER_RESERVED_HEIGHT = 'calc(6rem + env(safe-area-inset-bottom))';
 const NATIVE_BANNER_RESERVED_HEIGHT = 'calc(3.125rem + env(safe-area-inset-bottom))';
 const BANNER_RETRY_DELAY_MS = 60000;
 const MAX_BANNER_RETRIES = 3;
 
 let initializePromise: Promise<void> | null = null;
+let sdkInitializePromise: Promise<void> | null = null;
 let showBannerPromise: Promise<void> | null = null;
 let isBannerHidden = false;
 let bannerRetryCount = 0;
 
+const initializeAdMobSdk = () => {
+  if (!sdkInitializePromise) {
+    sdkInitializePromise = AdMob.initialize().catch(error => {
+      sdkInitializePromise = null;
+      throw error;
+    });
+  }
+
+  return sdkInitializePromise;
+};
+
 const initializeAdMob = () => {
   if (!initializePromise) {
-    initializePromise = AdMob.initialize()
+    initializePromise = initializeAdMobSdk()
       .then(async () => {
         let consent = await AdMob.requestConsentInfo();
 
@@ -38,6 +54,21 @@ const initializeAdMob = () => {
   }
 
   return initializePromise;
+};
+
+export const isAdPrivacyOptionsRequired = async () => {
+  if (!Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable('AdMob')) return false;
+
+  await initializeAdMobSdk();
+  const consent = await AdMob.requestConsentInfo();
+  return consent.privacyOptionsRequirementStatus === 'REQUIRED';
+};
+
+export const showAdPrivacyOptions = async () => {
+  if (!Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable('AdMob')) return;
+
+  await initializeAdMobSdk();
+  await AdMob.showPrivacyOptionsForm();
 };
 
 const getSafeAreaBottom = () => {
@@ -61,7 +92,7 @@ const getSafeAreaBottom = () => {
 const showAdMobBanner = () => {
   const isIos = Capacitor.getPlatform() === 'ios';
   const bannerAdId = isIos
-    ? IOS_TEST_BANNER_AD_ID
+    ? IOS_BANNER_AD_ID
     : ANDROID_BANNER_AD_ID;
 
   if (!showBannerPromise) {

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f2f66" />
+    <meta name="description" content="Support for BLC Schedule Tracker" />
+    <title>Support | BLC Schedule Tracker</title>
+    <style>
+      :root { color-scheme: light; --bg: #f6f8fb; --text: #172033; --muted: #5f6b7a; --line: #d9e0ea; --brand: #123c7c; --panel: #ffffff; --soft: #eef4ff; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font-family: Arial, Helvetica, sans-serif; line-height: 1.65; }
+      header { background: var(--brand); color: #ffffff; padding: 32px 20px; }
+      header .wrap, main { max-width: 900px; margin: 0 auto; }
+      h1 { margin: 0 0 8px; font-size: 34px; line-height: 1.15; }
+      h2 { margin: 34px 0 10px; font-size: 22px; line-height: 1.25; color: var(--brand); }
+      h3 { margin: 22px 0 6px; font-size: 17px; }
+      p, li { font-size: 16px; }
+      ul, ol { padding-left: 22px; }
+      main { padding: 28px 20px 48px; }
+      .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 28px; }
+      .meta { color: rgba(255, 255, 255, 0.8); margin: 0; }
+      .contact-card { border-left: 4px solid var(--brand); background: var(--soft); padding: 18px; margin-top: 22px; }
+      .contact-button { display: inline-flex; margin-top: 8px; border-radius: 8px; background: var(--brand); color: #ffffff; padding: 10px 14px; font-weight: 700; text-decoration: none; }
+      a { color: var(--brand); font-weight: 700; }
+      .back-button { display: inline-flex; margin-bottom: 18px; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 8px; background: rgba(255, 255, 255, 0.12); color: #ffffff; padding: 10px 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
+      .back-button:hover { background: rgba(255, 255, 255, 0.2); }
+      footer { border-top: 1px solid var(--line); margin-top: 36px; padding-top: 20px; color: var(--muted); font-size: 14px; }
+      @media (max-width: 560px) { h1 { font-size: 28px; } .panel { padding: 20px; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <button class="back-button" type="button" onclick="goBackToApp()">Back</button>
+        <h1>Support</h1>
+        <p class="meta">BLC Schedule Tracker</p>
+      </div>
+    </header>
+    <main>
+      <article class="panel">
+        <p>This page provides help with BLC Schedule Tracker, including access, schedules, notifications, advertising privacy choices, and general feedback.</p>
+        <section class="contact-card">
+          <strong>Contact Support</strong>
+          <p>Email us with a description of the issue, your device model, iOS or Android version, and the app screen where the issue occurred. Do not include passwords, private student information, or sensitive schedule data.</p>
+          <a class="contact-button" href="mailto:doesntmatter0828@gmail.com?subject=BLC%20Schedule%20Tracker%20Support">Email Support</a>
+          <p><a href="mailto:doesntmatter0828@gmail.com">doesntmatter0828@gmail.com</a></p>
+        </section>
+        <h2>Common Issues</h2>
+        <h3>I cannot access the app</h3>
+        <ol><li>Confirm that the access code was entered correctly.</li><li>Check that the device has an active internet connection.</li><li>Close and reopen the app, then try again.</li><li>If the code is no longer valid, contact the person who provided it or email support.</li></ol>
+        <h3>The schedule is missing or not updating</h3>
+        <ol><li>Confirm that the device is online.</li><li>Leave the current screen and reopen the schedule.</li><li>Close and reopen the app if the latest changes still do not appear.</li><li>Contact support with the affected date and cycle, without including sensitive personal information.</li></ol>
+        <h3>Notifications are not arriving</h3>
+        <ol><li>Open the app's Settings and confirm that Notifications are on.</li><li>Open the device's system settings and allow notifications for BLC Schedule Tracker.</li><li>Confirm that Focus or Do Not Disturb is not suppressing alerts.</li><li>Turn Notifications off and back on in the app to refresh registration.</li></ol>
+        <h3>An advertisement is not displayed</h3>
+        <p>Ads may be temporarily unavailable because of network conditions, regional availability, consent choices, or advertising service limits. Missing ads do not prevent use of the schedule features.</p>
+        <h3>I want to review my advertising consent</h3>
+        <p>Where required by applicable privacy rules, open the app's Settings and select <strong>Ad Privacy Choices</strong>. This control is shown only when Google's consent platform reports that it is required for the user.</p>
+        <h3>I want to remove locally saved login information</h3>
+        <p>Use the Logout button in the app's Settings. You can also remove local app data by uninstalling the app. For a request involving information stored by the service, contact support using the email above.</p>
+        <h2>Privacy</h2>
+        <p>Read the <a href="/privacy">BLC Schedule Tracker Privacy Policy</a> for information about Firebase, push notifications, AdMob, consent, data retention, and deletion requests.</p>
+        <footer><p>BLC Schedule Tracker Support</p></footer>
+      </article>
+    </main>
+    <script>
+      function goBackToApp() {
+        if (window.history.length > 1) { window.history.back(); return; }
+        window.location.href = '/BLC_calendar/';
+      }
+    </script>
+  </body>
+</html>
