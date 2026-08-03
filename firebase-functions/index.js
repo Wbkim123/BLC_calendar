@@ -7,6 +7,7 @@ const { getMessaging } = require('firebase-admin/messaging');
 initializeApp();
 
 const LEGACY_PUSH_TOPIC = 'schedule-updates';
+const TEST_ACCESS_CODE = '318709';
 const ADMIN_ACCESS_CODE = defineSecret('ADMIN_ACCESS_CODE');
 
 const requireToken = request => {
@@ -53,12 +54,17 @@ exports.createAdminSession = onCall(
   { region: 'us-central1', secrets: [ADMIN_ACCESS_CODE] },
   async request => {
     const code = request.data?.code;
-    if (typeof code !== 'string' || code.trim() !== ADMIN_ACCESS_CODE.value()) {
+    const normalizedCode = typeof code === 'string' ? code.trim() : '';
+    const isTestAdmin = normalizedCode === TEST_ACCESS_CODE;
+    if (!isTestAdmin && normalizedCode !== ADMIN_ACCESS_CODE.value()) {
       throw new HttpsError('permission-denied', 'Invalid administrator code.');
     }
 
-    const token = await getAuth().createCustomToken('blc-schedule-admin', { admin: true });
-    return { token };
+    const token = await getAuth().createCustomToken(
+      isTestAdmin ? 'blc-schedule-test-admin' : 'blc-schedule-admin',
+      isTestAdmin ? { testAdmin: true } : { admin: true }
+    );
+    return { token, testMode: isTestAdmin };
   }
 );
 
@@ -174,7 +180,7 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
 });
 
 exports.sendTestScheduleNotification = onCall({ region: 'us-central1' }, async request => {
-  if (request.auth?.token?.admin !== true) {
+  if (request.auth?.token?.admin !== true && request.auth?.token?.testAdmin !== true) {
     throw new HttpsError('permission-denied', 'Administrator authentication is required.');
   }
 

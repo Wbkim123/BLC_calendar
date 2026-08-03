@@ -1,6 +1,17 @@
 {
   "rules": {
     ".read": true,
-    ".write": "auth != null && auth.token.admin === true"
+    "schedules": {
+      ".write": "auth != null && auth.token.admin === true"
+    },
+    "locations": {
+      ".write": "auth != null && auth.token.admin === true"
+    },
+    "uniforms": {
+      ".write": "auth != null && auth.token.admin === true"
+    },
+    "test": {
+      ".write": "auth != null && (auth.token.admin === true || auth.token.testAdmin === true)"
+    }
   }
 }

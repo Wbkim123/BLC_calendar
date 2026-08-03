@@ -34,11 +34,13 @@ export type DisplayMode = 'auto' | 'tv';
 type LoginResult = {
   role: UserRole;
   studentCycleName?: string;
+  testMode?: boolean;
 };
 
 type SavedLogin = {
   code?: string;
   role?: UserRole;
+  testMode?: boolean;
 };
 
 type NotificationFocus = {
@@ -221,6 +223,15 @@ function App() {
       return null;
     }
   });
+  const [isTestMode, setIsTestMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(LOGIN_STORAGE_KEY) || 'null') as SavedLogin | null;
+      return saved?.role === 'ADMIN' && saved.testMode === true;
+    } catch {
+      return false;
+    }
+  });
   const [schedules, setSchedules] = useState<DailySchedule[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [uniforms, setUniforms] = useState<string[]>([]);
@@ -255,6 +266,9 @@ function App() {
 
   const getScheduleDatabaseKey = (dateStr: string) =>
     scheduleDatabaseKeyByDateRef.current.get(dateStr);
+  const getDatabasePath = (path: string) => isTestMode ? `test/${path}` : path;
+  const getScheduleUpdatePath = (path: string) =>
+    `/${getDatabasePath(path.replace(/^\/+/, ''))}`;
 
   const handleDisplayModeChange = (nextMode: DisplayMode) => {
     setDisplayMode(nextMode);
@@ -315,9 +329,13 @@ function App() {
 
   // 1. Firebase에서 실시간 데이터 불러오기
   useEffect(() => {
-    const schedulesRef = ref(db, 'schedules');
-    const locationsRef = ref(db, 'locations');
-    const uniformsRef = ref(db, 'uniforms');
+    const databasePrefix = isTestMode ? 'test/' : '';
+    const schedulesPath = `${databasePrefix}schedules`;
+    const locationsPath = `${databasePrefix}locations`;
+    const uniformsPath = `${databasePrefix}uniforms`;
+    const schedulesRef = ref(db, schedulesPath);
+    const locationsRef = ref(db, locationsPath);
+    const uniformsRef = ref(db, uniformsPath);
     let receivedSchedules = false;
     const loadingTimeout = window.setTimeout(() => {
       if (receivedSchedules) return;
@@ -338,9 +356,9 @@ function App() {
     };
 
     Promise.all([
-      fetchDatabaseValue('schedules'),
-      fetchDatabaseValue('locations'),
-      fetchDatabaseValue('uniforms')
+      fetchDatabaseValue(schedulesPath),
+      fetchDatabaseValue(locationsPath),
+      fetchDatabaseValue(uniformsPath)
     ]).then(([scheduleData, locationData, uniformData]) => {
       const rawEntries = scheduleData && typeof scheduleData === 'object'
         ? Object.entries(scheduleData as Record<string, DailySchedule>)
@@ -487,7 +505,7 @@ function App() {
       unsubLocations();
       unsubUniforms();
     };
-  }, []);
+  }, [isTestMode]);
 
   useEffect(() => {
     if (role || schedules.length === 0 || typeof window === 'undefined') return;
@@ -541,7 +559,7 @@ function App() {
   // 새로운 위치 추가 함수 (Firebase에 직접 반영)
   const addLocation = (loc: string) => {
     if (loc && !locations.includes(loc)) {
-      setDatabaseValue('locations', [...locations, loc]).catch(err => {
+      setDatabaseValue(getDatabasePath('locations'), [...locations, loc]).catch(err => {
         alert("Failed to add location: " + err.message);
       });
     }
@@ -550,7 +568,7 @@ function App() {
   // 새로운 복장 추가 함수 (Firebase에 직접 반영)
   const addUniform = (uni: string) => {
     if (uni && !uniforms.includes(uni)) {
-      setDatabaseValue('uniforms', [...uniforms, uni]).catch(err => {
+      setDatabaseValue(getDatabasePath('uniforms'), [...uniforms, uni]).catch(err => {
         alert("Failed to add uniform: " + err.message);
       });
     }
@@ -595,7 +613,7 @@ function App() {
         const changedFields = (['time', 'eventName', 'location', 'uniform', 'highlighted'] as const)
           .filter(field => originalEvent[field] !== updatedEvent[field]);
         const updates: any = {};
-        updates[`/schedules/${dayKey}/events/${eventIndex}`] = updatedEvent;
+        updates[getScheduleUpdatePath(`schedules/${dayKey}/events/${eventIndex}`)] = updatedEvent;
         updateDatabaseValues(updates)
           .then(() => {
             queueScheduleNotification(
@@ -618,7 +636,7 @@ function App() {
     const dayKey = getScheduleDatabaseKey(dateStr);
     if (dayIndex !== -1 && dayKey !== undefined) {
       const updates: any = {};
-      updates[`/schedules/${dayKey}/notes`] = notes.trim();
+      updates[getScheduleUpdatePath(`schedules/${dayKey}/notes`)] = notes.trim();
       updateDatabaseValues(updates)
         .then(() => {
           updateScheduleLocally(dateStr, day => ({ ...day, notes: notes.trim() }));
@@ -641,7 +659,7 @@ function App() {
     const dayKey = getScheduleDatabaseKey(dateStr);
     if (dayIndex !== -1 && dayKey !== undefined) {
       const updates: any = {};
-      updates[`/schedules/${dayKey}/notesHighlighted`] = !schedules[dayIndex].notesHighlighted;
+      updates[getScheduleUpdatePath(`schedules/${dayKey}/notesHighlighted`)] = !schedules[dayIndex].notesHighlighted;
       updateDatabaseValues(updates)
         .then(() => {
           const highlighted = !schedules[dayIndex].notesHighlighted;
@@ -665,7 +683,7 @@ function App() {
     const dayKey = getScheduleDatabaseKey(dateStr);
     if (dayIndex !== -1 && dayKey !== undefined) {
       const updates: any = {};
-      updates[`/schedules/${dayKey}/sglNotes`] = notes.trim();
+      updates[getScheduleUpdatePath(`schedules/${dayKey}/sglNotes`)] = notes.trim();
       updateDatabaseValues(updates)
         .then(() => {
           updateScheduleLocally(dateStr, day => ({ ...day, sglNotes: notes.trim() }));
@@ -688,7 +706,7 @@ function App() {
     const dayKey = getScheduleDatabaseKey(dateStr);
     if (dayIndex !== -1 && dayKey !== undefined) {
       const updates: any = {};
-      updates[`/schedules/${dayKey}/sglNotesHighlighted`] = !schedules[dayIndex].sglNotesHighlighted;
+      updates[getScheduleUpdatePath(`schedules/${dayKey}/sglNotesHighlighted`)] = !schedules[dayIndex].sglNotesHighlighted;
       updateDatabaseValues(updates)
         .then(() => {
           const highlighted = !schedules[dayIndex].sglNotesHighlighted;
@@ -714,7 +732,7 @@ function App() {
     if (dayIndex !== -1 && dayKey !== undefined) {
       const currentEvents = schedules[dayIndex].events || [];
       const updates: any = {};
-      updates[`/schedules/${dayKey}/events`] = [...currentEvents, newEvent];
+      updates[getScheduleUpdatePath(`schedules/${dayKey}/events`)] = [...currentEvents, newEvent];
       updateDatabaseValues(updates)
         .then(() => {
           queueScheduleNotification(
@@ -739,7 +757,7 @@ function App() {
       const currentEvents = schedules[dayIndex].events || [];
       const updatedEvents = currentEvents.filter(ev => ev.id !== eventId);
       const updates: any = {};
-      updates[`/schedules/${dayKey}/events`] = updatedEvents;
+      updates[getScheduleUpdatePath(`schedules/${dayKey}/events`)] = updatedEvents;
       updateDatabaseValues(updates)
         .then(() => {
           const deletedEvent = currentEvents.find(ev => ev.id === eventId);
@@ -779,7 +797,7 @@ function App() {
 
     updatedSchedules.sort((a, b) => a.date.localeCompare(b.date));
 
-    setDatabaseValue('schedules', updatedSchedules)
+    setDatabaseValue(getDatabasePath('schedules'), updatedSchedules)
       .then(() => setSchedules(updatedSchedules))
       .catch(err => {
         alert("Failed to import schedules: " + err.message);
@@ -789,7 +807,7 @@ function App() {
   // 스케줄 초기화 함수 (전체 삭제)
   const handleResetSchedules = () => {
     if (window.confirm("Are you sure you want to CLEAR ALL schedules from the database?")) {
-      removeDatabaseValue('schedules').then(() => {
+      removeDatabaseValue(getDatabasePath('schedules')).then(() => {
         setSchedules([]);
       }).catch(err => {
         alert("Failed to reset schedules: " + err.message);
@@ -801,7 +819,7 @@ function App() {
   const handleDeleteCycle = (targetCycle: string) => {
     if (window.confirm(`Are you sure you want to delete ALL schedules for cycle [${targetCycle}]?`)) {
       const updatedSchedules = schedules.filter(s => s.cycleName !== targetCycle);
-      setDatabaseValue('schedules', updatedSchedules)
+      setDatabaseValue(getDatabasePath('schedules'), updatedSchedules)
         .then(() => setSchedules(updatedSchedules))
         .catch(err => {
           alert("Failed to delete cycle: " + err.message);
@@ -820,6 +838,7 @@ function App() {
     }
 
     setRole(null);
+    setIsTestMode(false);
     setSelectedDateId(null);
     setStudentCycleName(null);
     hasAutoSelectedTodayRef.current = false;
@@ -839,11 +858,12 @@ function App() {
   };
   const handleLogin = async (code: string, rememberLogin: boolean) => {
     let login = resolveLoginFromCode(code, schedules);
+    const requestedTestMode = code.trim() === '318709';
 
     if (!login?.role) {
       try {
         await createAdminSession(code.trim());
-        login = { role: 'ADMIN' };
+        login = { role: 'ADMIN', testMode: requestedTestMode };
       } catch {
         return false;
       }
@@ -851,6 +871,7 @@ function App() {
 
     hasAutoSelectedTodayRef.current = false;
     setRole(login.role);
+    setIsTestMode(Boolean(login.testMode));
     setStudentCycleName(login.studentCycleName || null);
 
     if (typeof window !== 'undefined') {
@@ -858,7 +879,7 @@ function App() {
         window.localStorage.setItem(
           LOGIN_STORAGE_KEY,
           JSON.stringify(login.role === 'ADMIN'
-            ? { role: 'ADMIN' }
+            ? { role: 'ADMIN', testMode: Boolean(login.testMode) }
             : { code: code.trim(), role: login.role })
         );
       } else {
@@ -1026,10 +1047,15 @@ function App() {
       </div>
     </button>
   ) : null;
+  const testModeBadge = isTestMode ? (
+    <div className="fixed bottom-3 left-1/2 z-[75] -translate-x-1/2 rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-2 text-xs font-black text-amber-900 shadow-xl">
+      TEST MODE · Isolated data · Notifications only to this device
+    </div>
+  ) : null;
 
   const selectedSchedule = filteredSchedules.find(s => s.date === selectedDateId);
 
-  const notificationPermissionInitializer = role ? (
+  const notificationPermissionInitializer = role && !isTestMode ? (
     <div className="hidden" aria-hidden="true">
       <NotificationPrompt
         role={role}
@@ -1050,6 +1076,7 @@ function App() {
       onLogout={handleLogout}
       onDeleteCycle={handleDeleteCycle}
       onResetSchedules={handleResetSchedules}
+      testMode={isTestMode}
     />
   ) : null;
 
@@ -1064,6 +1091,7 @@ function App() {
     return (
       <>
       {foregroundNotificationToast}
+      {testModeBadge}
       {notificationPermissionInitializer}
       <DailyView 
         schedule={selectedSchedule} 
@@ -1090,6 +1118,7 @@ function App() {
       {pendingNotification && (
         <ScheduleNotificationModal
           change={pendingNotification}
+          testMode={isTestMode}
           onClose={() => setPendingNotification(null)}
         />
       )}
@@ -1100,6 +1129,7 @@ function App() {
   return (
     <>
       {foregroundNotificationToast}
+      {testModeBadge}
       {notificationPermissionInitializer}
       <Calendar 
         schedules={filteredSchedules} 

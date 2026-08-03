@@ -14,11 +14,12 @@ interface Props {
   cycleName?: string | null;
   variant?: 'button' | 'toggle';
   autoPrompt?: boolean;
+  testMode?: boolean;
 }
 
 const AUTO_PROMPTED_KEY = 'blc_push_auto_prompted';
 
-export default function NotificationPrompt({ role, cycleName, variant = 'button', autoPrompt = true }: Props) {
+export default function NotificationPrompt({ role, cycleName, variant = 'button', autoPrompt = true, testMode = false }: Props) {
   const [status, setStatus] = useState<NotificationAvailability>('loading');
   const [busy, setBusy] = useState(false);
   const isPhone = isPhoneDevice();
@@ -26,14 +27,14 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
   const requestNotificationPermission = useCallback(async () => {
     setBusy(true);
     try {
-      await enableNotifications(role, cycleName);
+      await enableNotifications(role, cycleName, testMode);
       setStatus('granted');
     } catch (error: any) {
       setStatus(error?.message === 'denied' ? 'denied' : await getNotificationAvailability());
     } finally {
       setBusy(false);
     }
-  }, [role, cycleName]);
+  }, [role, cycleName, testMode]);
 
   useEffect(() => {
     if (!isPhone) {
@@ -46,8 +47,8 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
 
   useEffect(() => {
     if (!isPhone || status !== 'granted') return;
-    syncNotificationSubscription(role, cycleName).catch(console.error);
-  }, [isPhone, role, cycleName, status]);
+    if (!testMode) syncNotificationSubscription(role, cycleName).catch(console.error);
+  }, [isPhone, role, cycleName, status, testMode]);
 
   useEffect(() => {
     if (!autoPrompt || !role || !isPhone || status !== 'prompt' || busy) return;

@@ -36,9 +36,10 @@ export type PendingScheduleNotification = {
 interface Props {
   change: PendingScheduleNotification;
   onClose: () => void;
+  testMode?: boolean;
 }
 
-export default function ScheduleNotificationModal({ change, onClose }: Props) {
+export default function ScheduleNotificationModal({ change, onClose, testMode = false }: Props) {
   const isSglOnlyChange = change.targetId === 'sglNotes';
   const isPublicNotesChange = change.targetId === 'notes';
   const [sendingChoice, setSendingChoice] = useState<'yes' | 'no' | null>(null);
@@ -67,7 +68,21 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
     }
   };
 
-  const handleYes = () => {
+  const handleYes = async () => {
+    if (testMode) {
+      setSendingChoice('yes');
+      setError('');
+      try {
+        await sendTestScheduleNotification(change);
+        onClose();
+      } catch (sendError) {
+        console.error('Failed to send isolated test notification:', sendError);
+        setError(getSendErrorMessage(sendError));
+      } finally {
+        setSendingChoice(null);
+      }
+      return;
+    }
     if (isPublicNotesChange) {
       sendWithRecipients({ sgl: true, students: Boolean(change.cycleName) }, 'yes');
       return;
@@ -80,6 +95,10 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
   };
 
   const handleNo = () => {
+    if (testMode) {
+      onClose();
+      return;
+    }
     if (isPublicNotesChange) {
       sendWithRecipients({ sgl: true, students: false }, 'no');
       return;
@@ -113,13 +132,17 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
     }
   };
 
-  const question = isSglOnlyChange
+  const question = testMode
+    ? 'Send a notification to this device only?'
+    : isSglOnlyChange
     ? 'Send notification to all SGLs?'
     : isPublicNotesChange
       ? 'Send notification to all students?'
       : 'Send notification to SGLs and students?';
 
-  const description = isSglOnlyChange
+  const description = testMode
+    ? 'No managers, SGLs, students, or other devices will be notified.'
+    : isSglOnlyChange
     ? 'Yes sends to SGLs and managers. No sends to managers only.'
     : isPublicNotesChange
       ? 'SGLs and managers are notified automatically. Choose whether students should also be notified.'
@@ -127,7 +150,7 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
         ? `Yes sends to SGLs, managers, and Cycle ${change.cycleName}. No sends to managers only.`
         : 'No cycle is assigned. Yes sends to SGLs and managers only.';
 
-  const disableYes = isPublicNotesChange && !change.cycleName;
+  const disableYes = !testMode && isPublicNotesChange && !change.cycleName;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
@@ -139,8 +162,10 @@ export default function ScheduleNotificationModal({ change, onClose }: Props) {
 
         <div className="space-y-3 p-5">
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-bold text-blue-900">
-            Schedule managers (2002) are always notified.
-            {isPublicNotesChange && (
+            {testMode
+              ? 'TEST MODE: this notification is isolated to your current device.'
+              : 'Schedule managers (2002) are always notified.'}
+            {!testMode && isPublicNotesChange && (
               <div className="mt-1 text-xs text-blue-700">
                 Public notes also notify all SGL users automatically.
               </div>

@@ -237,6 +237,12 @@ export async function sendTestScheduleNotification(details: {
   changedFields: string[];
 }) {
   const token = await getCurrentDevicePushToken();
+  if (isNativePlatform()) {
+    const idToken = await getAdminIdToken();
+    if (!idToken) throw new Error('permission-denied');
+    await callNativeFunction('sendTestScheduleNotification', { ...details, token }, idToken);
+    return;
+  }
   await httpsCallable(functions, 'sendTestScheduleNotification')({
     ...details,
     token
@@ -279,7 +285,7 @@ export async function getNotificationAvailability(): Promise<NotificationAvailab
   return 'prompt';
 }
 
-export async function enableNotifications(role: UserRole, cycleName?: string | null) {
+export async function enableNotifications(role: UserRole, cycleName?: string | null, testMode = false) {
   if (!isPhoneDevice()) throw new Error('unsupported');
 
   if (isNativePlatform()) {
@@ -294,6 +300,19 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
       'token'
     );
     if (!token) throw new Error('token');
+
+    if (testMode) {
+      await callNativeFunction('unregisterPushToken', {
+        token,
+        topic: window.localStorage.getItem(PUSH_TOPIC_KEY),
+        role,
+        cycleName
+      });
+      window.localStorage.setItem(PUSH_TOKEN_KEY, token);
+      window.localStorage.removeItem(PUSH_TOPIC_KEY);
+      window.localStorage.removeItem(PUSH_DISABLED_KEY);
+      return;
+    }
 
     const subscription = await callNativeFunction<{ subscribed?: boolean; topic?: string | null }>(
       'registerPushToken',
@@ -330,6 +349,19 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
     serviceWorkerRegistration: registration
   });
   if (!token) throw new Error('token');
+
+  if (testMode) {
+    await httpsCallable(functions, 'unregisterPushToken')({
+      token,
+      topic: window.localStorage.getItem(PUSH_TOPIC_KEY),
+      role,
+      cycleName
+    });
+    window.localStorage.setItem(PUSH_TOKEN_KEY, token);
+    window.localStorage.removeItem(PUSH_TOPIC_KEY);
+    window.localStorage.removeItem(PUSH_DISABLED_KEY);
+    return;
+  }
 
   const result = await httpsCallable(functions, 'registerPushToken')({
     token,
