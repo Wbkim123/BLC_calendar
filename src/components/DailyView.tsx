@@ -129,7 +129,9 @@ export default function DailyView({
 
   const openCreateModal = () => {
     const newEvent: TrainingEvent = {
-      id: Date.now().toString(),
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       time: "0900-1000",
       eventName: "",
       location: locations[0] || "MPR",
@@ -273,7 +275,7 @@ export default function DailyView({
 
         {/* 시간 중복 경고 메시지 */}
         {hasGlobalConflict && (
-          <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-2 rounded-r-lg flex items-center gap-3">
+          <div className="schedule-conflict-warning bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-2 rounded-r-lg flex items-center gap-3">
             <span className="text-xl">⚠️</span>
             <p className="text-xs lg:text-sm text-yellow-800 font-bold">
               Conflict detected: Overlapping schedule.
@@ -332,7 +334,7 @@ export default function DailyView({
                   : isOngoing 
                     ? 'bg-white border-green-500 ring-2 ring-green-100' 
                     : isConflicting
-                      ? 'bg-yellow-50 border-yellow-500 ring-2 ring-yellow-100'
+                      ? 'schedule-conflict-event bg-yellow-50 border-yellow-500 ring-2 ring-yellow-100'
                       : 'bg-white border-yellow-500'
               }`}
             >

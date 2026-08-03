@@ -241,6 +241,20 @@ function App() {
     return window.localStorage.getItem(DARK_MODE_STORAGE_KEY) === 'true';
   });
   const hasAutoSelectedTodayRef = useRef(false);
+  const scheduleDatabaseKeyByDateRef = useRef<Map<string, string>>(new Map());
+
+  const normalizeScheduleEvents = (events: TrainingEvent[] | Record<string, TrainingEvent> | undefined) => {
+    const values = Array.isArray(events) ? events : Object.values(events || {});
+    const seenIds = new Set<string>();
+    return values.filter(event => {
+      if (!event?.id || seenIds.has(event.id)) return false;
+      seenIds.add(event.id);
+      return true;
+    }).map(event => ({ ...event, highlighted: Boolean(event.highlighted) }));
+  };
+
+  const getScheduleDatabaseKey = (dateStr: string) =>
+    scheduleDatabaseKeyByDateRef.current.get(dateStr);
 
   const handleDisplayModeChange = (nextMode: DisplayMode) => {
     setDisplayMode(nextMode);
@@ -328,9 +342,15 @@ function App() {
       fetchDatabaseValue('locations'),
       fetchDatabaseValue('uniforms')
     ]).then(([scheduleData, locationData, uniformData]) => {
-      const rawSchedules = scheduleData
-        ? (Array.isArray(scheduleData) ? scheduleData : Object.values(scheduleData))
-        : mockSchedules;
+      const rawEntries = scheduleData && typeof scheduleData === 'object'
+        ? Object.entries(scheduleData as Record<string, DailySchedule>)
+        : mockSchedules.map((schedule, index) => [String(index), schedule] as const);
+      scheduleDatabaseKeyByDateRef.current = new Map(
+        rawEntries
+          .filter((entry): entry is [string, DailySchedule] => Boolean(entry[1]?.date))
+          .map(([key, day]) => [day.date, key])
+      );
+      const rawSchedules = rawEntries.map(([, day]) => day);
       const initialSchedules = rawSchedules
         .filter((day): day is DailySchedule => Boolean(day && typeof day === 'object' && day.date))
         .map(day => ({
@@ -339,10 +359,7 @@ function App() {
           notesHighlighted: Boolean(day.notesHighlighted),
           sglNotes: day.sglNotes || '',
           sglNotesHighlighted: Boolean(day.sglNotesHighlighted),
-          events: (day.events || []).map((event: TrainingEvent) => ({
-            ...event,
-            highlighted: Boolean(event.highlighted)
-          }))
+          events: normalizeScheduleEvents(day.events)
         }))
         .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -371,8 +388,13 @@ function App() {
       console.log("Schedules snapshot received:", snapshot.val());
       const data = snapshot.val();
       if (data) {
-        // Firebase might return an object if keys are non-sequential, ensure it's an array
-        let schedulesArray = Array.isArray(data) ? data : Object.values(data);
+        const scheduleEntries = Object.entries(data as Record<string, DailySchedule>);
+        scheduleDatabaseKeyByDateRef.current = new Map(
+          scheduleEntries
+            .filter((entry): entry is [string, DailySchedule] => Boolean(entry[1]?.date))
+            .map(([key, day]) => [day.date, key])
+        );
+        let schedulesArray = scheduleEntries.map(([, day]) => day);
         
         let normalizedLegacyCycle = false;
 
@@ -390,10 +412,7 @@ function App() {
               notesHighlighted: Boolean(day.notesHighlighted),
               sglNotes: day.sglNotes || "",
               sglNotesHighlighted: Boolean(day.sglNotesHighlighted),
-              events: (day.events || []).map((event: TrainingEvent) => ({
-                ...event,
-                highlighted: Boolean(event.highlighted)
-              }))
+              events: normalizeScheduleEvents(day.events)
             };
           }
 
@@ -403,10 +422,7 @@ function App() {
             notesHighlighted: Boolean(day.notesHighlighted),
             sglNotes: day.sglNotes || "",
             sglNotesHighlighted: Boolean(day.sglNotesHighlighted),
-            events: (day.events || []).map((event: TrainingEvent) => ({
-              ...event,
-              highlighted: Boolean(event.highlighted)
-            }))
+            events: normalizeScheduleEvents(day.events)
           };
         });
 
@@ -570,7 +586,8 @@ function App() {
   // 관리자가 이벤트를 수정했을 때 호출되는 함수 (Firebase 업데이트)
   const handleSaveEvent = (dateStr: string, updatedEvent: TrainingEvent) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
-    if (dayIndex !== -1) {
+    const dayKey = getScheduleDatabaseKey(dateStr);
+    if (dayIndex !== -1 && dayKey !== undefined) {
       const currentEvents = schedules[dayIndex].events || [];
       const eventIndex = currentEvents.findIndex(ev => ev.id === updatedEvent.id);
       if (eventIndex !== -1) {
@@ -578,15 +595,9 @@ function App() {
         const changedFields = (['time', 'eventName', 'location', 'uniform', 'highlighted'] as const)
           .filter(field => originalEvent[field] !== updatedEvent[field]);
         const updates: any = {};
-        updates[`/schedules/${dayIndex}/events/${eventIndex}`] = updatedEvent;
+        updates[`/schedules/${dayKey}/events/${eventIndex}`] = updatedEvent;
         updateDatabaseValues(updates)
           .then(() => {
-            updateScheduleLocally(dateStr, day => ({
-              ...day,
-              events: (day.events || []).map(event =>
-                event.id === updatedEvent.id ? updatedEvent : event
-              )
-            }));
             queueScheduleNotification(
               dateStr,
               'Event updated',
@@ -604,9 +615,10 @@ function App() {
 
   const handleSaveDayNotes = (dateStr: string, notes: string) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
-    if (dayIndex !== -1) {
+    const dayKey = getScheduleDatabaseKey(dateStr);
+    if (dayIndex !== -1 && dayKey !== undefined) {
       const updates: any = {};
-      updates[`/schedules/${dayIndex}/notes`] = notes.trim();
+      updates[`/schedules/${dayKey}/notes`] = notes.trim();
       updateDatabaseValues(updates)
         .then(() => {
           updateScheduleLocally(dateStr, day => ({ ...day, notes: notes.trim() }));
@@ -626,9 +638,10 @@ function App() {
 
   const handleToggleDayNotesHighlight = (dateStr: string) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
-    if (dayIndex !== -1) {
+    const dayKey = getScheduleDatabaseKey(dateStr);
+    if (dayIndex !== -1 && dayKey !== undefined) {
       const updates: any = {};
-      updates[`/schedules/${dayIndex}/notesHighlighted`] = !schedules[dayIndex].notesHighlighted;
+      updates[`/schedules/${dayKey}/notesHighlighted`] = !schedules[dayIndex].notesHighlighted;
       updateDatabaseValues(updates)
         .then(() => {
           const highlighted = !schedules[dayIndex].notesHighlighted;
@@ -649,9 +662,10 @@ function App() {
 
   const handleSaveSglNotes = (dateStr: string, notes: string) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
-    if (dayIndex !== -1) {
+    const dayKey = getScheduleDatabaseKey(dateStr);
+    if (dayIndex !== -1 && dayKey !== undefined) {
       const updates: any = {};
-      updates[`/schedules/${dayIndex}/sglNotes`] = notes.trim();
+      updates[`/schedules/${dayKey}/sglNotes`] = notes.trim();
       updateDatabaseValues(updates)
         .then(() => {
           updateScheduleLocally(dateStr, day => ({ ...day, sglNotes: notes.trim() }));
@@ -671,9 +685,10 @@ function App() {
 
   const handleToggleSglNotesHighlight = (dateStr: string) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
-    if (dayIndex !== -1) {
+    const dayKey = getScheduleDatabaseKey(dateStr);
+    if (dayIndex !== -1 && dayKey !== undefined) {
       const updates: any = {};
-      updates[`/schedules/${dayIndex}/sglNotesHighlighted`] = !schedules[dayIndex].sglNotesHighlighted;
+      updates[`/schedules/${dayKey}/sglNotesHighlighted`] = !schedules[dayIndex].sglNotesHighlighted;
       updateDatabaseValues(updates)
         .then(() => {
           const highlighted = !schedules[dayIndex].sglNotesHighlighted;
@@ -695,16 +710,13 @@ function App() {
   // 새로운 이벤트 추가 함수
   const handleCreateEvent = (dateStr: string, newEvent: TrainingEvent) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
-    if (dayIndex !== -1) {
+    const dayKey = getScheduleDatabaseKey(dateStr);
+    if (dayIndex !== -1 && dayKey !== undefined) {
       const currentEvents = schedules[dayIndex].events || [];
       const updates: any = {};
-      updates[`/schedules/${dayIndex}/events`] = [...currentEvents, newEvent];
+      updates[`/schedules/${dayKey}/events`] = [...currentEvents, newEvent];
       updateDatabaseValues(updates)
         .then(() => {
-          updateScheduleLocally(dateStr, day => ({
-            ...day,
-            events: [...(day.events || []), newEvent]
-          }));
           queueScheduleNotification(
             dateStr,
             'Event added',
@@ -722,18 +734,15 @@ function App() {
   // 이벤트 삭제 함수
   const handleDeleteEvent = (dateStr: string, eventId: string) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
-    if (dayIndex !== -1) {
+    const dayKey = getScheduleDatabaseKey(dateStr);
+    if (dayIndex !== -1 && dayKey !== undefined) {
       const currentEvents = schedules[dayIndex].events || [];
       const updatedEvents = currentEvents.filter(ev => ev.id !== eventId);
       const updates: any = {};
-      updates[`/schedules/${dayIndex}/events`] = updatedEvents;
+      updates[`/schedules/${dayKey}/events`] = updatedEvents;
       updateDatabaseValues(updates)
         .then(() => {
           const deletedEvent = currentEvents.find(ev => ev.id === eventId);
-          updateScheduleLocally(dateStr, day => ({
-            ...day,
-            events: (day.events || []).filter(event => event.id !== eventId)
-          }));
           queueScheduleNotification(
             dateStr,
             'Event deleted',

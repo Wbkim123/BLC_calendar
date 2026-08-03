@@ -339,6 +339,21 @@ button:active:not(:disabled) {
   color: rgb(243 244 246) !important;
 }
 
+.theme-dark .schedule-conflict-warning,
+.theme-dark .schedule-conflict-event {
+  background: rgb(31 41 55) !important;
+  color: rgb(243 244 246) !important;
+  border-left-color: rgb(245 158 11) !important;
+}
+
+.theme-dark .schedule-conflict-event {
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35), var(--soft-shadow-small) !important;
+}
+
+.theme-dark .schedule-conflict-warning p {
+  color: rgb(253 230 138) !important;
+}
+
 .theme-dark .calendar-day:not(:disabled) {
   background: rgb(30 58 92) !important;
   color: rgb(243 244 246) !important;

@@ -35,28 +35,9 @@ const getNotificationUrl = notification => {
   return params.size > 0 ? `/?${params.toString()}` : '/';
 };
 
-messaging.onBackgroundMessage(payload => {
-  const params = new URLSearchParams();
-  if (payload.data?.date) params.set('date', payload.data.date);
-  if (payload.data?.targetId) params.set('highlight', payload.data.targetId);
-  if (payload.data?.changeType) params.set('change', payload.data.changeType);
-  if (payload.data?.previewText) params.set('preview', payload.data.previewText);
-  if (payload.data?.changedFields) params.set('fields', payload.data.changedFields);
-  const url = params.size > 0 ? `/?${params.toString()}` : '/';
-
-  return self.registration.showNotification(payload.notification?.title || 'BLC Schedule Updated', {
-    body: payload.notification?.body || 'A schedule was updated.',
-    icon: '/icon.png',
-    data: {
-      url,
-      date: payload.data?.date || '',
-      targetId: payload.data?.targetId || '',
-      changeType: payload.data?.changeType || '',
-      previewText: payload.data?.previewText || '',
-      changedFields: payload.data?.changedFields || ''
-    }
-  });
-});
+// The server message already contains a Web Push notification payload, which
+// browsers display automatically in the background. Showing it again here
+// produced two identical notifications for every update.
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
