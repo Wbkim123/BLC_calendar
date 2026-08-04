@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { UserRole } from '../types/schedule';
 import {
   disableNotifications,
@@ -22,19 +22,32 @@ const AUTO_PROMPTED_KEY = 'blc_push_auto_prompted';
 export default function NotificationPrompt({ role, cycleName, variant = 'button', autoPrompt = true, testMode = false }: Props) {
   const [status, setStatus] = useState<NotificationAvailability>('loading');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const skipNextSubscriptionSyncRef = useRef(false);
   const isPhone = isPhoneDevice();
 
   const requestNotificationPermission = useCallback(async () => {
+    if (busy) return;
     setBusy(true);
+    setError('');
+    const previousStatus = status;
+    setStatus('granted');
     try {
       await enableNotifications(role, cycleName, testMode);
+      skipNextSubscriptionSyncRef.current = true;
       setStatus('granted');
     } catch (error: any) {
-      setStatus(error?.message === 'denied' ? 'denied' : await getNotificationAvailability());
+      const nextStatus = error?.message === 'denied' ? 'denied' : await getNotificationAvailability();
+      setStatus(nextStatus === 'granted' ? previousStatus : nextStatus);
+      setError(
+        error?.message === 'denied'
+          ? 'Permission is blocked. Allow notifications in Android Settings, then tap again.'
+          : 'Could not enable notifications. Check your connection and try again.'
+      );
     } finally {
       setBusy(false);
     }
-  }, [role, cycleName, testMode]);
+  }, [busy, status, role, cycleName, testMode]);
 
   useEffect(() => {
     if (!isPhone) {
@@ -46,9 +59,22 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
   }, [isPhone, role, cycleName]);
 
   useEffect(() => {
-    if (!isPhone || status !== 'granted') return;
+    const refreshStatus = () => {
+      if (document.visibilityState !== 'visible') return;
+      getNotificationAvailability().then(setStatus).catch(console.error);
+    };
+    document.addEventListener('visibilitychange', refreshStatus);
+    return () => document.removeEventListener('visibilitychange', refreshStatus);
+  }, []);
+
+  useEffect(() => {
+    if (!isPhone || status !== 'granted' || busy) return;
+    if (skipNextSubscriptionSyncRef.current) {
+      skipNextSubscriptionSyncRef.current = false;
+      return;
+    }
     if (!testMode) syncNotificationSubscription(role, cycleName).catch(console.error);
-  }, [isPhone, role, cycleName, status, testMode]);
+  }, [isPhone, role, cycleName, status, testMode, busy]);
 
   useEffect(() => {
     if (!autoPrompt || !role || !isPhone || status !== 'prompt' || busy) return;
@@ -61,7 +87,9 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
   if (!role || status === 'loading' || status === 'unsupported' || status === 'unconfigured') return null;
 
   const handleDisable = async () => {
+    if (busy) return;
     setBusy(true);
+    setError('');
     try {
       // Keep the native FCM token for a reliable same-session re-enable.
       // Logout still uses the default behavior and deletes the token.
@@ -70,6 +98,7 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
     } catch (error) {
       console.error('Failed to disable notifications:', error);
       setStatus(await getNotificationAvailability());
+      setError('Could not disable notifications. Check your connection and try again.');
     } finally {
       setBusy(false);
     }
@@ -85,7 +114,19 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
 
   if (status === 'denied') {
     if (variant === 'toggle') {
-      return <span className="text-[10px] font-black text-amber-700">BLOCKED</span>;
+      return (
+        <div className="flex flex-col items-end gap-1">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={requestNotificationPermission}
+            className="rounded-lg border border-amber-300 bg-amber-100 px-2 py-1 text-[10px] font-black text-amber-800 disabled:opacity-60"
+          >
+            {busy ? 'CHECKING...' : 'BLOCKED · RETRY'}
+          </button>
+          {error && <span className="max-w-52 text-right text-[9px] font-bold text-red-600">{error}</span>}
+        </div>
+      );
     }
     return (
       <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-[11px] font-bold text-amber-900 shadow-sm">
@@ -97,17 +138,23 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
   if (variant === 'toggle') {
     const enabled = status === 'granted';
     return (
-      <button
-        type="button"
-        role="switch"
-        aria-checked={enabled}
-        aria-label="Notifications"
-        disabled={busy}
-        onClick={enabled ? handleDisable : requestNotificationPermission}
-        className={`relative h-7 w-12 rounded-full transition-colors disabled:opacity-60 ${enabled ? 'bg-green-600' : 'bg-gray-300'}`}
-      >
-        <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
-      </button>
+      <div className="flex flex-col items-end gap-1">
+        <div className="flex items-center gap-2">
+          {busy && <span className="text-[9px] font-black text-blue-600">UPDATING...</span>}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            aria-label="Notifications"
+            disabled={busy}
+            onClick={enabled ? handleDisable : requestNotificationPermission}
+            className={`relative h-7 w-12 rounded-full transition-colors disabled:opacity-70 ${enabled ? 'bg-green-600' : 'bg-gray-300'}`}
+          >
+            <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </div>
+        {error && <span className="max-w-52 text-right text-[9px] font-bold text-red-600">{error}</span>}
+      </div>
     );
   }
 
