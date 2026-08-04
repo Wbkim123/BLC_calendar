@@ -111,16 +111,20 @@ const requestNativeDatabaseWrite = async (
   const timeoutId = window.setTimeout(() => abortController.abort(), DATABASE_WRITE_TIMEOUT_MS);
   try {
     const normalizedPath = path.replace(/^\/+|\/+$/g, '');
-    const response = await fetch(`${firebaseDatabaseUrl}/${normalizedPath}.json`, {
+    const databaseUrl = new URL(`${firebaseDatabaseUrl}/${normalizedPath}.json`);
+    databaseUrl.searchParams.set('auth', idToken);
+    const response = await fetch(databaseUrl.toString(), {
       method,
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`
+        'Content-Type': 'application/json'
       },
       body: method === 'DELETE' ? undefined : JSON.stringify(value),
       signal: abortController.signal
     });
-    if (!response.ok) throw new Error(`Database update failed (${response.status})`);
+    if (!response.ok) {
+      const responseError = await response.json().catch(() => null) as { error?: string } | null;
+      throw new Error(responseError?.error || `Database update failed (${response.status})`);
+    }
   } finally {
     window.clearTimeout(timeoutId);
   }
