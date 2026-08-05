@@ -33,6 +33,17 @@ const initializeAdMobSdk = () => {
   return sdkInitializePromise;
 };
 
+const requestIosTrackingAuthorization = async () => {
+  if (Capacitor.getPlatform() !== 'ios') return;
+
+  const authorization = await AdMob.trackingAuthorizationStatus();
+  if (authorization.status === 'notDetermined') {
+    // Wait for Apple's ATT decision before the first ad request. If the user
+    // declines, Google Mobile Ads can continue without access to the IDFA.
+    await AdMob.requestTrackingAuthorization();
+  }
+};
+
 const initializeAdMob = () => {
   if (!initializePromise) {
     initializePromise = initializeAdMobSdk()
@@ -42,6 +53,8 @@ const initializeAdMob = () => {
         if (consent.status === AdmobConsentStatus.REQUIRED && consent.isConsentFormAvailable) {
           consent = await AdMob.showConsentForm();
         }
+
+        await requestIosTrackingAuthorization();
 
         if (!consent.canRequestAds) {
           throw new Error('Ad consent is required before Google can return an ad.');
