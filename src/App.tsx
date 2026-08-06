@@ -1119,6 +1119,7 @@ function App() {
         notificationHighlightTarget={notificationFocus?.targetId || null}
         notificationChangeType={notificationFocus?.previewText || notificationFocus?.changeType || null}
         notificationChangedFields={notificationFocus?.changedFields || []}
+        testMode={isTestMode}
         displayMode={displayMode}
       />
       {pendingNotification && (
@@ -1145,6 +1146,7 @@ function App() {
         onOpenImport={() => setIsImportModalOpen(true)}
         settingsControl={renderGeneralSettings()}
         showAdBanner={!isImportModalOpen}
+        testMode={isTestMode}
         displayMode={displayMode}
       />
       {isImportModalOpen && (

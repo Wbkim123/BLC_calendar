@@ -24,6 +24,7 @@ interface Props {
   notificationHighlightTarget?: string | null;
   notificationChangeType?: string | null;
   notificationChangedFields?: string[];
+  testMode?: boolean;
   displayMode: DisplayMode;
 }
 
@@ -47,6 +48,7 @@ export default function DailyView({
   notificationHighlightTarget,
   notificationChangeType,
   notificationChangedFields = [],
+  testMode = false,
   displayMode
 }: Props) {
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
@@ -532,7 +534,7 @@ export default function DailyView({
           </>
         )}
       </div>
-      <AdMobBanner />
+      <AdMobBanner testMode={testMode} />
 
       {/* 수정 모달창 (editingEvent가 있을 때만 렌더링) */}
       {editingEvent && (
