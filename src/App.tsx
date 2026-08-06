@@ -270,7 +270,9 @@ function App() {
 
   const getScheduleDatabaseKey = (dateStr: string) =>
     scheduleDatabaseKeyByDateRef.current.get(dateStr);
-  const getDatabasePath = (path: string) => isTestMode ? `test/${path}` : path;
+  // Code 318709 uses the same schedules and administrator features as 2002.
+  // Test mode only changes notification delivery; it must not fork app data.
+  const getDatabasePath = (path: string) => path;
   const getScheduleUpdatePath = (path: string) =>
     `/${getDatabasePath(path.replace(/^\/+/, ''))}`;
 
@@ -333,7 +335,7 @@ function App() {
 
   // 1. Firebase에서 실시간 데이터 불러오기
   useEffect(() => {
-    const databasePrefix = isTestMode ? 'test/' : '';
+    const databasePrefix = '';
     const schedulesPath = `${databasePrefix}schedules`;
     const locationsPath = `${databasePrefix}locations`;
     const uniformsPath = `${databasePrefix}uniforms`;
@@ -1053,7 +1055,7 @@ function App() {
   ) : null;
   const testModeBadge = isTestMode ? (
     <div className="fixed bottom-3 left-1/2 z-[75] -translate-x-1/2 rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-2 text-xs font-black text-amber-900 shadow-xl">
-      TEST MODE · Isolated data · Notifications only to this device
+      TEST MODE · Shared live data · Notifications only to this device
     </div>
   ) : null;
 
