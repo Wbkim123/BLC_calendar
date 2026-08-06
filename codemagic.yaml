@@ -7,6 +7,15 @@ workflows:
     integrations:
       app_store_connect: codemagic
 
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: master
+          include: true
+          source: true
+      cancel_previous_builds: true
+
     environment:
       ios_signing:
         distribution_type: app_store
