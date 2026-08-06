@@ -33,4 +33,35 @@ index 70081af..74509be 100644
 +            "message": diagnosticMessage
          ])
      }
+
+diff --git a/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift b/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift
+index f25007c..66c1eaf 100644
+--- a/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift
++++ b/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift
+@@ -60,17 +60,19 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
+      * DEPRECATED: It's now ship with Admob UMP Consent
+      */
+     @objc func requestTrackingAuthorization(_ call: CAPPluginCall) {
+-        if #available(iOS 14, *) {
+-            #if canImport(AppTrackingTransparency)
+-            ATTrackingManager.requestTrackingAuthorization(completionHandler: { _ in
++        DispatchQueue.main.async {
++            if #available(iOS 14, *) {
++                #if canImport(AppTrackingTransparency)
++                ATTrackingManager.requestTrackingAuthorization(completionHandler: { _ in
++                    call.resolve([:])
++                })
++                #else
+                 call.resolve([:])
+-            })
+-            #else
++                #endif
++            } else {
+                 call.resolve([:])
+-            #endif
+-        } else {
+-            call.resolve([:])
++            }
+         }
+     }
  

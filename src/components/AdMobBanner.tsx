@@ -179,9 +179,10 @@ const hideAdMobBanner = () => {
 interface Props {
   visible?: boolean;
   testMode?: boolean;
+  showDiagnostics?: boolean;
 }
 
-export default function AdMobBanner({ visible = true, testMode = false }: Props) {
+export default function AdMobBanner({ visible = true, testMode = false, showDiagnostics = false }: Props) {
   const isNative = Capacitor.isNativePlatform();
   const [nativeStatus, setNativeStatus] = useState<'loading' | 'loaded' | 'retrying'>('loading');
   const [diagnostic, setDiagnostic] = useState('Starting AdMob diagnostics');
@@ -262,9 +263,9 @@ export default function AdMobBanner({ visible = true, testMode = false }: Props)
         </div>
       )}
       {visible && isNative && nativeStatus !== 'loaded' && (
-        testMode ? (
+        (testMode || showDiagnostics) ? (
           <div className="flex min-h-[5rem] items-center justify-center bg-amber-50 px-4 text-center text-[11px] font-bold text-amber-950">
-            TEST AD DIAGNOSTIC: {diagnostic}
+            {testMode ? 'TEST AD' : 'PRODUCTION AD'} DIAGNOSTIC: {diagnostic}
           </div>
         ) : (
           <div className="min-h-[3.125rem]" />
