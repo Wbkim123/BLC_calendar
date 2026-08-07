@@ -29,6 +29,11 @@ const hasScheduleConflict = (schedule: DailySchedule) => {
   });
 };
 
+const getCalendarDayLabel = (dayLabel: string) =>
+  /^FEDERAL\s+HOLIDAY\b/i.test(dayLabel.trim())
+    ? 'HOLIDAY'
+    : dayLabel.split(' ').slice(0, 2).join(' ');
+
 export default function Calendar({ 
   schedules, 
   onSelectDate, 
@@ -228,7 +233,7 @@ export default function Calendar({
                   </span>
                   {schedule && (
                     <span className={`absolute bottom-1 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap text-[8px] font-black leading-none text-blue-500 lg:bottom-2 lg:text-xs ${isPastScheduledDate ? 'calendar-past-text' : ''}`}>
-                      {schedule.dayLabel.split(' ').slice(0, 2).join(' ')}
+                      {getCalendarDayLabel(schedule.dayLabel)}
                     </span>
                   )}
                   {(hasRedHighlight || hasStudentNotes || hasSglNotes) && (
@@ -265,7 +270,7 @@ export default function Calendar({
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600 mx-0.5 lg:h-3 lg:w-3" /> Highlighted content · <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mx-0.5 lg:h-3 lg:w-3" /> Student notes{role !== 'STUDENT' && <><span> · </span><span className="inline-block h-1.5 w-1.5 rounded-full bg-purple-500 mx-0.5 lg:h-3 lg:w-3" /> SGL notes</>}. A <span className="inline-flex w-3.5 h-3.5 lg:w-6 lg:h-6 bg-red-700 text-white rounded-full mx-0.5 items-center justify-center text-[9px] lg:text-sm font-black align-middle">!</span> indicates overlapping events. Tap a scheduled date to view details.
           </p>
         </div>
-        <AdMobBanner visible={showAdBanner} testMode={testMode} showDiagnostics={role === 'ADMIN'} />
+        <AdMobBanner visible={showAdBanner} testMode={testMode} />
       </div>
     </div>
   );

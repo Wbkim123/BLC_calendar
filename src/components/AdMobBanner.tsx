@@ -179,10 +179,9 @@ const hideAdMobBanner = () => {
 interface Props {
   visible?: boolean;
   testMode?: boolean;
-  showDiagnostics?: boolean;
 }
 
-export default function AdMobBanner({ visible = true, testMode = false, showDiagnostics = false }: Props) {
+export default function AdMobBanner({ visible = true, testMode = false }: Props) {
   const isNative = Capacitor.isNativePlatform();
   const [nativeStatus, setNativeStatus] = useState<'loading' | 'loaded' | 'retrying'>('loading');
   const [diagnostic, setDiagnostic] = useState('Starting AdMob diagnostics');
@@ -255,7 +254,13 @@ export default function AdMobBanner({ visible = true, testMode = false, showDiag
     <div
       aria-hidden="true"
       className={`admob-banner ${isNative ? `admob-banner-native pointer-events-none ${nativeStatus !== 'loaded' ? 'admob-banner-pending' : ''}` : 'border-t border-gray-200 bg-gray-50'} fixed inset-x-0 bottom-0 z-20 w-full ${visible ? '' : 'hidden'}`}
-      style={{ minHeight: visible ? (isNative && nativeStatus !== 'loaded' ? NATIVE_BANNER_RESERVED_HEIGHT : !isNative ? BANNER_RESERVED_HEIGHT : 0) : 0 }}
+      style={{
+        minHeight: visible
+          ? isNative && nativeStatus !== 'loaded'
+            ? testMode || nativeStatus === 'loading' ? NATIVE_BANNER_RESERVED_HEIGHT : 0
+            : !isNative ? BANNER_RESERVED_HEIGHT : 0
+          : 0
+      }}
     >
       {visible && !isNative && (
         <div className="h-16 flex items-center justify-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
@@ -263,9 +268,9 @@ export default function AdMobBanner({ visible = true, testMode = false, showDiag
         </div>
       )}
       {visible && isNative && nativeStatus !== 'loaded' && (
-        (testMode || showDiagnostics) ? (
+        testMode ? (
           <div className="flex min-h-[5rem] items-center justify-center bg-amber-50 px-4 text-center text-[11px] font-bold text-amber-950">
-            {testMode ? 'TEST AD' : 'PRODUCTION AD'} DIAGNOSTIC: {diagnostic}
+            TEST AD DIAGNOSTIC: {diagnostic}
           </div>
         ) : (
           <div className="min-h-[3.125rem]" />

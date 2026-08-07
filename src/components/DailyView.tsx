@@ -534,7 +534,7 @@ export default function DailyView({
           </>
         )}
       </div>
-      <AdMobBanner testMode={testMode} showDiagnostics={role === 'ADMIN'} />
+      <AdMobBanner testMode={testMode} />
 
       {/* 수정 모달창 (editingEvent가 있을 때만 렌더링) */}
       {editingEvent && (
