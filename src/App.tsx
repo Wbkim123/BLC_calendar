@@ -6,7 +6,6 @@ import DailyView from './components/DailyView';
 import ScheduleImportModal from './components/ScheduleImportModal';
 import ScheduleNotificationModal, { PendingScheduleNotification } from './components/ScheduleNotificationModal';
 import GeneralSettings from './components/GeneralSettings';
-import NotificationPrompt from './components/NotificationPrompt';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
 import { mockSchedules } from './data/mockData';
 import { auth, db, firebaseDatabaseUrl } from './firebase';
@@ -1061,15 +1060,6 @@ function App() {
 
   const selectedSchedule = filteredSchedules.find(s => s.date === selectedDateId);
 
-  const notificationPermissionInitializer = role && !isTestMode ? (
-    <div className="hidden" aria-hidden="true">
-      <NotificationPrompt
-        role={role}
-        cycleName={role === 'STUDENT' ? studentCycleName : null}
-      />
-    </div>
-  ) : null;
-
   const renderGeneralSettings = () => role ? (
     <GeneralSettings
       role={role}
@@ -1098,7 +1088,6 @@ function App() {
       <>
       {foregroundNotificationToast}
       {testModeBadge}
-      {notificationPermissionInitializer}
       <DailyView 
         schedule={selectedSchedule} 
         role={role}
@@ -1137,7 +1126,6 @@ function App() {
     <>
       {foregroundNotificationToast}
       {testModeBadge}
-      {notificationPermissionInitializer}
       <Calendar 
         schedules={filteredSchedules} 
         onSelectDate={(date) => setSelectedDateId(date)} 
