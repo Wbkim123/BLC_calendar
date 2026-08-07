@@ -15,16 +15,22 @@ interface Props {
   variant?: 'button' | 'toggle';
   autoPrompt?: boolean;
   testMode?: boolean;
+  hideWhenGranted?: boolean;
+  onStatusChange?: (status: NotificationAvailability) => void;
 }
 
 const AUTO_PROMPTED_KEY = 'blc_push_auto_prompted';
 
-export default function NotificationPrompt({ role, cycleName, variant = 'button', autoPrompt = true, testMode = false }: Props) {
+export default function NotificationPrompt({ role, cycleName, variant = 'button', autoPrompt = true, testMode = false, hideWhenGranted = false, onStatusChange }: Props) {
   const [status, setStatus] = useState<NotificationAvailability>('loading');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const skipNextSubscriptionSyncRef = useRef(false);
   const isPhone = isPhoneDevice();
+
+  useEffect(() => {
+    onStatusChange?.(status);
+  }, [status, onStatusChange]);
 
   const requestNotificationPermission = useCallback(async () => {
     if (busy) return;
@@ -135,6 +141,8 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
     );
   }
 
+  if (hideWhenGranted && status === 'granted') return null;
+
   if (variant === 'toggle') {
     const enabled = status === 'granted';
     return (
@@ -169,7 +177,7 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
           : 'bg-green-600 text-white hover:bg-green-700'
       }`}
     >
-      {busy ? 'UPDATING...' : status === 'granted' ? 'NOTIFICATIONS OFF' : 'NOTIFICATIONS ON'}
+      {busy ? 'UPDATING...' : status === 'granted' ? 'NOTIFICATIONS OFF' : 'ENABLE NOTIFICATIONS'}
     </button>
   );
 }

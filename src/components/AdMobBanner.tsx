@@ -53,13 +53,16 @@ const requestIosTrackingAuthorization = async (onDiagnostic?: DiagnosticUpdate) 
 
   const authorization = await AdMob.trackingAuthorizationStatus();
   onDiagnostic?.('att', `ATT status: ${authorization.status}`);
+  let resolvedStatus = authorization.status;
   if (authorization.status === 'notDetermined') {
     // Wait for Apple's ATT decision before the first ad request. If the user
     // declines, Google Mobile Ads can continue without access to the IDFA.
     await AdMob.requestTrackingAuthorization();
     const updatedAuthorization = await AdMob.trackingAuthorizationStatus();
+    resolvedStatus = updatedAuthorization.status;
     onDiagnostic?.('att', `ATT result: ${updatedAuthorization.status}`);
   }
+  window.dispatchEvent(new CustomEvent('blc-att-resolved', { detail: { status: resolvedStatus } }));
 };
 
 const initializeAdMob = (onDiagnostic?: DiagnosticUpdate) => {

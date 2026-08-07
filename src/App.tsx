@@ -6,6 +6,7 @@ import DailyView from './components/DailyView';
 import ScheduleImportModal from './components/ScheduleImportModal';
 import ScheduleNotificationModal, { PendingScheduleNotification } from './components/ScheduleNotificationModal';
 import GeneralSettings from './components/GeneralSettings';
+import NotificationPrompt from './components/NotificationPrompt';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
 import { mockSchedules } from './data/mockData';
 import { auth, db, firebaseDatabaseUrl } from './firebase';
@@ -17,6 +18,7 @@ import {
   createAdminSession,
   disableNotifications,
   getAdminIdToken,
+  isPhoneDevice,
   listenForForegroundNotifications
 } from './notifications';
 
@@ -246,6 +248,10 @@ function App() {
   const [pendingNotification, setPendingNotification] = useState<PendingScheduleNotification | null>(null);
   const [notificationFocus, setNotificationFocus] = useState<NotificationFocus | null>(getNotificationFocusFromUrl);
   const [foregroundNotification, setForegroundNotification] = useState<ForegroundNotification | null>(null);
+  const [isTrackingAuthorizationResolved, setIsTrackingAuthorizationResolved] = useState(
+    () => Capacitor.getPlatform() !== 'ios'
+  );
+  const [notificationOnboardingComplete, setNotificationOnboardingComplete] = useState(false);
   const [displayMode, setDisplayMode] = useState<DisplayMode>(() => {
     if (typeof window === 'undefined') return 'auto';
     return window.localStorage.getItem(DISPLAY_MODE_STORAGE_KEY) === 'tv' ? 'tv' : 'auto';
@@ -290,6 +296,12 @@ function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('theme-dark', darkMode);
   }, [darkMode]);
+
+  useEffect(() => {
+    const handleTrackingAuthorizationResolved = () => setIsTrackingAuthorizationResolved(true);
+    window.addEventListener('blc-att-resolved', handleTrackingAuthorizationResolved);
+    return () => window.removeEventListener('blc-att-resolved', handleTrackingAuthorizationResolved);
+  }, []);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -1052,6 +1064,22 @@ function App() {
       </div>
     </button>
   ) : null;
+  const notificationOnboarding = role && isTrackingAuthorizationResolved && !notificationOnboardingComplete && isPhoneDevice() ? (
+    <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[65] mx-auto max-w-md rounded-2xl border border-green-200 bg-white p-3 shadow-2xl">
+      <div className="mb-2 text-center">
+        <div className="text-sm font-black text-gray-900">Enable Notifications</div>
+        <div className="text-[11px] font-semibold text-gray-500">Get schedule update alerts on this device.</div>
+      </div>
+      <NotificationPrompt
+        role={role}
+        cycleName={role === 'STUDENT' ? studentCycleName : null}
+        autoPrompt={false}
+        testMode={isTestMode}
+        hideWhenGranted
+        onStatusChange={(status) => setNotificationOnboardingComplete(status === 'granted')}
+      />
+    </div>
+  ) : null;
   const testModeBadge = isTestMode ? (
     <div className="fixed bottom-3 left-1/2 z-[75] -translate-x-1/2 rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-2 text-xs font-black text-amber-900 shadow-xl">
       TEST MODE · Shared live data · Notifications only to this device
@@ -1087,6 +1115,7 @@ function App() {
     return (
       <>
       {foregroundNotificationToast}
+      {notificationOnboarding}
       {testModeBadge}
       <DailyView 
         schedule={selectedSchedule} 
@@ -1125,6 +1154,7 @@ function App() {
   return (
     <>
       {foregroundNotificationToast}
+      {notificationOnboarding}
       {testModeBadge}
       <Calendar 
         schedules={filteredSchedules} 
