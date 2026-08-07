@@ -2,13 +2,13 @@
   "rules": {
     ".read": true,
     "schedules": {
-      ".write": "auth != null && auth.token.admin === true"
+      ".write": "auth != null && (auth.token.admin === true || auth.token.testAdmin === true)"
     },
     "locations": {
-      ".write": "auth != null && auth.token.admin === true"
+      ".write": "auth != null && (auth.token.admin === true || auth.token.testAdmin === true)"
     },
     "uniforms": {
-      ".write": "auth != null && auth.token.admin === true"
+      ".write": "auth != null && (auth.token.admin === true || auth.token.testAdmin === true)"
     },
     "test": {
       ".write": "auth != null && (auth.token.admin === true || auth.token.testAdmin === true)"
