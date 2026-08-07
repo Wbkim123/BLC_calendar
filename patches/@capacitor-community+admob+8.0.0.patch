@@ -35,10 +35,10 @@ index 70081af..74509be 100644
      }
 
 diff --git a/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift b/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift
-index f25007c..66c1eaf 100644
+index cb51318..ddba487 100644
 --- a/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift
 +++ b/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift
-@@ -60,17 +60,19 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -60,16 +60,18 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
       * DEPRECATED: It's now ship with Admob UMP Consent
       */
      @objc func requestTrackingAuthorization(_ call: CAPPluginCall) {
