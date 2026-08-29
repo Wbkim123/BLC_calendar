@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Login from './components/Login';
 import Calendar from './components/Calendar';
 import DailyView from './components/DailyView';
+import AftGradeView from './components/AftGradeView';
 import ScheduleImportModal from './components/ScheduleImportModal';
 import ScheduleNotificationModal, { PendingScheduleNotification } from './components/ScheduleNotificationModal';
 import GeneralSettings from './components/GeneralSettings';
@@ -245,6 +246,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isAftGradeOpen, setIsAftGradeOpen] = useState(false);
   const [pendingNotification, setPendingNotification] = useState<PendingScheduleNotification | null>(null);
   const [notificationFocus, setNotificationFocus] = useState<NotificationFocus | null>(getNotificationFocusFromUrl);
   const [foregroundNotification, setForegroundNotification] = useState<ForegroundNotification | null>(null);
@@ -1064,27 +1066,33 @@ function App() {
       </div>
     </button>
   ) : null;
-  const notificationOnboarding = role && isTrackingAuthorizationResolved && !notificationOnboardingComplete && isPhoneDevice() ? (
-    <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[65] mx-auto max-w-md rounded-2xl border border-green-200 bg-white p-3 shadow-2xl">
-      <div className="mb-2 text-center">
-        <div className="text-sm font-black text-gray-900">Enable Notifications</div>
-        <div className="text-[11px] font-semibold text-gray-500">Get schedule update alerts on this device.</div>
-      </div>
-      <NotificationPrompt
-        role={role}
-        cycleName={role === 'STUDENT' ? studentCycleName : null}
-        autoPrompt={false}
-        testMode={isTestMode}
-        hideWhenGranted
-        onStatusChange={(status) => setNotificationOnboardingComplete(status === 'granted')}
-      />
-    </div>
-  ) : null;
-  const testModeBadge = isTestMode ? (
-    <div className="fixed bottom-3 left-1/2 z-[75] -translate-x-1/2 rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-2 text-xs font-black text-amber-900 shadow-xl">
-      TEST MODE · Shared live data · Notifications only to this device
-    </div>
-  ) : null;
+
+  // [DISABLED TEMPORARILY - RESTORED VIA COMMENT]
+  // const notificationOnboarding = role && isTrackingAuthorizationResolved && !notificationOnboardingComplete && isPhoneDevice() ? (
+  //   <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[65] mx-auto max-w-md rounded-2xl border border-green-200 bg-white p-3 shadow-2xl">
+  //     <div className="mb-2 text-center">
+  //       <div className="text-sm font-black text-gray-900">Enable Notifications</div>
+  //       <div className="text-[11px] font-semibold text-gray-500">Get schedule update alerts on this device.</div>
+  //     </div>
+  //     <NotificationPrompt
+  //       role={role}
+  //       cycleName={role === 'STUDENT' ? studentCycleName : null}
+  //       autoPrompt={false}
+  //       testMode={isTestMode}
+  //       hideWhenGranted
+  //       onStatusChange={(status) => setNotificationOnboardingComplete(status === 'granted')}
+  //     />
+  //   </div>
+  // ) : null;
+  const notificationOnboarding = null;
+
+  // [DISABLED TEMPORARILY - RESTORED VIA COMMENT]
+  // const testModeBadge = isTestMode ? (
+  //   <div className="fixed bottom-3 left-1/2 z-[75] -translate-x-1/2 rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-2 text-xs font-black text-amber-900 shadow-xl">
+  //     TEST MODE · Shared live data · Notifications only to this device
+  //   </div>
+  // ) : null;
+  const testModeBadge = null;
 
   const selectedSchedule = filteredSchedules.find(s => s.date === selectedDateId);
 
@@ -1151,6 +1159,15 @@ function App() {
     );
   }
 
+  if (isAftGradeOpen) {
+    return (
+      <AftGradeView 
+        onBack={() => setIsAftGradeOpen(false)}
+        displayMode={displayMode}
+      />
+    );
+  }
+
   return (
     <>
       {foregroundNotificationToast}
@@ -1162,6 +1179,7 @@ function App() {
         role={role}
         cycleTitle={cycleTitle}
         onOpenImport={() => setIsImportModalOpen(true)}
+        onOpenAftGrade={() => setIsAftGradeOpen(true)}
         settingsControl={renderGeneralSettings()}
         showAdBanner={!isImportModalOpen}
         testMode={isTestMode}

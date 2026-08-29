@@ -12,6 +12,10 @@
     },
     "test": {
       ".write": "auth != null && (auth.token.admin === true || auth.token.testAdmin === true)"
+    },
+    "aft_sessions": {
+      ".read": true,
+      ".write": true
     }
   }
 }
