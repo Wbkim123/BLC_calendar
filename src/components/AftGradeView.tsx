@@ -1,7 +1,7 @@
 // src/components/AftGradeView.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { ref as dbRef, onValue, set as dbSet, serverTimestamp } from 'firebase/database';
+import { ref as dbRef, onValue, set as dbSet, get as dbGet, serverTimestamp } from 'firebase/database';
 import { db } from '../firebase';
 import type { DisplayMode } from '../App';
 import {
@@ -300,23 +300,88 @@ export default function AftGradeView({ onBack }: Props) {
     startedBy?: string;
   }>({ startTime: null, status: 'idle' });
 
-  // Real-time listener for Firebase RTDB Connection Health
+  // Firebase RTDB Server Time Offset (.info/serverTimeOffset)
+  const serverTimeOffsetRef = useRef<number>(0);
+
+  // Real-time listener for Firebase RTDB Connection Health & Server Time Offset
   useEffect(() => {
     try {
       const connectedRef = dbRef(db, '.info/connected');
-      const unsubscribe = onValue(connectedRef, (snap) => {
+      const offsetRef = dbRef(db, '.info/serverTimeOffset');
+      
+      const unsubConnected = onValue(connectedRef, (snap) => {
         setIsFirebaseConnected(snap.val() === true);
       });
-      return () => unsubscribe();
+      const unsubOffset = onValue(offsetRef, (snap) => {
+        serverTimeOffsetRef.current = snap.val() || 0;
+      });
+
+      return () => {
+        unsubConnected();
+        unsubOffset();
+      };
     } catch {
       setIsFirebaseConnected(false);
     }
   }, []);
 
-  // Real-time listener for 2MR Master Timer in Firebase
+  // Real-time listener & Immediate Fetch for Shared Trainee Roster from Firebase RTDB
+  useEffect(() => {
+    const rosterRef = dbRef(db, 'aft_sessions/roster');
+
+    // 1. Immediate One-Time Fetch on Mount
+    dbGet(rosterRef)
+      .then((snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          if (data && data.laneTrainees) {
+            setLaneTrainees(data.laneTrainees);
+            if (data.activeCountByLane) {
+              setActiveCountByLane(data.activeCountByLane);
+            }
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Initial Firebase roster get failed:', err);
+      });
+
+    // 2. Real-time Live Subscription
+    const unsubscribe = onValue(
+      rosterRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        if (data && data.laneTrainees) {
+          setLaneTrainees(data.laneTrainees);
+          if (data.activeCountByLane) {
+            setActiveCountByLane(data.activeCountByLane);
+          }
+        }
+      },
+      (error) => {
+        console.warn('Firebase roster onValue listener error:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time listener & Immediate Fetch for 2MR Master Timer in Firebase
   useEffect(() => {
     try {
       const runRef = dbRef(db, 'aft_sessions/2mr_master_timer');
+
+      // 1. Immediate Fetch on Mount / Page Switch
+      dbGet(runRef).then((snapshot) => {
+        if (snapshot.exists()) {
+          const val = snapshot.val();
+          if (val && val.status === 'running' && typeof val.startTime === 'number') {
+            setTwoMileRunSync(val);
+          }
+        }
+      }).catch((e) => console.warn('Initial 2MR get failed:', e));
+
+      // 2. Real-time Live Subscription
       const unsubscribe = onValue(
         runRef,
         (snapshot) => {
@@ -330,7 +395,7 @@ export default function AftGradeView({ onBack }: Props) {
           }
         },
         (error) => {
-          console.warn('Firebase RTDB read error:', error);
+          console.warn('Firebase RTDB 2MR read error:', error);
           setIsFirebaseConnected(false);
         }
       );
@@ -343,19 +408,19 @@ export default function AftGradeView({ onBack }: Props) {
 
   // 2MR Master Timer Start (Triggered by Starter at the starting line)
   const handleStart2MRMasterTimer = async () => {
-    const now = Date.now();
+    const serverNow = Date.now() + serverTimeOffsetRef.current;
     try {
       const runRef = dbRef(db, 'aft_sessions/2mr_master_timer');
       await dbSet(runRef, {
         status: 'running',
-        startTime: now,
+        startTime: serverNow,
         startedAtServer: serverTimestamp(),
         startedBy: `Lane ${selectedLane} Grader`
       });
     } catch (e) {
-      console.error('Failed to broadcast 2MR start to Firebase:', e);
+      console.error('Failed to broadcast 2MR start to Firebase (Check Database Rules):', e);
       // Local fallback
-      setTwoMileRunSync({ startTime: now, status: 'running' });
+      setTwoMileRunSync({ startTime: serverNow, status: 'running' });
     }
   };
 
@@ -407,13 +472,14 @@ export default function AftGradeView({ onBack }: Props) {
     };
   }, [timerRunning, currentEventIndex]);
 
-  // Live timer display calculation for 2MR (Firebase RTDB master clock sync)
+  // Live timer display calculation for 2MR (Firebase RTDB master clock sync with serverTimeOffset)
   useEffect(() => {
     const curCode = AFT_EVENTS[currentEventIndex]?.code;
     if (curCode === '2MR') {
       if (twoMileRunSync.status === 'running' && twoMileRunSync.startTime) {
         const interval = window.setInterval(() => {
-          const elapsed = Date.now() - (twoMileRunSync.startTime || Date.now());
+          const currentServerTime = Date.now() + serverTimeOffsetRef.current;
+          const elapsed = currentServerTime - (twoMileRunSync.startTime || currentServerTime);
           setElapsedTimeMs(Math.max(0, elapsed));
         }, 50);
         return () => clearInterval(interval);
@@ -475,7 +541,14 @@ export default function AftGradeView({ onBack }: Props) {
         }
         return t;
       });
-      return { ...prev, [selectedLane]: nextList };
+      const nextState = { ...prev, [selectedLane]: nextList };
+      try {
+        const laneRef = dbRef(db, `aft_sessions/roster/laneTrainees/${selectedLane}`);
+        dbSet(laneRef, nextList);
+      } catch (e) {
+        console.warn('Failed to sync trainee update to Firebase:', e);
+      }
+      return nextState;
     });
   };
 
@@ -494,7 +567,14 @@ export default function AftGradeView({ onBack }: Props) {
         }
         return t;
       });
-      return { ...prev, [selectedLane]: nextList };
+      const nextState = { ...prev, [selectedLane]: nextList };
+      try {
+        const laneRef = dbRef(db, `aft_sessions/roster/laneTrainees/${selectedLane}`);
+        dbSet(laneRef, nextList);
+      } catch (e) {
+        console.warn('Failed to sync score to Firebase:', e);
+      }
+      return nextState;
     });
   };
 
@@ -680,7 +760,21 @@ export default function AftGradeView({ onBack }: Props) {
 
         setLaneTrainees(parsedTraineesByLane);
         setActiveCountByLane(counts);
-        setImportStatus(`✅ Successfully assigned ${totalTrainees} trainees across 10 lanes!`);
+
+        // Broadcast to all other devices/graders via Firebase RTDB
+        try {
+          const rosterRef = dbRef(db, 'aft_sessions/roster');
+          dbSet(rosterRef, {
+            laneTrainees: parsedTraineesByLane,
+            activeCountByLane: counts,
+            uploadedAt: serverTimestamp(),
+            totalTrainees
+          });
+        } catch (e) {
+          console.warn('Failed to broadcast roster to Firebase:', e);
+        }
+
+        setImportStatus(`✅ Successfully shared ${totalTrainees} trainees to all 10 lanes!`);
         setTimeout(() => {
           setShowImportModal(false);
           setImportStatus(null);
@@ -711,9 +805,9 @@ export default function AftGradeView({ onBack }: Props) {
   }).length;
 
   return (
-    <div className="min-h-screen w-full bg-slate-900 flex justify-center items-start lg:py-6 lg:px-4 select-none">
-      {/* Fixed Mobile Frame Container */}
-      <div className="w-full max-w-md min-h-screen lg:min-h-[850px] lg:h-[880px] lg:rounded-3xl bg-gray-100 dark:bg-slate-950 text-gray-900 dark:text-gray-100 flex flex-col shadow-2xl overflow-hidden relative border border-slate-700/50">
+    <div className="h-[100dvh] max-h-[100dvh] w-full bg-slate-900 flex justify-center items-stretch lg:items-center lg:py-4 lg:px-4 overflow-hidden">
+      {/* Fixed Mobile Frame Container - 100dvh on mobile for full viewport fit and smooth scrolling */}
+      <div className="w-full max-w-md h-full max-h-full lg:max-h-[880px] lg:rounded-3xl bg-gray-100 dark:bg-slate-950 text-gray-900 dark:text-gray-100 flex flex-col shadow-2xl overflow-hidden relative border border-slate-700/50">
         
         {/* ========================================================================= */}
         {/* SCREEN 1: LANE SELECTION HUB (Select Your Lane) */}
@@ -746,25 +840,7 @@ export default function AftGradeView({ onBack }: Props) {
               </div>
             </header>
 
-            <main className="w-full flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-              {/* Roster Overview Banner */}
-              <section className="rounded-2xl bg-gradient-to-br from-blue-900 to-indigo-900 p-4 text-white shadow-md">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-black tracking-tight">Select your lane</h2>
-                    <p className="text-xs text-blue-200 mt-0.5">
-                      {totalAssignedTrainees} Trainees Loaded · 10 Lanes Ready
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowImportModal(true)}
-                    className="rounded-xl bg-amber-400 px-3 py-1.5 text-xs font-black text-blue-950 shadow active:scale-95 hover:bg-amber-300"
-                  >
-                    📂 Upload Roster
-                  </button>
-                </div>
-              </section>
-
+            <main className="w-full flex-1 overflow-y-auto overscroll-contain px-4 py-3 flex flex-col gap-2.5 min-h-0">
               {/* 10 Vertical Lane Selection Buttons */}
               <section className="space-y-2.5">
                 {Array.from({ length: 10 }, (_, i) => i + 1).map(laneNum => {
@@ -855,37 +931,10 @@ export default function AftGradeView({ onBack }: Props) {
                   📜 STANDARDS
                 </button>
               </div>
-
-              {/* Step Progression Bar: MDL -> HRP -> SDC -> PLK -> 2MR -> RESULT */}
-              <div className="flex w-full bg-blue-950 border-t border-blue-900 text-[11px] font-bold">
-                {AFT_EVENTS.map((ev, idx) => (
-                  <button
-                    key={ev.id}
-                    onClick={() => setCurrentEventIndex(idx)}
-                    className={`flex-1 py-2 text-center transition-all border-b-2 ${
-                      currentEventIndex === idx
-                        ? 'border-amber-400 text-amber-300 bg-blue-900/80 font-black'
-                        : 'border-transparent text-blue-300 hover:text-white'
-                    }`}
-                  >
-                    {ev.code}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setCurrentEventIndex(AFT_EVENTS.length)}
-                  className={`flex-1 py-2 text-center transition-all border-b-2 ${
-                    isSummaryView
-                      ? 'border-amber-400 text-amber-300 bg-blue-900/80 font-black'
-                      : 'border-transparent text-blue-300 hover:text-white'
-                  }`}
-                >
-                  📊 RESULT
-                </button>
-              </div>
             </header>
 
-        {/* Main Content Area - Scrollable */}
-        <main className="w-full flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
+        {/* Main Content Area - Scrollable with Mobile Touch Support */}
+        <main className="w-full flex-1 overflow-y-auto overscroll-contain px-3 py-3 flex flex-col gap-3 min-h-0">
           {/* EVENT GRADING MODE (Step by Step) */}
           {!isSummaryView && currentEvent && (
             <>
@@ -901,32 +950,6 @@ export default function AftGradeView({ onBack }: Props) {
                     <span className="rounded-md bg-blue-800/80 px-2 py-0.5 text-[10px] font-black text-amber-300 shrink-0">
                       {completedCount}/{currentTrainees.length} GRADED
                     </span>
-
-                    {/* PLK Selection Count Badge (Shortened to SEL for single-line fit) */}
-                    {currentEvent.code === 'PLK' && (
-                      <span className={`rounded-md px-2 py-0.5 text-[10px] font-black tracking-wider transition-colors shrink-0 ${
-                        selectedPlkIds.length > 0
-                          ? 'bg-blue-800/80 text-amber-300 border border-blue-600/50'
-                          : 'bg-blue-950/60 text-blue-300 border border-blue-800/40'
-                      }`}>
-                        {selectedPlkIds.length} SEL
-                      </span>
-                    )}
-
-                    {/* 2MR Live Sync Indicator: Only shown when running (with live pulse) or if disconnected */}
-                    {currentEvent.code === '2MR' && (
-                      !isFirebaseConnected ? (
-                        <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black tracking-wider bg-red-600 text-white animate-bounce ring-1 ring-red-400">
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-300 animate-ping" />
-                          SYNC FAIL
-                        </span>
-                      ) : twoMileRunSync.status === 'running' ? (
-                        <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black tracking-wider bg-emerald-500 text-white animate-pulse shadow-sm ring-1 ring-emerald-300/40">
-                          <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
-                          SYNCED
-                        </span>
-                      ) : null
-                    )}
                   </div>
 
                   {/* Right: Master Start/Reset Controls (PLK, 2MR) + Pure Stopwatch Live Display */}
@@ -978,9 +1001,15 @@ export default function AftGradeView({ onBack }: Props) {
                       </button>
                     )}
 
-                    {/* Pure Stopwatch Live Display (SDC, PLK, 2MR) */}
+                    {/* Stopwatch Live Display with 2MR Synced Glowing Border */}
                     {currentEvent.isTime && (
-                      <div className="flex items-center justify-center bg-blue-950/90 px-2.5 h-8 rounded-xl border border-blue-800/90 shadow-inner">
+                      <div className={`flex items-center justify-center bg-blue-950/90 px-2.5 h-8 rounded-xl transition-all shadow-inner ${
+                        currentEvent.code === '2MR' && twoMileRunSync.status === 'running'
+                          ? !isFirebaseConnected
+                            ? 'border-2 border-red-500 ring-2 ring-red-500/50 animate-bounce'
+                            : 'border-2 border-emerald-400 ring-2 ring-emerald-400/60 animate-pulse shadow-emerald-500/20'
+                          : 'border border-blue-800/90'
+                      }`}>
                         <div className="font-mono text-base font-black text-amber-300 tracking-wider">
                           {formatSecondsToTime(Math.floor(elapsedTimeMs / 1000))}
                           <span className="text-[10px] text-blue-200 font-normal">.{Math.floor((elapsedTimeMs % 1000) / 10).toString().padStart(2, '0')}</span>
@@ -1151,40 +1180,61 @@ export default function AftGradeView({ onBack }: Props) {
                               />
                             </div>
 
-                            {/* Timer Action Button for Time Events - Exactly w-20 fixed */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleTimerAction(trainee.id, currentEvent.code as 'SDC' | 'PLK' | '2MR');
-                              }}
-                              disabled={isPlkDisabled}
-                              className={`h-8 w-20 shrink-0 flex items-center justify-center gap-1 rounded-xl text-[11px] font-black tracking-wider transition-colors active:scale-95 shadow ${
-                                isSDC
-                                  ? isSdcRunning
-                                    ? 'bg-amber-500 text-blue-950 animate-pulse ring-1 ring-amber-600'
-                                    : 'bg-blue-800 text-white hover:bg-blue-700'
-                                  : isPLK
-                                    ? isPlkActive
-                                      ? 'bg-amber-500 text-blue-950 animate-pulse ring-1 ring-amber-600 cursor-pointer'
-                                      : isPlkDisabled
-                                        ? 'bg-gray-300 text-gray-400 dark:bg-slate-800 cursor-not-allowed'
-                                        : 'bg-blue-800 text-white hover:bg-blue-700'
-                                    : 'bg-blue-800 text-white hover:bg-blue-700'
-                              }`}
-                              title={
-                                isSDC
-                                  ? (isSdcRunning ? 'Stop & Record Time' : 'Start SDC Timer')
-                                  : isPLK
-                                    ? (isPlkActive ? 'Stop & Record PLK' : 'Apply Time')
-                                    : 'Tag runner finish time'
-                              }
-                            >
-                              <span>⏱️</span>
-                              {isSDC && <span>{isSdcRunning ? 'STOP' : 'START'}</span>}
-                              {isPLK && <span>{isPlkActive ? 'STOP' : 'REC'}</span>}
-                              {currentEvent.code === '2MR' && <span>TAG</span>}
-                            </button>
+                            {/* Action Area for Time Events (SDC, PLK, 2MR) - Fixed Width w-20 */}
+                            {isPLK && !timerRunning ? (
+                              /* PLK Before Start: Intuitive Interactive Selection Checkbox */
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  togglePlkSelection(trainee.id);
+                                }}
+                                className={`h-8 w-20 shrink-0 flex items-center justify-center gap-1 rounded-xl text-[11px] font-black transition-all active:scale-95 border ${
+                                  isPlkSelected
+                                    ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                    : 'bg-gray-50 border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-600 dark:bg-slate-800 dark:border-slate-700 dark:text-gray-400'
+                                }`}
+                                title={isPlkSelected ? 'Selected for Plank' : 'Click to select for Plank'}
+                              >
+                                <span>{isPlkSelected ? '☑' : '☐'}</span>
+                                <span>{isPlkSelected ? 'READY' : 'SELECT'}</span>
+                              </button>
+                            ) : (
+                              /* SDC / 2MR / PLK Running: Action Button */
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTimerAction(trainee.id, currentEvent.code as 'SDC' | 'PLK' | '2MR');
+                                }}
+                                disabled={isPlkDisabled}
+                                className={`h-8 w-20 shrink-0 flex items-center justify-center gap-1 rounded-xl text-[11px] font-black tracking-wider transition-colors active:scale-95 shadow ${
+                                  isSDC
+                                    ? isSdcRunning
+                                      ? 'bg-amber-500 text-blue-950 animate-pulse ring-1 ring-amber-600'
+                                      : 'bg-blue-800 text-white hover:bg-blue-700'
+                                    : isPLK
+                                      ? isPlkActive
+                                        ? 'bg-amber-500 text-blue-950 animate-pulse ring-1 ring-amber-600 cursor-pointer'
+                                        : isPlkDisabled
+                                          ? 'bg-gray-200 text-gray-400 dark:bg-slate-800 cursor-not-allowed'
+                                          : 'bg-blue-800 text-white hover:bg-blue-700'
+                                      : 'bg-blue-800 text-white hover:bg-blue-700'
+                                }`}
+                                title={
+                                  isSDC
+                                    ? (isSdcRunning ? 'Stop & Record Time' : 'Start SDC Timer')
+                                    : isPLK
+                                      ? (isPlkActive ? 'Stop & Record PLK' : 'Plank idle')
+                                      : 'Tag runner finish time'
+                                }
+                              >
+                                <span>⏱️</span>
+                                {isSDC && <span>{isSdcRunning ? 'STOP' : 'START'}</span>}
+                                {isPLK && <span>{isPlkActive ? 'STOP' : 'IDLE'}</span>}
+                                {currentEvent.code === '2MR' && <span>TAG</span>}
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1193,25 +1243,6 @@ export default function AftGradeView({ onBack }: Props) {
                 })}
               </section>
 
-              {/* Step Navigation Bar */}
-              <div className="sticky bottom-0 bg-gray-100 dark:bg-slate-950 pt-2 pb-1 flex gap-2">
-                {currentEventIndex > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setCurrentEventIndex(prev => prev - 1)}
-                    className="flex-1 rounded-2xl bg-gray-200 py-3.5 text-xs font-black text-gray-800 shadow transition-all active:scale-95 dark:bg-slate-800 dark:text-white"
-                  >
-                    ◀ PREV
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setCurrentEventIndex(prev => prev + 1)}
-                  className="flex-[2] rounded-2xl bg-emerald-600 py-3.5 text-xs font-black tracking-wider text-white shadow-lg transition-all active:scale-95 hover:bg-emerald-500"
-                >
-                  {currentEventIndex === AFT_EVENTS.length - 1 ? 'VIEW LANE RESULT ➔' : `NEXT: ${AFT_EVENTS[currentEventIndex + 1].code} ➔`}
-                </button>
-              </div>
             </>
           )}
 
@@ -1309,6 +1340,37 @@ export default function AftGradeView({ onBack }: Props) {
             </div>
           )}
           </main>
+
+          {/* Fixed Bottom Event Navigation Bar: MDL -> HRP -> SDC -> PLK -> 2MR -> RESULT */}
+          <footer className="sticky bottom-0 z-40 w-full bg-blue-950 border-t border-blue-900 shadow-2xl shrink-0">
+            <div className="flex w-full text-xs sm:text-sm font-extrabold">
+              {AFT_EVENTS.map((ev, idx) => (
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => setCurrentEventIndex(idx)}
+                  className={`flex-1 py-3 text-center transition-all border-t-2 active:scale-95 ${
+                    currentEventIndex === idx && !isSummaryView
+                      ? 'border-amber-400 text-amber-300 bg-blue-900 font-black shadow-inner'
+                      : 'border-transparent text-blue-200/80 hover:text-white hover:bg-blue-900/40'
+                  }`}
+                >
+                  {ev.code}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCurrentEventIndex(AFT_EVENTS.length)}
+                className={`flex-1 py-3 text-center transition-all border-t-2 active:scale-95 ${
+                  isSummaryView
+                    ? 'border-amber-400 text-amber-300 bg-blue-900 font-black shadow-inner'
+                    : 'border-transparent text-blue-200/80 hover:text-white hover:bg-blue-900/40'
+                }`}
+              >
+                RESULT
+              </button>
+            </div>
+          </footer>
           </>
         )}
       </div>

@@ -1066,27 +1066,33 @@ function App() {
       </div>
     </button>
   ) : null;
-  const notificationOnboarding = role && isTrackingAuthorizationResolved && !notificationOnboardingComplete && isPhoneDevice() ? (
-    <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[65] mx-auto max-w-md rounded-2xl border border-green-200 bg-white p-3 shadow-2xl">
-      <div className="mb-2 text-center">
-        <div className="text-sm font-black text-gray-900">Enable Notifications</div>
-        <div className="text-[11px] font-semibold text-gray-500">Get schedule update alerts on this device.</div>
-      </div>
-      <NotificationPrompt
-        role={role}
-        cycleName={role === 'STUDENT' ? studentCycleName : null}
-        autoPrompt={false}
-        testMode={isTestMode}
-        hideWhenGranted
-        onStatusChange={(status) => setNotificationOnboardingComplete(status === 'granted')}
-      />
-    </div>
-  ) : null;
-  const testModeBadge = isTestMode ? (
-    <div className="fixed bottom-3 left-1/2 z-[75] -translate-x-1/2 rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-2 text-xs font-black text-amber-900 shadow-xl">
-      TEST MODE · Shared live data · Notifications only to this device
-    </div>
-  ) : null;
+
+  // [DISABLED TEMPORARILY - RESTORED VIA COMMENT]
+  // const notificationOnboarding = role && isTrackingAuthorizationResolved && !notificationOnboardingComplete && isPhoneDevice() ? (
+  //   <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[65] mx-auto max-w-md rounded-2xl border border-green-200 bg-white p-3 shadow-2xl">
+  //     <div className="mb-2 text-center">
+  //       <div className="text-sm font-black text-gray-900">Enable Notifications</div>
+  //       <div className="text-[11px] font-semibold text-gray-500">Get schedule update alerts on this device.</div>
+  //     </div>
+  //     <NotificationPrompt
+  //       role={role}
+  //       cycleName={role === 'STUDENT' ? studentCycleName : null}
+  //       autoPrompt={false}
+  //       testMode={isTestMode}
+  //       hideWhenGranted
+  //       onStatusChange={(status) => setNotificationOnboardingComplete(status === 'granted')}
+  //     />
+  //   </div>
+  // ) : null;
+  const notificationOnboarding = null;
+
+  // [DISABLED TEMPORARILY - RESTORED VIA COMMENT]
+  // const testModeBadge = isTestMode ? (
+  //   <div className="fixed bottom-3 left-1/2 z-[75] -translate-x-1/2 rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-2 text-xs font-black text-amber-900 shadow-xl">
+  //     TEST MODE · Shared live data · Notifications only to this device
+  //   </div>
+  // ) : null;
+  const testModeBadge = null;
 
   const selectedSchedule = filteredSchedules.find(s => s.date === selectedDateId);
 
