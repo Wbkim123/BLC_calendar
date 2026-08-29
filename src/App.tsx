@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Login from './components/Login';
 import Calendar from './components/Calendar';
 import DailyView from './components/DailyView';
+import AftGradeView from './components/AftGradeView';
 import ScheduleImportModal from './components/ScheduleImportModal';
 import ScheduleNotificationModal, { PendingScheduleNotification } from './components/ScheduleNotificationModal';
 import GeneralSettings from './components/GeneralSettings';
@@ -245,6 +246,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isAftGradeOpen, setIsAftGradeOpen] = useState(false);
   const [pendingNotification, setPendingNotification] = useState<PendingScheduleNotification | null>(null);
   const [notificationFocus, setNotificationFocus] = useState<NotificationFocus | null>(getNotificationFocusFromUrl);
   const [foregroundNotification, setForegroundNotification] = useState<ForegroundNotification | null>(null);
@@ -1151,6 +1153,15 @@ function App() {
     );
   }
 
+  if (isAftGradeOpen) {
+    return (
+      <AftGradeView 
+        onBack={() => setIsAftGradeOpen(false)}
+        displayMode={displayMode}
+      />
+    );
+  }
+
   return (
     <>
       {foregroundNotificationToast}
@@ -1162,6 +1173,7 @@ function App() {
         role={role}
         cycleTitle={cycleTitle}
         onOpenImport={() => setIsImportModalOpen(true)}
+        onOpenAftGrade={() => setIsAftGradeOpen(true)}
         settingsControl={renderGeneralSettings()}
         showAdBanner={!isImportModalOpen}
         testMode={isTestMode}
