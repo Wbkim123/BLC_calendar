@@ -253,6 +253,10 @@ export default function AdMobBanner({ visible = true, testMode = false }: Props)
     };
   }, [isNative, visible, testMode]);
 
+  // AdMob is native-only in this app. Do not render a placeholder or reserve
+  // banner space in the website/PWA layout.
+  if (!isNative) return null;
+
   return (
     <div
       aria-hidden="true"

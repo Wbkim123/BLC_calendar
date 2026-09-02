@@ -298,6 +298,14 @@ function App() {
   }, [darkMode]);
 
   useEffect(() => {
+    // The public website is a TV-display surface. Native apps keep their saved
+    // preference, and administrators retain AUTO mode for browser testing.
+    if (!Capacitor.isNativePlatform() && role && role !== 'ADMIN' && displayMode !== 'tv') {
+      setDisplayMode('tv');
+    }
+  }, [role, displayMode]);
+
+  useEffect(() => {
     const handleTrackingAuthorizationResolved = () => setIsTrackingAuthorizationResolved(true);
     window.addEventListener('blc-att-resolved', handleTrackingAuthorizationResolved);
     return () => window.removeEventListener('blc-att-resolved', handleTrackingAuthorizationResolved);
