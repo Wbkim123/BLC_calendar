@@ -3,6 +3,8 @@
 export interface TrainingEvent {
   id: string;
   time: string;
+  /** Optional source-facing time text, while `time` remains numeric for calculations. */
+  displayTime?: string;
   eventName: string;
   location: string;
   uniform: string;
@@ -10,6 +12,7 @@ export interface TrainingEvent {
 }
 
 export interface DailySchedule {
+  academy?: 'BLC' | 'KTA';
   date: string;
   dayLabel: string;
   cycleName: string;

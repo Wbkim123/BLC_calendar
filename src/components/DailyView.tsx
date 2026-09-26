@@ -7,7 +7,8 @@ import AdMobBanner from './AdMobBanner';
 interface Props {
   schedule: DailySchedule;
   role: UserRole;
-  onBack: () => void;
+  onBack?: () => void;
+  viewControls?: React.ReactNode;
   onSave: (dateStr: string, updatedEvent: TrainingEvent) => void;
   onSaveNotes: (dateStr: string, notes: string) => void;
   onToggleNotesHighlight: (dateStr: string) => void;
@@ -31,7 +32,8 @@ interface Props {
 export default function DailyView({ 
   schedule, 
   role, 
-  onBack, 
+  onBack,
+  viewControls,
   onSave, 
   onSaveNotes,
   onToggleNotesHighlight,
@@ -55,7 +57,8 @@ export default function DailyView({
   const [editingNotes, setEditingNotes] = useState<'public' | 'sgl' | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const highlightedTargetRef = useRef<HTMLDivElement>(null);
-  const canViewSglNotes = role === 'ADMIN' || role === 'VIEWER';
+  const isKtaSchedule = schedule.academy === 'KTA';
+  const canViewSglNotes = !isKtaSchedule && (role === 'ADMIN' || role === 'VIEWER');
   const scheduleDayName = (() => {
     const [year, month, day] = schedule.date.split('-').map(Number);
     if (!year || !month || !day) return '';
@@ -227,11 +230,12 @@ export default function DailyView({
       onTouchEnd={handleTouchEnd}
     >
       {/* 상단 헤더 */}
+      {viewControls}
       <div className="daily-header bg-blue-900 text-white p-3 sm:p-4 sticky top-0 shadow-md z-10 flex items-center justify-between gap-2">
         <div className="flex items-center min-w-0 flex-1">
-          <button onClick={onBack} className="mr-2 sm:mr-4 p-2 bg-blue-800 rounded-lg active:bg-blue-700 shrink-0">
+          {onBack && <button onClick={onBack} className="mr-2 sm:mr-4 p-2 bg-blue-800 rounded-lg active:bg-blue-700 shrink-0">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-          </button>
+          </button>}
           <img src="/NCOA_Logo.png" alt="NCOA Logo" className="hidden sm:block w-10 h-10 object-contain mr-3 shrink-0" />
           <div className="min-w-0">
             <h1 className="text-base sm:text-xl font-black truncate">
@@ -347,13 +351,13 @@ export default function DailyView({
                       <span className={`inline-block px-2 py-0.5 text-[10px] lg:text-xs font-bold rounded ${
                         isOngoing ? 'bg-green-500 text-white animate-pulse' : 'bg-gray-100 text-gray-700'
                       } ${notificationHighlightTarget === `event:${ev.id}` && notificationChangedFields.includes('time') ? 'notification-field-highlight' : ''}`}>
-                        {ev.time}
+                        {ev.displayTime || ev.time}
                       </span>
                       {isConflicting && <span className="text-sm animate-bounce" title="Time Conflict">⚠️</span>}
                     </div>
                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] lg:text-xs font-bold text-gray-500 min-w-0">
                       <span className="flex items-center gap-1 min-w-0">📍 LOC: <span className={`${isPast ? 'text-gray-400' : 'text-gray-800'} truncate`}>{ev.location}</span></span>
-                      <span className="flex items-center gap-1 min-w-0">👕 UNI: <span className={`${isPast ? 'text-gray-400' : 'text-gray-800'} truncate`}>{ev.uniform}</span></span>
+                      <span className="flex items-center gap-1 min-w-0">👕 {isKtaSchedule ? 'DUTY NCO' : 'UNI'}: <span className={`${isPast ? 'text-gray-400' : 'text-gray-800'} truncate`}>{ev.uniform}</span></span>
                     </div>
                   </div>
                   {notificationHighlightTarget === `event:${ev.id}` && (
@@ -362,7 +366,7 @@ export default function DailyView({
                         <span className="notification-field-highlight px-1.5 py-0.5">LOC changed: {ev.location}</span>
                       )}
                       {notificationChangedFields.includes('uniform') && (
-                        <span className="notification-field-highlight px-1.5 py-0.5">UNI changed: {ev.uniform}</span>
+                        <span className="notification-field-highlight px-1.5 py-0.5">{isKtaSchedule ? 'DUTY NCO' : 'UNI'} changed: {ev.uniform}</span>
                       )}
                     </div>
                   )}

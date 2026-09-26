@@ -5,6 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import { FirebaseMessaging } from '@capacitor-firebase/messaging';
 import { app, auth } from './firebase';
 import { UserRole } from './types/schedule';
+import { AcademyId } from './types/academy';
 
 const PUSH_TOKEN_KEY = 'blc_push_token';
 const PUSH_TOPIC_KEY = 'blc_push_topic';
@@ -183,6 +184,7 @@ export const getAdminIdToken = async () => {
 };
 
 export async function sendScheduleNotification(details: {
+  academy: AcademyId;
   date: string;
   cycleName?: string | null;
   changeType: string;
@@ -229,6 +231,7 @@ export async function getCurrentDevicePushToken() {
 }
 
 export async function sendTestScheduleNotification(details: {
+  academy: AcademyId;
   date: string;
   cycleName?: string | null;
   changeType: string;
@@ -285,7 +288,7 @@ export async function getNotificationAvailability(): Promise<NotificationAvailab
   return 'prompt';
 }
 
-export async function enableNotifications(role: UserRole, cycleName?: string | null, testMode = false) {
+export async function enableNotifications(role: UserRole, cycleName?: string | null, testMode = false, academy: AcademyId = 'BLC') {
   if (!isPhoneDevice()) throw new Error('unsupported');
 
   if (isNativePlatform()) {
@@ -306,7 +309,8 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
         token,
         topic: window.localStorage.getItem(PUSH_TOPIC_KEY),
         role,
-        cycleName
+        cycleName,
+        academy
       });
       window.localStorage.setItem(PUSH_TOKEN_KEY, token);
       window.localStorage.removeItem(PUSH_TOPIC_KEY);
@@ -320,6 +324,7 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
         token,
         role: role || 'UNKNOWN',
         cycleName: cycleName || null,
+        academy,
         platform: `${Capacitor.getPlatform()}-native`,
         previousTopic: window.localStorage.getItem(PUSH_TOPIC_KEY)
       }
@@ -355,7 +360,8 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
       token,
       topic: window.localStorage.getItem(PUSH_TOPIC_KEY),
       role,
-      cycleName
+      cycleName,
+      academy
     });
     window.localStorage.setItem(PUSH_TOKEN_KEY, token);
     window.localStorage.removeItem(PUSH_TOPIC_KEY);
@@ -367,6 +373,7 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
     token,
     role: role || 'UNKNOWN',
     cycleName: cycleName || null,
+    academy,
     platform: isIos() ? 'ios-web' : 'web',
     previousTopic: window.localStorage.getItem(PUSH_TOPIC_KEY)
   });
@@ -380,23 +387,24 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
   window.localStorage.removeItem(PUSH_DISABLED_KEY);
 }
 
-export async function syncNotificationSubscription(role: UserRole, cycleName?: string | null) {
+export async function syncNotificationSubscription(role: UserRole, cycleName?: string | null, academy: AcademyId = 'BLC') {
   if (isNativePlatform()) {
     const permission = await FirebaseMessaging.checkPermissions();
     if (permission.receive !== 'granted') return;
-    await enableNotifications(role, cycleName);
+    await enableNotifications(role, cycleName, false, academy);
     return;
   }
 
   if (Notification.permission !== 'granted' || !window.localStorage.getItem(PUSH_TOKEN_KEY)) return;
-  await enableNotifications(role, cycleName);
+  await enableNotifications(role, cycleName, false, academy);
 }
 
 async function disableNotificationsInternal(
   role?: UserRole,
   cycleName?: string | null,
   recoverMissingToken = true,
-  deleteNativeToken = true
+  deleteNativeToken = true,
+  academy: AcademyId = 'BLC'
 ) {
   let token = window.localStorage.getItem(PUSH_TOKEN_KEY);
   const topic = window.localStorage.getItem(PUSH_TOPIC_KEY);
@@ -420,9 +428,9 @@ async function disableNotificationsInternal(
   if (token) {
     try {
       if (isNativePlatform()) {
-        await callNativeFunction('unregisterPushToken', { token, topic, role, cycleName });
+        await callNativeFunction('unregisterPushToken', { token, topic, role, cycleName, academy });
       } else {
-        await httpsCallable(functions, 'unregisterPushToken')({ token, topic, role, cycleName });
+        await httpsCallable(functions, 'unregisterPushToken')({ token, topic, role, cycleName, academy });
       }
     } catch (error) {
       unregisterError = error;
@@ -447,13 +455,15 @@ export async function disableNotifications(
   role?: UserRole,
   cycleName?: string | null,
   recoverMissingToken = true,
-  deleteNativeToken = true
+  deleteNativeToken = true,
+  academy: AcademyId = 'BLC'
 ) {
   const operation = disableNotificationsInternal(
     role,
     cycleName,
     recoverMissingToken,
-    deleteNativeToken
+    deleteNativeToken,
+    academy
   );
   if (!isNativePlatform()) return operation;
 

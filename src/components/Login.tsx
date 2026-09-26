@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 
 interface Props {
   onLogin: (code: string, rememberLogin: boolean) => Promise<boolean>;
+  webOnly?: boolean;
 }
 
-export default function Login({ onLogin }: Props) {
+export default function Login({ onLogin, webOnly = false }: Props) {
   const [code, setCode] = useState('');
   const [error, setError] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(true);
@@ -28,10 +29,13 @@ export default function Login({ onLogin }: Props) {
       <div className="login-card bg-white p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-sm text-center my-4">
         <div className="flex items-center justify-center gap-3 mb-2">
           <img src="/NCOA_Logo.png" alt="NCOA Logo" className="w-12 h-12 object-contain" />
-          <h1 className="text-3xl font-black text-blue-900">NCOA BLC</h1>
+          <h1 className="text-3xl font-black text-blue-900">NCOA</h1>
         </div>
         <p className="text-gray-500 mb-6 font-medium">Schedule Manager</p>
         
+        {webOnly && <p className="mb-4 text-sm text-gray-600">
+          Website access is for TV displays and the owner. Students and staff, please use the mobile app.
+        </p>}
         <input
           type="password"
           value={code}

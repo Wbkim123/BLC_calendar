@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { sendScheduleNotification, sendTestScheduleNotification } from '../notifications';
+import { AcademyId } from '../types/academy';
 
 const SHOW_TEST_DEVICE_BUTTON = false;
 
@@ -35,11 +36,12 @@ export type PendingScheduleNotification = {
 
 interface Props {
   change: PendingScheduleNotification;
+  academy: AcademyId;
   onClose: () => void;
   testMode?: boolean;
 }
 
-export default function ScheduleNotificationModal({ change, onClose, testMode = false }: Props) {
+export default function ScheduleNotificationModal({ change, academy, onClose, testMode = false }: Props) {
   const isSglOnlyChange = change.targetId === 'sglNotes';
   const isPublicNotesChange = change.targetId === 'notes';
   const [sendingChoice, setSendingChoice] = useState<'yes' | 'no' | null>(null);
@@ -57,6 +59,7 @@ export default function ScheduleNotificationModal({ change, onClose, testMode = 
     try {
       await sendScheduleNotification({
         ...change,
+        academy,
         recipients
       });
       onClose();
@@ -73,7 +76,7 @@ export default function ScheduleNotificationModal({ change, onClose, testMode = 
       setSendingChoice('yes');
       setError('');
       try {
-        await sendTestScheduleNotification(change);
+        await sendTestScheduleNotification({ ...change, academy });
         onClose();
       } catch (sendError) {
         console.error('Failed to send isolated test notification:', sendError);
@@ -111,7 +114,7 @@ export default function ScheduleNotificationModal({ change, onClose, testMode = 
     setError('');
     setTestMessage('');
     try {
-      await sendTestScheduleNotification(change);
+      await sendTestScheduleNotification({ ...change, academy });
       window.dispatchEvent(new CustomEvent('blc-schedule-notification', { detail: change }));
       setTestMessage('Test notification sent to this device only.');
       onClose();

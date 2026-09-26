@@ -1,3 +1,9 @@
+import { AccessProfile, AcademyId } from './types/academy';
+import { getAcademyConfig } from './config/academies';
+import { resolveTvAccess } from './features/auth/resolveTvAccess';
+import { canUseWebsite } from './features/auth/webAccess';
+import { chooseAutoTvSchedule, chooseTvSchedule } from './features/tv/tvSchedules';
+import TvScheduleControls from './features/tv/TvScheduleControls';
 // src/App.tsx
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Login from './components/Login';
@@ -8,7 +14,6 @@ import ScheduleNotificationModal, { PendingScheduleNotification } from './compon
 import GeneralSettings from './components/GeneralSettings';
 import NotificationPrompt from './components/NotificationPrompt';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
-import { mockSchedules } from './data/mockData';
 import { auth, db, firebaseDatabaseUrl } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 import { signOut } from 'firebase/auth';
@@ -39,6 +44,7 @@ type LoginResult = {
 };
 
 type SavedLogin = {
+  profile?: AccessProfile;
   code?: string;
   role?: UserRole;
   testMode?: boolean;
@@ -71,8 +77,7 @@ const getNotificationFocusFromUrl = (): NotificationFocus | null => {
   };
 };
 
-const getLocalTodayString = () => {
-  const today = new Date();
+const getLocalTodayString = (today = new Date()) => {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 };
 
@@ -212,6 +217,20 @@ function resolveLoginFromCode(code: string, schedules: DailySchedule[]): LoginRe
 }
 
 function App() {
+  const getSavedProfile = (): AccessProfile | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(LOGIN_STORAGE_KEY) || 'null') as SavedLogin | null;
+      const profile = parsed?.profile || null;
+      if (!Capacitor.isNativePlatform() && !canUseWebsite(profile)) return null;
+      return profile;
+    } catch {
+      return null;
+    }
+  };
+  const [accessProfile, setAccessProfile] = useState<AccessProfile | null>(getSavedProfile);
+  const [academy, setAcademy] = useState<AcademyId>(() => getSavedProfile()?.academy || 'BLC');
+
   const [role, setRole] = useState<UserRole>(() => {
     if (typeof window === 'undefined') return null;
 
@@ -220,6 +239,7 @@ function App() {
       if (!saved) return null;
 
       const parsed = JSON.parse(saved) as SavedLogin | null;
+      if (!Capacitor.isNativePlatform()) return getSavedProfile()?.role || null;
       if (parsed?.role === 'ADMIN') return 'ADMIN';
       if (!parsed?.code) return null;
       if (parsed.role === 'VIEWER') return parsed.role;
@@ -241,6 +261,21 @@ function App() {
   const [locations, setLocations] = useState<string[]>([]);
   const [uniforms, setUniforms] = useState<string[]>([]);
   const [selectedDateId, setSelectedDateId] = useState<string | null>(null);
+  const [tvCycle, setTvCycle] = useState<string | null>(null);
+  const [tvNow, setTvNow] = useState(Date.now);
+  const isTvDisplay = accessProfile?.accessLevel === 'TV_DISPLAY';
+
+  useEffect(() => {
+    if (!isTvDisplay) return;
+    const refresh = () => setTvNow(Date.now());
+    refresh();
+    const timer = window.setInterval(refresh, 30000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [isTvDisplay]);
   const [studentCycleName, setStudentCycleName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -277,11 +312,12 @@ function App() {
     scheduleDatabaseKeyByDateRef.current.get(dateStr);
   // Code 318709 uses the same schedules and administrator features as 2002.
   // Test mode only changes notification delivery; it must not fork app data.
-  const getDatabasePath = (path: string) => path;
+  const getDatabasePath = (path: string) => `${getAcademyConfig(academy).databasePrefix}${path}`;
   const getScheduleUpdatePath = (path: string) =>
     `/${getDatabasePath(path.replace(/^\/+/, ''))}`;
 
   const handleDisplayModeChange = (nextMode: DisplayMode) => {
+    if (isTvDisplay) return;
     setDisplayMode(nextMode);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(DISPLAY_MODE_STORAGE_KEY, nextMode);
@@ -298,12 +334,11 @@ function App() {
   }, [darkMode]);
 
   useEffect(() => {
-    // The public website is a TV-display surface. Native apps keep their saved
-    // preference, and administrators retain AUTO mode for browser testing.
-    if (!Capacitor.isNativePlatform() && role && role !== 'ADMIN' && displayMode !== 'tv') {
+    // Dedicated TV profiles always use the existing TV layout.
+    if (isTvDisplay && displayMode !== 'tv') {
       setDisplayMode('tv');
     }
-  }, [role, displayMode]);
+  }, [isTvDisplay, displayMode]);
 
   useEffect(() => {
     const handleTrackingAuthorizationResolved = () => setIsTrackingAuthorizationResolved(true);
@@ -354,7 +389,7 @@ function App() {
 
   // 1. Firebase에서 실시간 데이터 불러오기
   useEffect(() => {
-    const databasePrefix = '';
+    const databasePrefix = getAcademyConfig(academy).databasePrefix;
     const schedulesPath = `${databasePrefix}schedules`;
     const locationsPath = `${databasePrefix}locations`;
     const uniformsPath = `${databasePrefix}uniforms`;
@@ -385,9 +420,10 @@ function App() {
       fetchDatabaseValue(locationsPath),
       fetchDatabaseValue(uniformsPath)
     ]).then(([scheduleData, locationData, uniformData]) => {
+      if (abortController.signal.aborted) return;
       const rawEntries = scheduleData && typeof scheduleData === 'object'
         ? Object.entries(scheduleData as Record<string, DailySchedule>)
-        : mockSchedules.map((schedule, index) => [String(index), schedule] as const);
+        : [];
       scheduleDatabaseKeyByDateRef.current = new Map(
         rawEntries
           .filter((entry): entry is [string, DailySchedule] => Boolean(entry[1]?.date))
@@ -398,6 +434,7 @@ function App() {
         .filter((day): day is DailySchedule => Boolean(day && typeof day === 'object' && day.date))
         .map(day => ({
           ...day,
+          academy,
           notes: day.notes || '',
           notesHighlighted: Boolean(day.notesHighlighted),
           sglNotes: day.sglNotes || '',
@@ -411,10 +448,10 @@ function App() {
       setSchedules(initialSchedules);
       setLocations(locationData
         ? (Array.isArray(locationData) ? locationData : Object.values(locationData)) as string[]
-        : ['MPR', 'CR', 'DFC', 'AUD', 'ACA', 'FLD', 'HMP']);
+        : getAcademyConfig(academy).defaultLocations);
       setUniforms(uniformData
         ? (Array.isArray(uniformData) ? uniformData : Object.values(uniformData)) as string[]
-        : ['PT', 'ACU', 'ASU']);
+        : getAcademyConfig(academy).defaultUniforms);
       setApiError(null);
       setIsLoading(false);
     }).catch(error => {
@@ -428,7 +465,6 @@ function App() {
       receivedSchedules = true;
       window.clearTimeout(loadingTimeout);
       setApiError(null);
-      console.log("Schedules snapshot received:", snapshot.val());
       const data = snapshot.val();
       if (data) {
         const scheduleEntries = Object.entries(data as Record<string, DailySchedule>);
@@ -437,13 +473,13 @@ function App() {
             .filter((entry): entry is [string, DailySchedule] => Boolean(entry[1]?.date))
             .map(([key, day]) => [day.date, key])
         );
-        let schedulesArray = scheduleEntries.map(([, day]) => day);
+        let schedulesArray = scheduleEntries.map(([, day]) => ({ ...day, academy }));
         
         let normalizedLegacyCycle = false;
 
         // Ensure every day has an events array (Firebase omits empty arrays)
         schedulesArray = schedulesArray.map(day => {
-          const isLegacy0626Date = day.date >= LEGACY_06_26_START && day.date <= LEGACY_06_26_END;
+          const isLegacy0626Date = academy === 'BLC' && day.date >= LEGACY_06_26_START && day.date <= LEGACY_06_26_END;
           const missingCycleName = !day.cycleName || String(day.cycleName).trim() === '';
 
           if (isLegacy0626Date && missingCycleName) {
@@ -473,21 +509,15 @@ function App() {
         schedulesArray.sort((a, b) => a.date.localeCompare(b.date));
 
         setSchedules(schedulesArray as DailySchedule[]);
-        if (normalizedLegacyCycle) {
+        if (normalizedLegacyCycle && role === 'ADMIN' && !isTvDisplay) {
           set(schedulesRef, schedulesArray).catch(err => {
             console.error("Error normalizing 06-26 cycleName:", err);
           });
         }
         setIsLoading(false);
       } else {
-        console.log("No schedules data, setting initial...");
-        set(schedulesRef, mockSchedules)
-          .then(() => setIsLoading(false))
-          .catch(err => {
-            console.error("Error setting initial schedules:", err);
-            setApiError("Failed to initialize schedules: " + err.message);
-            setIsLoading(false);
-          });
+        setSchedules([]);
+        setIsLoading(false);
       }
     }, (error) => {
       receivedSchedules = true;
@@ -504,8 +534,7 @@ function App() {
         const locsArray = Array.isArray(data) ? data : Object.values(data);
         setLocations(locsArray as string[]);
       } else {
-        const defaultLocs = ['MPR', 'CR', 'DFC', 'AUD', 'ACA', 'FLD', 'HMP'];
-        set(locationsRef, defaultLocs).catch(err => console.error("Error setting locations:", err));
+        setLocations(getAcademyConfig(academy).defaultLocations);
       }
     });
 
@@ -516,8 +545,7 @@ function App() {
         const unisArray = Array.isArray(data) ? data : Object.values(data);
         setUniforms(unisArray as string[]);
       } else {
-        const defaultUnis = ['PT', 'ACU', 'ASU'];
-        set(uniformsRef, defaultUnis).catch(err => console.error("Error setting uniforms:", err));
+        setUniforms(getAcademyConfig(academy).defaultUniforms);
       }
     }, (error) => {
       console.error("Uniforms sync error:", error);
@@ -530,7 +558,7 @@ function App() {
       unsubLocations();
       unsubUniforms();
     };
-  }, [isTestMode]);
+  }, [isTestMode, academy, role, isTvDisplay]);
 
   useEffect(() => {
     if (role || schedules.length === 0 || typeof window === 'undefined') return;
@@ -540,6 +568,10 @@ function App() {
       if (!saved) return;
 
       const parsed = JSON.parse(saved) as SavedLogin | null;
+      if (!Capacitor.isNativePlatform()) {
+        window.localStorage.removeItem(LOGIN_STORAGE_KEY);
+        return;
+      }
       if (parsed?.role === 'ADMIN') return;
       if (!parsed?.code) return;
 
@@ -863,13 +895,15 @@ function App() {
     }
 
     setRole(null);
+    setAccessProfile(null);
+    setTvCycle(null);
     setIsTestMode(false);
     setSelectedDateId(null);
     setStudentCycleName(null);
     hasAutoSelectedTodayRef.current = false;
 
     void Promise.allSettled([
-      disableNotifications(previousRole, previousStudentCycleName, false),
+      disableNotifications(previousRole, previousStudentCycleName, false, true, academy),
       signOut(auth)
     ]).then(results => {
       const [notificationResult, authResult] = results;
@@ -882,6 +916,46 @@ function App() {
     });
   };
   const handleLogin = async (code: string, rememberLogin: boolean) => {
+    if (!Capacitor.isNativePlatform()) {
+      let profile = resolveTvAccess(code);
+      let webTestMode = false;
+      if (profile && !canUseWebsite(profile)) return false;
+      if (profile?.accessLevel !== 'TV_DISPLAY') {
+        try {
+          await createAdminSession(code.trim());
+          const claims = (await auth.currentUser?.getIdTokenResult())?.claims;
+          const isOwner = claims && (claims.accessLevel
+            ? claims.accessLevel === 'NCOA_MANAGER'
+            : claims.admin === true || claims.testAdmin === true);
+          if (!isOwner) { await signOut(auth); return false; }
+          profile = {
+            role: 'ADMIN', accessLevel: 'NCOA_MANAGER', academy: 'BLC', scope: 'NCOA',
+            permissions: ['schedule.read', 'schedule.write', 'schedule.import', 'location.manage', 'conflict.resolve']
+          };
+          webTestMode = claims?.testAdmin === true;
+          setIsTestMode(webTestMode);
+        } catch { return false; }
+      } else {
+        setIsTestMode(false);
+      }
+      if (!profile || !canUseWebsite(profile)) return false;
+      if (profile.academy !== academy) { setSchedules([]); setIsLoading(true); }
+      setAccessProfile(profile);
+      setAcademy(profile.academy);
+      setRole(profile.role);
+      setStudentCycleName(null);
+      setSelectedDateId(null);
+      setTvCycle(null);
+      hasAutoSelectedTodayRef.current = false;
+      if (rememberLogin) {
+        window.localStorage.setItem(LOGIN_STORAGE_KEY, JSON.stringify({
+          profile, role: profile.role,
+          testMode: webTestMode
+        }));
+      } else { window.localStorage.removeItem(LOGIN_STORAGE_KEY); }
+      return true;
+    }
+
     let login = resolveLoginFromCode(code, schedules);
     const requestedTestMode = code.trim() === '318709';
 
@@ -916,6 +990,7 @@ function App() {
   };
 
   const handleBackToCalendar = () => {
+    if (isTvDisplay) return;
     hasAutoSelectedTodayRef.current = true;
     setSelectedDateId(null);
   };
@@ -969,12 +1044,29 @@ function App() {
     return activeOrNextCycle ? activeOrNextCycle[0] : null;
   }, [schedules]);
 
+  const tvAvailableSchedules = useMemo(() => schedules.filter(schedule =>
+    !schedule.academy || schedule.academy === academy
+  ), [schedules, academy]);
+  const effectiveTvCycle = tvCycle !== null && tvAvailableSchedules.some(schedule => schedule.cycleName === tvCycle)
+    ? tvCycle
+    : chooseAutoTvSchedule(tvAvailableSchedules, getLocalTodayString(new Date(tvNow)), tvNow, getScheduleEndDateTime)?.cycleName || '';
+
   const filteredSchedules = useMemo(() => {
+    if (isTvDisplay) {
+      return tvAvailableSchedules.filter(schedule => schedule.cycleName === effectiveTvCycle)
+        .sort((a, b) => a.date.localeCompare(b.date));
+    }
     if (role === 'STUDENT') {
       return schedules.filter(s => s.cycleName === studentCycleName);
     }
     return schedules;
-  }, [role, schedules, studentCycleName]);
+  }, [role, schedules, studentCycleName, isTvDisplay, tvAvailableSchedules, effectiveTvCycle]);
+
+  useEffect(() => {
+    if (!isTvDisplay) return;
+    const nextDate = chooseTvSchedule(filteredSchedules, getLocalTodayString(), selectedDateId)?.date || null;
+    if (nextDate !== selectedDateId) setSelectedDateId(nextDate);
+  }, [isTvDisplay, filteredSchedules, selectedDateId]);
 
   useEffect(() => {
     if (!role || !selectedDateId || filteredSchedules.length === 0) return;
@@ -1038,7 +1130,7 @@ function App() {
   }
 
   if (!role) {
-    return <Login onLogin={handleLogin} />;
+    return <Login onLogin={handleLogin} webOnly={!Capacitor.isNativePlatform()} />;
   }
 
   const foregroundNotificationToast = foregroundNotification ? (
@@ -1079,6 +1171,7 @@ function App() {
         <div className="text-[11px] font-semibold text-gray-500">Get schedule update alerts on this device.</div>
       </div>
       <NotificationPrompt
+        academy={academy}
         role={role}
         cycleName={role === 'STUDENT' ? studentCycleName : null}
         autoPrompt={false}
@@ -1094,10 +1187,14 @@ function App() {
     </div>
   ) : null;
 
-  const selectedSchedule = filteredSchedules.find(s => s.date === selectedDateId);
+  const selectedSchedule = isTvDisplay
+    ? chooseTvSchedule(filteredSchedules, getLocalTodayString(), selectedDateId)
+    : filteredSchedules.find(s => s.date === selectedDateId);
 
   const renderGeneralSettings = () => role ? (
     <GeneralSettings
+      academy={academy}
+      tvDisplay={isTvDisplay}
       role={role}
       cycleName={role === 'STUDENT' ? studentCycleName : null}
       schedules={schedules}
@@ -1112,8 +1209,20 @@ function App() {
     />
   ) : null;
 
+  const tvControls = isTvDisplay ? (
+    <TvScheduleControls
+      schedules={tvAvailableSchedules}
+      cycle={effectiveTvCycle}
+      automatic={tvCycle === null || !tvAvailableSchedules.some(schedule => schedule.cycleName === tvCycle)}
+      date={selectedSchedule?.date}
+      onCycleChange={cycle => { setTvCycle(cycle); setSelectedDateId(null); }}
+      onDateChange={setSelectedDateId}
+      settings={renderGeneralSettings()}
+    />
+  ) : null;
+
   if (selectedSchedule) {
-    const currentIndex = filteredSchedules.findIndex(s => s.date === selectedDateId);
+    const currentIndex = filteredSchedules.indexOf(selectedSchedule);
     const hasPrev = currentIndex > 0;
     const hasNext = currentIndex < filteredSchedules.length - 1;
 
@@ -1128,7 +1237,8 @@ function App() {
       <DailyView 
         schedule={selectedSchedule} 
         role={role}
-        onBack={handleBackToCalendar}
+        onBack={isTvDisplay ? undefined : handleBackToCalendar}
+        viewControls={tvControls}
         onSave={handleSaveEvent}
         onSaveNotes={handleSaveDayNotes}
         onToggleNotesHighlight={handleToggleDayNotesHighlight}
@@ -1146,16 +1256,28 @@ function App() {
         notificationChangeType={notificationFocus?.previewText || notificationFocus?.changeType || null}
         notificationChangedFields={notificationFocus?.changedFields || []}
         testMode={isTestMode}
-        displayMode={displayMode}
+        displayMode={isTvDisplay ? 'tv' : displayMode}
       />
       {pendingNotification && (
         <ScheduleNotificationModal
+          academy={academy}
           change={pendingNotification}
           testMode={isTestMode}
           onClose={() => setPendingNotification(null)}
         />
       )}
       </>
+    );
+  }
+
+  if (isTvDisplay) {
+    return (
+      <div className="app-safe-screen daily-screen display-mode-tv bg-gray-100 flex flex-col">
+        {tvControls}
+        <div className="flex flex-1 items-center justify-center p-6 text-center font-bold text-gray-600">
+          No schedules available for {academy}.
+        </div>
+      </div>
     );
   }
 

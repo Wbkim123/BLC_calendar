@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { UserRole } from '../types/schedule';
+import { AcademyId } from '../types/academy';
 import {
   disableNotifications,
   enableNotifications,
@@ -11,6 +12,7 @@ import {
 
 interface Props {
   role: UserRole;
+  academy: AcademyId;
   cycleName?: string | null;
   variant?: 'button' | 'toggle';
   autoPrompt?: boolean;
@@ -21,7 +23,7 @@ interface Props {
 
 const AUTO_PROMPTED_KEY = 'blc_push_auto_prompted';
 
-export default function NotificationPrompt({ role, cycleName, variant = 'button', autoPrompt = true, testMode = false, hideWhenGranted = false, onStatusChange }: Props) {
+export default function NotificationPrompt({ role, academy, cycleName, variant = 'button', autoPrompt = true, testMode = false, hideWhenGranted = false, onStatusChange }: Props) {
   const [status, setStatus] = useState<NotificationAvailability>('loading');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -39,7 +41,7 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
     const previousStatus = status;
     setStatus('granted');
     try {
-      await enableNotifications(role, cycleName, testMode);
+      await enableNotifications(role, cycleName, testMode, academy);
       skipNextSubscriptionSyncRef.current = true;
       setStatus('granted');
     } catch (error: any) {
@@ -53,16 +55,16 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
     } finally {
       setBusy(false);
     }
-  }, [busy, status, role, cycleName, testMode]);
+  }, [busy, status, role, academy, cycleName, testMode]);
 
   useEffect(() => {
     if (!isPhone) {
-      disableNotifications(role, cycleName, false).catch(console.error);
+      disableNotifications(role, cycleName, false, true, academy).catch(console.error);
       setStatus('unsupported');
       return;
     }
     getNotificationAvailability().then(setStatus);
-  }, [isPhone, role, cycleName]);
+  }, [isPhone, role, academy, cycleName]);
 
   useEffect(() => {
     const refreshStatus = () => {
@@ -79,8 +81,8 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
       skipNextSubscriptionSyncRef.current = false;
       return;
     }
-    if (!testMode) syncNotificationSubscription(role, cycleName).catch(console.error);
-  }, [isPhone, role, cycleName, status, testMode, busy]);
+    if (!testMode) syncNotificationSubscription(role, cycleName, academy).catch(console.error);
+  }, [isPhone, role, academy, cycleName, status, testMode, busy]);
 
   useEffect(() => {
     if (!autoPrompt || !role || !isPhone || status !== 'prompt' || busy) return;
@@ -99,7 +101,7 @@ export default function NotificationPrompt({ role, cycleName, variant = 'button'
     try {
       // Keep the native FCM token for a reliable same-session re-enable.
       // Logout still uses the default behavior and deletes the token.
-      await disableNotifications(role, cycleName, true, false);
+      await disableNotifications(role, cycleName, true, false, academy);
       setStatus('disabled');
     } catch (error) {
       console.error('Failed to disable notifications:', error);
