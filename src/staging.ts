@@ -1,6 +1,7 @@
 import { getApps, initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth';
 import { getFunctions } from 'firebase/functions';
+import { Capacitor } from '@capacitor/core';
 
 export const stagingConfig = {
   apiKey: 'AIzaSyA1M-QWoDTffdcCpk8z5k2O2B7sGZjuzcU',
@@ -16,6 +17,12 @@ const stagingApp = getApps().find(candidate => candidate.name === 'ncoa-staging'
   || initializeApp(stagingConfig, 'ncoa-staging');
 export const stagingAuth = getAuth(stagingApp);
 export const stagingFunctions = getFunctions(stagingApp, 'us-central1');
+let stagingAuthPersistence: Promise<void> | undefined;
+export const ensureStagingAuthPersistence = () => {
+  if (Capacitor.isNativePlatform()) return Promise.resolve();
+  stagingAuthPersistence ||= setPersistence(stagingAuth, browserLocalPersistence);
+  return stagingAuthPersistence;
+};
 
 // Never infer authorization from this routing flag. The staging server and
 // database rules independently validate the staging authentication claims.

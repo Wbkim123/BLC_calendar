@@ -1,4 +1,4 @@
-import { stagingConfig, isStagingSession, getSessionGeneration, stagingAuth, stagingFunctions } from './staging';
+import { stagingConfig, isStagingSession, getSessionGeneration, stagingAuth, stagingFunctions, ensureStagingAuthPersistence } from './staging';
 import { deleteToken, getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging';
 import { httpsCallable } from 'firebase/functions';
 import { signInWithCustomToken } from 'firebase/auth';
@@ -192,7 +192,12 @@ export async function createAdminSession(code: string) {
     return;
   }
 
-  await signInWithCustomToken(isStagingSession() ? stagingAuth : auth, data.token);
+  if (isStagingSession()) {
+    await ensureStagingAuthPersistence();
+    await signInWithCustomToken(stagingAuth, data.token);
+  } else {
+    await signInWithCustomToken(auth, data.token);
+  }
 }
 
 export const clearAdminSessionToken = () => {
@@ -209,6 +214,7 @@ export const getAdminIdToken = async () => {
   const selectedAuth = isStagingSession() ? stagingAuth : auth;
   // In the phone-preview iframe Firebase may still be restoring its persisted
   // session when the first staging database read runs.
+  if (isStagingSession()) await ensureStagingAuthPersistence();
   await selectedAuth.authStateReady();
   const currentUser = selectedAuth.currentUser;
   if (!currentUser) return null;
