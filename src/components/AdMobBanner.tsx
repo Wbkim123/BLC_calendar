@@ -9,10 +9,10 @@ import {
   BannerAdSize
 } from '@capacitor-community/admob';
 
-const ANDROID_BANNER_AD_ID = 'ca-app-pub-1251095758735054/6937828493';
+const ANDROID_BANNER_AD_ID = 'ca-app-pub-1251095758735054/9153482546';
 const IOS_BANNER_AD_ID = 'ca-app-pub-1251095758735054/6980676000';
-const GOOGLE_TEST_BANNER_AD_ID = 'ca-app-pub-3940256099942544/2435281174';
-const BANNER_RESERVED_HEIGHT = 'calc(6rem + env(safe-area-inset-bottom))';
+const ANDROID_TEST_BANNER_AD_ID = 'ca-app-pub-3940256099942544/9214589741';
+const IOS_TEST_BANNER_AD_ID = 'ca-app-pub-3940256099942544/2435281174';
 const NATIVE_BANNER_RESERVED_HEIGHT = 'calc(3.125rem + env(safe-area-inset-bottom))';
 const BANNER_RETRY_DELAY_MS = 60000;
 const MAX_BANNER_RETRIES = 3;
@@ -65,7 +65,7 @@ const requestIosTrackingAuthorization = async (onDiagnostic?: DiagnosticUpdate) 
   window.dispatchEvent(new CustomEvent('blc-att-resolved', { detail: { status: resolvedStatus } }));
 };
 
-const initializeAdMob = (onDiagnostic?: DiagnosticUpdate) => {
+export const initializeAdMob = (onDiagnostic?: DiagnosticUpdate) => {
   if (!initializePromise) {
     onDiagnostic?.('initializing', 'Initializing Google Mobile Ads SDK');
     initializePromise = initializeAdMobSdk()
@@ -129,7 +129,7 @@ const getSafeAreaBottom = () => {
 const showAdMobBanner = async (testMode = false, onDiagnostic?: DiagnosticUpdate) => {
   const isIos = Capacitor.getPlatform() === 'ios';
   const bannerAdId = testMode
-    ? GOOGLE_TEST_BANNER_AD_ID
+    ? (isIos ? IOS_TEST_BANNER_AD_ID : ANDROID_TEST_BANNER_AD_ID)
     : isIos
     ? IOS_BANNER_AD_ID
     : ANDROID_BANNER_AD_ID;
@@ -260,21 +260,16 @@ export default function AdMobBanner({ visible = true, testMode = false }: Props)
   return (
     <div
       aria-hidden="true"
-      className={`admob-banner ${isNative ? `admob-banner-native pointer-events-none ${nativeStatus !== 'loaded' ? 'admob-banner-pending' : ''}` : 'border-t border-gray-200 bg-gray-50'} fixed inset-x-0 bottom-0 z-20 w-full ${visible ? '' : 'hidden'}`}
+      className={`admob-banner admob-banner-native pointer-events-none ${nativeStatus !== 'loaded' ? 'admob-banner-pending' : ''} fixed inset-x-0 bottom-0 z-20 w-full ${visible ? '' : 'hidden'}`}
       style={{
         minHeight: visible
-          ? isNative && nativeStatus !== 'loaded'
+          ? nativeStatus !== 'loaded'
             ? testMode || nativeStatus === 'loading' ? NATIVE_BANNER_RESERVED_HEIGHT : 0
-            : !isNative ? BANNER_RESERVED_HEIGHT : 0
+            : 0
           : 0
       }}
     >
-      {visible && !isNative && (
-        <div className="h-16 flex items-center justify-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
-          AdMob Banner
-        </div>
-      )}
-      {visible && isNative && nativeStatus !== 'loaded' && (
+      {visible && nativeStatus !== 'loaded' && (
         testMode ? (
           <div className="flex min-h-[5rem] items-center justify-center bg-amber-50 px-4 text-center text-[11px] font-bold text-amber-950">
             TEST AD DIAGNOSTIC: {diagnostic}

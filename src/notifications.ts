@@ -1,9 +1,10 @@
+import { stagingConfig, isStagingSession, getSessionGeneration, stagingAuth, stagingFunctions } from './staging';
 import { deleteToken, getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 import { signInWithCustomToken } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseMessaging } from '@capacitor-firebase/messaging';
-import { app, auth } from './firebase';
+import { app, auth, functions, useFirebaseEmulators } from './firebase';
 import { UserRole } from './types/schedule';
 import { AcademyId } from './types/academy';
 
@@ -12,10 +13,13 @@ const PUSH_TOPIC_KEY = 'blc_push_topic';
 const PUSH_DISABLED_KEY = 'blc_push_disabled';
 const ADMIN_ID_TOKEN_KEY = 'blc_admin_id_token';
 const ADMIN_REFRESH_TOKEN_KEY = 'blc_admin_refresh_token';
-const FIREBASE_API_KEY = 'AIzaSyDNjoIVSKyIRjFm7LQD-yH7pemRZ7c_nyc';
+const PRODUCTION_FIREBASE_API_KEY = 'AIzaSyDNjoIVSKyIRjFm7LQD-yH7pemRZ7c_nyc';
 const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY
   || 'BHhrU-r2LR0CQuEHSoy4qzLXmFJRGV_35MJANS-pQfExxsnGRNFNWQO5vnUl2YtcejkyeDBc-2_pgKmDaWnjklc';
-const functions = getFunctions(app, 'us-central1');
+const getFirebaseApiKey = () => isStagingSession() ? stagingConfig.apiKey : PRODUCTION_FIREBASE_API_KEY;
+const authStorageKey = (key: string, staging = isStagingSession()) => staging ? `staging_${key}` : key;
+const functionBaseUrl = () => `https://us-central1-${isStagingSession() ? stagingConfig.projectId : 'blc-calendar-e302f'}.cloudfunctions.net`;
+const activeFunctions = () => isStagingSession() ? stagingFunctions : functions;
 const isNativePlatform = () => Capacitor.isNativePlatform();
 const NATIVE_NOTIFICATION_TIMEOUT_MS = 15000;
 
@@ -44,7 +48,7 @@ const callNativeFunction = async <T>(
 
   try {
     const response = await fetch(
-      `https://us-central1-blc-calendar-e302f.cloudfunctions.net/${name}`,
+      `${functionBaseUrl()}/${name}`,
       {
         method: 'POST',
         headers: {
@@ -69,11 +73,12 @@ const callNativeFunction = async <T>(
 };
 
 const refreshNativeAdminIdToken = async () => {
-  const refreshToken = window.localStorage.getItem(ADMIN_REFRESH_TOKEN_KEY);
-  if (!refreshToken) return window.localStorage.getItem(ADMIN_ID_TOKEN_KEY);
+  const generation = getSessionGeneration();
+  const refreshToken = window.localStorage.getItem(authStorageKey(ADMIN_REFRESH_TOKEN_KEY));
+  if (!refreshToken) return window.localStorage.getItem(authStorageKey(ADMIN_ID_TOKEN_KEY));
 
   const response = await withNativeNotificationTimeout(
-    fetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`, {
+    fetch(`https://securetoken.googleapis.com/v1/token?key=${getFirebaseApiKey()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -91,9 +96,10 @@ const refreshNativeAdminIdToken = async () => {
   if (!response.ok || !payload?.id_token) {
     throw new Error(payload?.error?.message || 'permission-denied');
   }
-  window.localStorage.setItem(ADMIN_ID_TOKEN_KEY, payload.id_token);
+  if (generation !== getSessionGeneration()) throw new Error('Session changed.');
+  window.localStorage.setItem(authStorageKey(ADMIN_ID_TOKEN_KEY), payload.id_token);
   if (payload.refresh_token) {
-    window.localStorage.setItem(ADMIN_REFRESH_TOKEN_KEY, payload.refresh_token);
+    window.localStorage.setItem(authStorageKey(ADMIN_REFRESH_TOKEN_KEY), payload.refresh_token);
   }
   return payload.id_token;
 };
@@ -110,14 +116,33 @@ export type NotificationRecipients = {
   students: boolean;
 };
 
+export async function prepareNotificationEnvironment(staging: boolean) {
+  if (!isNativePlatform() || useFirebaseEmulators) return;
+  const next = staging ? 'staging' : 'production';
+  const previous = window.localStorage.getItem('blc_push_environment') || 'production';
+  if (previous !== next) {
+    // Rotating when crossing environments discards every old topic subscription.
+    await withNativeNotificationTimeout(FirebaseMessaging.deleteToken(), 'reset');
+    window.localStorage.removeItem(PUSH_TOKEN_KEY);
+    window.localStorage.removeItem(PUSH_TOPIC_KEY);
+  }
+  window.localStorage.setItem('blc_push_environment', next);
+  if (staging) {
+    window.localStorage.removeItem('staging_push_ready');
+    window.localStorage.removeItem('staging_push_auto_prompted');
+    window.localStorage.removeItem(PUSH_DISABLED_KEY);
+  }
+}
+
 export async function createAdminSession(code: string) {
+  if (useFirebaseEmulators) throw new Error('Local emulator sessions do not use production access codes.');
   const abortController = new AbortController();
   const timeoutId = window.setTimeout(() => abortController.abort(), 15000);
   let response: Response;
 
   try {
     response = await fetch(
-      'https://us-central1-blc-calendar-e302f.cloudfunctions.net/createAdminSession',
+      `${functionBaseUrl()}/createAdminSession`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,18 +155,20 @@ export async function createAdminSession(code: string) {
   }
 
   const payload = await response.json().catch(() => null) as {
-    result?: { token?: string };
+    result?: { token?: string; testMode?: boolean; scope?: string };
     error?: { message?: string };
   } | null;
   if (!response.ok || payload?.error) throw new Error(payload?.error?.message || 'admin-session');
 
   const data = payload?.result;
   if (!data?.token) throw new Error('admin-session');
+  if (isStagingSession() && (data.testMode !== true || data.scope !== 'NCOA')) throw new Error('staging-session');
 
   if (isNativePlatform()) {
+    await prepareNotificationEnvironment(isStagingSession());
     const authResponse = await withNativeNotificationTimeout(
       fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_API_KEY}`,
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${getFirebaseApiKey()}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -158,19 +185,20 @@ export async function createAdminSession(code: string) {
     if (!authResponse.ok || !authPayload?.idToken) {
       throw new Error(authPayload?.error?.message || 'admin-auth');
     }
-    window.localStorage.setItem(ADMIN_ID_TOKEN_KEY, authPayload.idToken);
+    window.localStorage.setItem(authStorageKey(ADMIN_ID_TOKEN_KEY), authPayload.idToken);
     if (authPayload.refreshToken) {
-      window.localStorage.setItem(ADMIN_REFRESH_TOKEN_KEY, authPayload.refreshToken);
+      window.localStorage.setItem(authStorageKey(ADMIN_REFRESH_TOKEN_KEY), authPayload.refreshToken);
     }
     return;
   }
 
-  await signInWithCustomToken(auth, data.token);
+  await signInWithCustomToken(isStagingSession() ? stagingAuth : auth, data.token);
 }
 
 export const clearAdminSessionToken = () => {
-  window.localStorage.removeItem(ADMIN_ID_TOKEN_KEY);
-  window.localStorage.removeItem(ADMIN_REFRESH_TOKEN_KEY);
+  window.localStorage.removeItem(authStorageKey(ADMIN_ID_TOKEN_KEY));
+  window.localStorage.removeItem(authStorageKey(ADMIN_REFRESH_TOKEN_KEY));
+  window.localStorage.removeItem('staging_push_ready');
 };
 
 export const getAdminIdToken = async () => {
@@ -178,7 +206,7 @@ export const getAdminIdToken = async () => {
     return refreshNativeAdminIdToken();
   }
 
-  const currentUser = auth.currentUser;
+  const currentUser = (isStagingSession() ? stagingAuth : auth).currentUser;
   if (!currentUser) return null;
   return currentUser.getIdToken();
 };
@@ -193,6 +221,8 @@ export async function sendScheduleNotification(details: {
   changedFields: string[];
   recipients: NotificationRecipients;
 }) {
+  if (useFirebaseEmulators) throw new Error('Push notifications are disabled in local emulator mode.');
+  if (isStagingSession()) return sendTestScheduleNotification(details);
   if (isNativePlatform()) {
     const idToken = await getAdminIdToken();
     if (!idToken) throw new Error('permission-denied');
@@ -200,10 +230,11 @@ export async function sendScheduleNotification(details: {
     return;
   }
 
-  await httpsCallable(functions, 'sendScheduleNotification')(details);
+  await httpsCallable(activeFunctions(), 'sendScheduleNotification')(details);
 }
 
 export async function getCurrentDevicePushToken() {
+  if (useFirebaseEmulators) throw new Error('Push notifications are disabled in local emulator mode.');
   if (isNativePlatform()) {
     const permission = await FirebaseMessaging.checkPermissions();
     if (permission.receive !== 'granted') throw new Error('permission-required');
@@ -239,6 +270,7 @@ export async function sendTestScheduleNotification(details: {
   targetId: string;
   changedFields: string[];
 }) {
+  if (useFirebaseEmulators) throw new Error('Push notifications are disabled in local emulator mode.');
   const token = await getCurrentDevicePushToken();
   if (isNativePlatform()) {
     const idToken = await getAdminIdToken();
@@ -246,7 +278,7 @@ export async function sendTestScheduleNotification(details: {
     await callNativeFunction('sendTestScheduleNotification', { ...details, token }, idToken);
     return;
   }
-  await httpsCallable(functions, 'sendTestScheduleNotification')({
+  await httpsCallable(activeFunctions(), 'sendTestScheduleNotification')({
     ...details,
     token
   });
@@ -268,12 +300,13 @@ const isStandalone = () =>
   (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
 export async function getNotificationAvailability(): Promise<NotificationAvailability> {
+  if (useFirebaseEmulators) return 'unsupported';
   if (!isPhoneDevice()) return 'unsupported';
   if (window.localStorage.getItem(PUSH_DISABLED_KEY) === 'true') return 'disabled';
 
   if (isNativePlatform()) {
     const permission = await FirebaseMessaging.checkPermissions();
-    if (permission.receive === 'granted') return 'granted';
+    if (permission.receive === 'granted') return isStagingSession() && window.localStorage.getItem('staging_push_ready') !== 'true' ? 'prompt' : 'granted';
     if (permission.receive === 'denied') return 'denied';
     return 'prompt';
   }
@@ -289,6 +322,7 @@ export async function getNotificationAvailability(): Promise<NotificationAvailab
 }
 
 export async function enableNotifications(role: UserRole, cycleName?: string | null, testMode = false, academy: AcademyId = 'BLC') {
+  if (useFirebaseEmulators) throw new Error('Push notifications are disabled in local emulator mode.');
   if (!isPhoneDevice()) throw new Error('unsupported');
 
   if (isNativePlatform()) {
@@ -304,17 +338,15 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
     );
     if (!token) throw new Error('token');
 
-    if (testMode) {
-      await callNativeFunction('unregisterPushToken', {
-        token,
-        topic: window.localStorage.getItem(PUSH_TOPIC_KEY),
-        role,
-        cycleName,
-        academy
-      });
+    if (testMode || isStagingSession()) {
+      if (!isStagingSession()) throw new Error('Staging session required.');
+      const idToken = await getAdminIdToken();
+      if (!idToken) throw new Error('permission-denied');
+      await callNativeFunction('registerPushToken', { token, academy }, idToken);
       window.localStorage.setItem(PUSH_TOKEN_KEY, token);
       window.localStorage.removeItem(PUSH_TOPIC_KEY);
       window.localStorage.removeItem(PUSH_DISABLED_KEY);
+      window.localStorage.setItem('staging_push_ready', 'true');
       return;
     }
 
@@ -356,20 +388,15 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
   if (!token) throw new Error('token');
 
   if (testMode) {
-    await httpsCallable(functions, 'unregisterPushToken')({
-      token,
-      topic: window.localStorage.getItem(PUSH_TOPIC_KEY),
-      role,
-      cycleName,
-      academy
-    });
+    if (!isStagingSession()) throw new Error('Staging session required.');
+    await httpsCallable(activeFunctions(), 'registerPushToken')({ token, academy });
     window.localStorage.setItem(PUSH_TOKEN_KEY, token);
     window.localStorage.removeItem(PUSH_TOPIC_KEY);
     window.localStorage.removeItem(PUSH_DISABLED_KEY);
     return;
   }
 
-  const result = await httpsCallable(functions, 'registerPushToken')({
+  const result = await httpsCallable(activeFunctions(), 'registerPushToken')({
     token,
     role: role || 'UNKNOWN',
     cycleName: cycleName || null,
@@ -388,15 +415,16 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
 }
 
 export async function syncNotificationSubscription(role: UserRole, cycleName?: string | null, academy: AcademyId = 'BLC') {
+  if (useFirebaseEmulators) return;
   if (isNativePlatform()) {
     const permission = await FirebaseMessaging.checkPermissions();
     if (permission.receive !== 'granted') return;
-    await enableNotifications(role, cycleName, false, academy);
+    await enableNotifications(role, cycleName, isStagingSession(), academy);
     return;
   }
 
   if (Notification.permission !== 'granted' || !window.localStorage.getItem(PUSH_TOKEN_KEY)) return;
-  await enableNotifications(role, cycleName, false, academy);
+  await enableNotifications(role, cycleName, isStagingSession(), academy);
 }
 
 async function disableNotificationsInternal(
@@ -406,6 +434,14 @@ async function disableNotificationsInternal(
   deleteNativeToken = true,
   academy: AcademyId = 'BLC'
 ) {
+  if (useFirebaseEmulators) {
+    window.localStorage.removeItem(PUSH_TOKEN_KEY);
+    window.localStorage.removeItem(PUSH_TOPIC_KEY);
+    window.localStorage.setItem(PUSH_DISABLED_KEY, 'true');
+    return;
+  }
+  const staging = isStagingSession();
+  window.localStorage.removeItem('staging_push_ready');
   let token = window.localStorage.getItem(PUSH_TOKEN_KEY);
   const topic = window.localStorage.getItem(PUSH_TOPIC_KEY);
 
@@ -428,9 +464,9 @@ async function disableNotificationsInternal(
   if (token) {
     try {
       if (isNativePlatform()) {
-        await callNativeFunction('unregisterPushToken', { token, topic, role, cycleName, academy });
+        if (!staging) await callNativeFunction('unregisterPushToken', { token, topic, role, cycleName, academy });
       } else {
-        await httpsCallable(functions, 'unregisterPushToken')({ token, topic, role, cycleName, academy });
+        await httpsCallable(activeFunctions(), 'unregisterPushToken')({ token, topic, role, cycleName, academy });
       }
     } catch (error) {
       unregisterError = error;
@@ -480,6 +516,7 @@ export async function disableNotifications(
 }
 
 export async function listenForForegroundNotifications() {
+  if (useFirebaseEmulators) return () => undefined;
   if (!isPhoneDevice()) return () => undefined;
 
   if (isNativePlatform()) {
@@ -497,6 +534,8 @@ export async function listenForForegroundNotifications() {
       };
     };
     const dispatchNotification = (data: unknown) => {
+      const environment = (data as { environment?: string } | undefined)?.environment;
+      if ((environment === 'staging') !== isStagingSession()) return;
       const detail = getNotificationDetail(data);
       if (!detail.date || !detail.targetId) return;
       window.dispatchEvent(new CustomEvent('blc-schedule-notification', { detail }));

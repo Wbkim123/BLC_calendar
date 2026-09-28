@@ -19,6 +19,7 @@ interface Props {
   onResetSchedules: () => void;
   testMode?: boolean;
   tvDisplay?: boolean;
+  notificationsDisabled?: boolean;
 }
 
 const Toggle = ({ enabled, onChange, label }: { enabled: boolean; onChange: () => void; label: string }) => (
@@ -47,7 +48,8 @@ export default function GeneralSettings({
   onDeleteCycle,
   onResetSchedules,
   testMode = false,
-  tvDisplay = false
+  tvDisplay = false,
+  notificationsDisabled = false
 }: Props) {
   const [open, setOpen] = useState(false);
   const [showDatabase, setShowDatabase] = useState(false);
@@ -120,7 +122,7 @@ export default function GeneralSettings({
             </div>
 
             <div className="space-y-3">
-              {role === 'ADMIN' && <section className="settings-card rounded-2xl border border-gray-200 p-4">
+              {role === 'ADMIN' && !testMode && <section className="settings-card rounded-2xl border border-gray-200 p-4">
                 <div className="mb-3 text-xs font-black uppercase tracking-wider text-gray-500">Display View</div>
                 <div className="grid grid-cols-2 rounded-xl bg-gray-100 p-1">
                   {(['auto', 'tv'] as DisplayMode[]).map(mode => (
@@ -140,7 +142,7 @@ export default function GeneralSettings({
                   <div className="text-sm font-black text-gray-900">Notifications</div>
                   <div className="text-[11px] font-semibold text-gray-500">Schedule update alerts</div>
                 </div>
-                <NotificationPrompt role={role} academy={academy} cycleName={cycleName} variant="toggle" autoPrompt={false} testMode={testMode} />
+                {notificationsDisabled ? <span className="text-xs font-bold text-gray-500">Disabled in local emulator</span> : <NotificationPrompt role={role} academy={academy} cycleName={cycleName} variant="toggle" autoPrompt={false} testMode={testMode} />}
               </section>
 
               <section className="settings-card flex items-center justify-between rounded-2xl border border-gray-200 p-4">

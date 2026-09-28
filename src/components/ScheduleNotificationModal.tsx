@@ -8,9 +8,10 @@ const getSendErrorMessage = (sendError: any) => {
   const code = sendError?.code || '';
   const message = sendError?.message || '';
   const combined = `${code} ${message}`.toLowerCase();
+  if (/^Approve test device: [a-f0-9]{64}$/.test(message)) return message;
 
   if (combined.includes('permission-denied')) {
-    return 'Notification was not sent. Please log out, log back in with code 2002, and try again.';
+    return 'Notification was not sent. Please log out, log back in, and try again.';
   }
   if (combined.includes('invalid-argument')) {
     return 'Notification was not sent because the saved change is missing required notification details.';
@@ -124,7 +125,7 @@ export default function ScheduleNotificationModal({ change, academy, onClose, te
       if (code.includes('permission-required')) {
         setError('Turn on notifications on this device first, then try the test again.');
       } else if (code.includes('permission-denied')) {
-        setError('Admin authentication is required. Log out, log back in with 2002, then try again.');
+        setError('Admin authentication is required. Log out, log back in, then try again.');
       } else if (code.includes('unsupported')) {
         setError('This device/browser cannot receive web push notifications.');
       } else {

@@ -29,6 +29,7 @@ export default function NotificationPrompt({ role, academy, cycleName, variant =
   const [error, setError] = useState('');
   const skipNextSubscriptionSyncRef = useRef(false);
   const isPhone = isPhoneDevice();
+  const autoPromptKey = testMode ? 'staging_push_auto_prompted' : AUTO_PROMPTED_KEY;
 
   useEffect(() => {
     onStatusChange?.(status);
@@ -39,7 +40,6 @@ export default function NotificationPrompt({ role, academy, cycleName, variant =
     setBusy(true);
     setError('');
     const previousStatus = status;
-    setStatus('granted');
     try {
       await enableNotifications(role, cycleName, testMode, academy);
       skipNextSubscriptionSyncRef.current = true;
@@ -48,7 +48,9 @@ export default function NotificationPrompt({ role, academy, cycleName, variant =
       const nextStatus = error?.message === 'denied' ? 'denied' : await getNotificationAvailability();
       setStatus(nextStatus === 'granted' ? previousStatus : nextStatus);
       setError(
-        error?.message === 'denied'
+        /^Approve test device: [a-f0-9]{64}$/.test(error?.message || '')
+          ? error.message
+          : error?.message === 'denied'
           ? 'Permission is blocked. Allow notifications in Android Settings, then tap again.'
           : 'Could not enable notifications. Check your connection and try again.'
       );
@@ -86,11 +88,11 @@ export default function NotificationPrompt({ role, academy, cycleName, variant =
 
   useEffect(() => {
     if (!autoPrompt || !role || !isPhone || status !== 'prompt' || busy) return;
-    if (window.localStorage.getItem(AUTO_PROMPTED_KEY) === 'true') return;
+    if (window.localStorage.getItem(autoPromptKey) === 'true') return;
 
-    window.localStorage.setItem(AUTO_PROMPTED_KEY, 'true');
+    window.localStorage.setItem(autoPromptKey, 'true');
     requestNotificationPermission();
-  }, [autoPrompt, role, isPhone, status, busy, requestNotificationPermission]);
+  }, [autoPrompt, autoPromptKey, role, isPhone, status, busy, requestNotificationPermission]);
 
   if (!role || status === 'loading' || status === 'unsupported' || status === 'unconfigured') return null;
 
@@ -169,6 +171,7 @@ export default function NotificationPrompt({ role, academy, cycleName, variant =
   }
 
   return (
+    <div className="w-full">
     <button
       type="button"
       disabled={busy}
@@ -181,5 +184,7 @@ export default function NotificationPrompt({ role, academy, cycleName, variant =
     >
       {busy ? 'UPDATING...' : status === 'granted' ? 'NOTIFICATIONS OFF' : 'ENABLE NOTIFICATIONS'}
     </button>
+    {error && <p role="alert" className="mt-2 break-all text-xs font-semibold text-red-600">{error}</p>}
+    </div>
   );
 }

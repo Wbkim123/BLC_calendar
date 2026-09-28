@@ -3,10 +3,16 @@ import React, { ReactNode, useRef, useState } from 'react';
 import { DailySchedule, UserRole } from '../types/schedule';
 import type { DisplayMode } from '../App';
 import AdMobBanner from './AdMobBanner';
+import { AcademyId } from '../types/academy';
+import EventSearchModal from '../features/event-search/EventSearchModal';
+import { EventSearchResult } from '../features/event-search/searchEvents';
 
 interface Props {
   schedules: DailySchedule[];
+  academy: AcademyId;
+  currentCycleName?: string | null;
   onSelectDate: (date: string) => void;
+  onSelectSearchResult: (result: EventSearchResult) => void;
   role?: UserRole;
   cycleTitle?: string;
   onUpdateCycleTitle?: (title: string) => void;
@@ -19,6 +25,17 @@ interface Props {
 
 const hasScheduleConflict = (schedule: DailySchedule) => {
   const sortedEvents = [...(schedule.events || [])].sort((a, b) => a.time.localeCompare(b.time));
+
+  if (schedule.academy === 'KTA') {
+    return sortedEvents.some((event, index) => sortedEvents.slice(index + 1).some(other => {
+      const [start, end] = event.time.split('-').map(Number);
+      const [otherStart, otherEnd] = other.time.split('-').map(Number);
+      const location = event.location.trim().toUpperCase();
+      const otherLocation = other.location.trim().toUpperCase();
+      const hasKnownSharedLocation = Boolean(location && location !== 'TBD' && location === otherLocation);
+      return hasKnownSharedLocation && start < otherEnd && otherStart < end;
+    }));
+  }
 
   return sortedEvents.some((event, index) => {
     if (index === 0) return false;
@@ -36,7 +53,10 @@ const getCalendarDayLabel = (dayLabel: string) =>
 
 export default function Calendar({ 
   schedules, 
+  academy,
+  currentCycleName,
   onSelectDate, 
+  onSelectSearchResult,
   role, 
   cycleTitle = "BLC CLASS", 
   onUpdateCycleTitle,
@@ -50,6 +70,7 @@ export default function Calendar({
   const [viewDate, setViewDate] = useState(new Date());
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [newTitle, setNewTitle] = useState(cycleTitle);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const year = viewDate.getFullYear();
@@ -153,7 +174,14 @@ export default function Calendar({
         </div>
 
         {/* 데이터 관리 패널 (ADMIN 전용) */}
-        <div className={`calendar-actions mb-2 flex w-full gap-2 ${role === 'ADMIN' ? '' : 'block'}`}>
+        <div className="calendar-actions mb-2 flex w-full gap-2">
+          <button
+            onClick={() => setIsSearchOpen(true)}
+            className="calendar-search-action flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-xs font-bold"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            SEARCH
+          </button>
           {role === 'ADMIN' && (
             <button
               onClick={onOpenImport}
@@ -163,7 +191,7 @@ export default function Calendar({
               IMPORT
             </button>
           )}
-          <div className={role === 'ADMIN' ? 'flex-1' : 'w-full'}>{settingsControl}</div>
+          <div className="flex-1">{settingsControl}</div>
         </div>
 
         {/* 달력 본체 - 높이 확대 및 내부 패딩 조정 */}
@@ -272,6 +300,19 @@ export default function Calendar({
         </div>
         <AdMobBanner visible={showAdBanner} testMode={testMode} />
       </div>
+      {isSearchOpen && (
+        <EventSearchModal
+          schedules={schedules}
+          academy={academy}
+          role={role}
+          currentCycleName={currentCycleName}
+          onClose={() => setIsSearchOpen(false)}
+          onSelect={(result) => {
+            setIsSearchOpen(false);
+            onSelectSearchResult(result);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { AccessProfile, AccessLevel } from '../../types/academy';
 import { canUseWebsite } from './webAccess';
-import { resolveTvAccess } from './resolveTvAccess';
+import { resolveAccessCode } from './accessCodes';
 import { TV_ACCESS_CODES } from './tvAccessCodes';
 
 const profile = (accessLevel: AccessLevel): AccessProfile => ({
@@ -29,7 +29,7 @@ describe('website access', () => {
 
   it('resolves separate read-only TV credentials even without an active cycle', () => {
     for (const academy of ['BLC', 'KTA'] as const) {
-      const resolved = resolveTvAccess(TV_ACCESS_CODES[academy].toLowerCase());
+      const resolved = resolveAccessCode(TV_ACCESS_CODES[academy].toLowerCase(), [], academy === 'BLC' ? 'KTA' : 'BLC');
       expect(resolved).toEqual({
         accessLevel: 'TV_DISPLAY', role: 'VIEWER', academy, scope: academy, permissions: ['schedule.read']
       });

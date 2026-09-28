@@ -10,11 +10,14 @@ let mockDatabase: Record<string, unknown> = {};
 const mockOwnerClaims: Record<string, unknown> = { admin: true };
 
 jest.mock('./firebase', () => ({
-  db: {}, firebaseDatabaseUrl: 'https://example.invalid',
+  app: {}, db: {}, functions: {}, useFirebaseEmulators: false,
+  getDatabaseRestUrl: (path: string) => `https://example.invalid/${path}.json`,
   auth: { currentUser: { getIdTokenResult: async () => ({ claims: mockOwnerClaims }) } }
 }));
+jest.mock('firebase/app', () => ({ getApps: () => [], initializeApp: () => ({}) }));
 jest.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false, getPlatform: () => 'web' } }));
-jest.mock('firebase/auth', () => ({ signOut: async () => undefined }));
+jest.mock('firebase/auth', () => ({ getAuth: () => ({}), signOut: async () => undefined }));
+jest.mock('firebase/functions', () => ({ getFunctions: () => ({}) }));
 jest.mock('firebase/database', () => ({
   ref: (_db: unknown, path: string) => path,
   onValue: (path: string, callback: (snapshot: unknown) => void) => {
@@ -28,10 +31,15 @@ jest.mock('firebase/database', () => ({
 jest.mock('./notifications', () => ({
   clearAdminSessionToken: () => undefined,
   createAdminSession: async () => undefined,
+  prepareNotificationEnvironment: async () => undefined,
   disableNotifications: async () => undefined,
   getAdminIdToken: async () => null,
   isPhoneDevice: () => false,
   listenForForegroundNotifications: async () => () => undefined
+}));
+jest.mock('./features/ads/studentInterstitial', () => ({
+  prepareStudentInterstitial: () => undefined,
+  recordStudentCalendarReturnAndMaybeShow: () => undefined
 }));
 jest.mock('./components/GeneralSettings', () => ({ __esModule: true, default: ({ onLogout }: any) => <button onClick={onLogout}>Logout</button> }));
 jest.mock('./components/NotificationPrompt', () => () => null);
@@ -39,7 +47,7 @@ jest.mock('./components/ScheduleImportModal', () => () => null);
 jest.mock('./components/ScheduleNotificationModal', () => () => null);
 jest.mock('./components/Calendar', () => () => <div>Calendar screen</div>);
 jest.mock('./components/DailyView', () => ({ __esModule: true, default: ({ schedule, onBack, viewControls }: any) => (
-  <div>{viewControls}<div>Events {schedule.academy} {schedule.cycleName}</div>{onBack && <button onClick={onBack}>Calendar</button>}</div>
+  <div>{viewControls}<div>Events {schedule.cycleName}</div>{onBack && <button onClick={onBack}>Calendar</button>}</div>
 ) }));
 
 beforeEach(() => {
@@ -61,7 +69,7 @@ describe('website TV integration', () => {
   it('opens a TV event screen without calendar access and does not write defaults', async () => {
     render(<App />);
     await loginTv('BLC');
-    await screen.findByText('Events BLC BLC cycle');
+    await screen.findByText('Events BLC cycle');
     expect(screen.queryByRole('button', { name: 'Calendar' })).toBeNull();
     expect(screen.getByLabelText('Cycle')).toBeTruthy();
     expect(set).not.toHaveBeenCalled();
@@ -70,8 +78,8 @@ describe('website TV integration', () => {
   it('reads only KTA schedules after KTA TV login', async () => {
     render(<App />);
     await loginTv('KTA');
-    await screen.findByText('Events KTA KTA cycle');
-    expect(screen.queryByText('Events BLC BLC cycle')).toBeNull();
+    await screen.findByText('Events KTA cycle');
+    expect(screen.queryByText('Events BLC cycle')).toBeNull();
     expect(set).not.toHaveBeenCalled();
   });
 
@@ -95,7 +103,7 @@ describe('website TV integration', () => {
 
   it('preserves the authenticated owner calendar', async () => {
     render(<App />);
-    fireEvent.change(await screen.findByPlaceholderText('Enter Access Code'), { target: { value: 'TEST_OWNER_FIXTURE' } });
+    fireEvent.change(await screen.findByPlaceholderText('Enter Access Code'), { target: { value: 'NCOA6120' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'ENTER' })); });
     await screen.findByText('Calendar screen');
   });

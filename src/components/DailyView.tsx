@@ -10,6 +10,7 @@ interface Props {
   onBack?: () => void;
   viewControls?: React.ReactNode;
   onSave: (dateStr: string, updatedEvent: TrainingEvent) => void;
+  onSaveDayLabel: (dateStr: string, dayLabel: string) => void;
   onSaveNotes: (dateStr: string, notes: string) => void;
   onToggleNotesHighlight: (dateStr: string) => void;
   onSaveSglNotes: (dateStr: string, notes: string) => void;
@@ -35,6 +36,7 @@ export default function DailyView({
   onBack,
   viewControls,
   onSave, 
+  onSaveDayLabel,
   onSaveNotes,
   onToggleNotesHighlight,
   onSaveSglNotes,
@@ -54,9 +56,12 @@ export default function DailyView({
   displayMode
 }: Props) {
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
+  const [editingDayLabel, setEditingDayLabel] = useState(false);
+  const [dayLabelDraft, setDayLabelDraft] = useState(schedule.dayLabel);
   const [editingNotes, setEditingNotes] = useState<'public' | 'sgl' | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const highlightedTargetRef = useRef<HTMLDivElement>(null);
+  // KTA staff use one shared NOTES field. The public/SGL split remains BLC-only.
   const isKtaSchedule = schedule.academy === 'KTA';
   const canViewSglNotes = !isKtaSchedule && (role === 'ADMIN' || role === 'VIEWER');
   const scheduleDayName = (() => {
@@ -66,6 +71,11 @@ export default function DailyView({
       .toLocaleDateString('en-US', { weekday: 'short' })
       .toUpperCase();
   })();
+
+  useEffect(() => {
+    setDayLabelDraft(schedule.dayLabel);
+    setEditingDayLabel(false);
+  }, [schedule.date, schedule.dayLabel]);
 
   useEffect(() => {
     if (!notificationHighlightTarget) return;
@@ -140,7 +150,7 @@ export default function DailyView({
       time: "0900-1000",
       eventName: "",
       location: locations[0] || "MPR",
-      uniform: uniforms[0] || "PT",
+      uniform: isKtaSchedule ? "UNASSIGNED" : (uniforms[0] || "PT"),
       highlighted: false
     };
     setEditingEvent(newEvent);
@@ -196,9 +206,19 @@ export default function DailyView({
   // 각 이벤트가 충돌하는지 여부를 판단하는 함수
   const checkConflict = (idx: number) => {
     if (sortedEvents.length <= 1) return false;
-    
+
     const curr = sortedEvents[idx];
     const [currStart, currEnd] = curr.time.split('-').map(t => parseInt(t));
+
+    if (schedule.academy === 'KTA') {
+      const location = curr.location.trim().toUpperCase();
+      if (!location || location === 'TBD') return false;
+      return sortedEvents.some((other, otherIndex) => {
+        if (otherIndex === idx || other.location.trim().toUpperCase() !== location) return false;
+        const [otherStart, otherEnd] = other.time.split('-').map(t => parseInt(t));
+        return currStart < otherEnd && otherStart < currEnd;
+      });
+    }
 
     // 이전 이벤트와 겹치는지 확인
     if (idx > 0) {
@@ -215,12 +235,7 @@ export default function DailyView({
     return false;
   };
 
-  const hasGlobalConflict = sortedEvents.some((_, idx) => {
-    if (idx === 0) return false;
-    const prevEndTime = parseInt(sortedEvents[idx - 1].time.split('-')[1]);
-    const currStartTime = parseInt(sortedEvents[idx].time.split('-')[0]);
-    return currStartTime < prevEndTime;
-  });
+  const hasGlobalConflict = sortedEvents.some((_, idx) => checkConflict(idx));
 
   return (
     <div 
@@ -241,7 +256,19 @@ export default function DailyView({
             <h1 className="text-base sm:text-xl font-black truncate">
               {schedule.date}{scheduleDayName ? ` (${scheduleDayName})` : ''}
             </h1>
-            <p className="text-xs sm:text-sm text-blue-200 truncate">{schedule.dayLabel}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs sm:text-sm text-blue-200 truncate">{schedule.dayLabel}</p>
+              {role === 'ADMIN' && (
+                <button
+                  type="button"
+                  onClick={() => setEditingDayLabel(true)}
+                  className="rounded bg-blue-800 px-1.5 py-0.5 text-[10px] font-black text-blue-100 active:bg-blue-700"
+                  aria-label="Edit day number"
+                >
+                  EDIT
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -357,7 +384,7 @@ export default function DailyView({
                     </div>
                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] lg:text-xs font-bold text-gray-500 min-w-0">
                       <span className="flex items-center gap-1 min-w-0">📍 LOC: <span className={`${isPast ? 'text-gray-400' : 'text-gray-800'} truncate`}>{ev.location}</span></span>
-                      <span className="flex items-center gap-1 min-w-0">👕 {isKtaSchedule ? 'DUTY NCO' : 'UNI'}: <span className={`${isPast ? 'text-gray-400' : 'text-gray-800'} truncate`}>{ev.uniform}</span></span>
+                      <span className="flex items-center gap-1 min-w-0">{isKtaSchedule ? 'DUTY NCO:' : '👕 UNI:'} <span className={`${isPast ? 'text-gray-400' : 'text-gray-800'} truncate`}>{ev.uniform}</span></span>
                     </div>
                   </div>
                   {notificationHighlightTarget === `event:${ev.id}` && (
@@ -517,10 +544,10 @@ export default function DailyView({
               onClick={() => setEditingNotes('public')}
               className="add-student-notes w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-blue-200 rounded-xl flex items-center justify-center text-blue-500 hover:border-blue-400 hover:bg-blue-50 transition-all active:scale-[0.98] text-xs lg:text-sm font-black uppercase tracking-widest"
             >
-              + Add Student Notes
+              {isKtaSchedule ? '+ Add Notes' : '+ Add Student Notes'}
             </button>
           )}
-          {!schedule.sglNotes && (
+          {!isKtaSchedule && !schedule.sglNotes && (
             <button
               onClick={() => setEditingNotes('sgl')}
               className="add-sgl-notes w-full py-2 px-3 lg:py-3 lg:px-4 border-2 border-dashed border-purple-200 rounded-xl flex items-center justify-center text-purple-500 hover:border-purple-400 hover:bg-purple-50 transition-all active:scale-[0.98] text-xs lg:text-sm font-black uppercase tracking-widest"
@@ -540,6 +567,41 @@ export default function DailyView({
       </div>
       <AdMobBanner testMode={testMode} />
 
+      {editingDayLabel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <form
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const normalized = dayLabelDraft.trim().replace(/\s+/g, ' ').toUpperCase();
+              if (!normalized) return;
+              onSaveDayLabel(schedule.date, normalized);
+              setEditingDayLabel(false);
+            }}
+          >
+            <h2 className="text-lg font-black text-gray-900">Edit Day Number</h2>
+            <p className="mt-1 text-xs font-medium text-gray-500">{schedule.date}</p>
+            <label className="mt-4 block text-xs font-black uppercase tracking-wider text-gray-500">Day label</label>
+            <input
+              autoFocus
+              value={dayLabelDraft}
+              onChange={(event) => setDayLabelDraft(event.target.value)}
+              maxLength={60}
+              placeholder="DAY 20"
+              className="mt-2 w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-base font-black uppercase outline-none focus:border-blue-700"
+            />
+            <div className="mt-5 flex gap-2">
+              <button type="button" onClick={() => { setDayLabelDraft(schedule.dayLabel); setEditingDayLabel(false); }} className="flex-1 rounded-xl bg-gray-100 py-3 font-bold text-gray-700">
+                Cancel
+              </button>
+              <button type="submit" disabled={!dayLabelDraft.trim()} className="flex-1 rounded-xl bg-blue-700 py-3 font-bold text-white disabled:opacity-40">
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* 수정 모달창 (editingEvent가 있을 때만 렌더링) */}
       {editingEvent && (
         <EditModal 
@@ -555,6 +617,7 @@ export default function DailyView({
           uniforms={uniforms}
           onAddLocation={onAddLocation}
           onAddUniform={onAddUniform}
+          academy={schedule.academy}
         />
       )}
       {editingNotes && (
@@ -632,7 +695,8 @@ function EditModal({
   locations, 
   uniforms, 
   onAddLocation, 
-  onAddUniform 
+  onAddUniform,
+  academy
 }: { 
   event: TrainingEvent, 
   isCreating: boolean,
@@ -642,7 +706,8 @@ function EditModal({
   locations: string[],
   uniforms: string[],
   onAddLocation: (loc: string) => void,
-  onAddUniform: (uni: string) => void
+  onAddUniform: (uni: string) => void,
+  academy?: 'BLC' | 'KTA'
 }) {
   const [formData, setFormData] = useState<TrainingEvent>(event);
   const [showAddLoc, setShowAddLoc] = useState(false);
@@ -740,15 +805,24 @@ function EditModal({
           {/* UNIFORM Dropdown */}
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="block text-xs font-bold text-gray-500">UNIFORM (UNI)</label>
-              <button 
+              <label className="block text-xs font-bold text-gray-500">{academy === 'KTA' ? 'DUTY NCO' : 'UNIFORM (UNI)'}</label>
+              {academy !== 'KTA' && <button 
                 onClick={() => setShowAddUni(!showAddUni)}
                 className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold"
               >
                 {showAddUni ? "Cancel" : "+ Add New"}
-              </button>
+              </button>}
             </div>
-            {showAddUni ? (
+            {academy === 'KTA' ? (
+              <input
+                type="text"
+                name="uniform"
+                value={formData.uniform}
+                onChange={handleChange}
+                placeholder="Duty NCO or ALL HANDS"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            ) : showAddUni ? (
               <div className="flex gap-2">
                 <input 
                   type="text" 

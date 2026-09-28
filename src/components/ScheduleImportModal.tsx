@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createWorker } from 'tesseract.js';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DailySchedule } from '../types/schedule';
+import { AcademyId } from '../types/academy';
+import { extractKtaCalendarText } from '../features/kta/ktaPdfParser';
 
 // Correct PDF worker setup
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -11,6 +13,41 @@ type PdfTextItem = {
   x: number;
   y: number;
   isRed?: boolean;
+  backgroundColor?: string;
+  dutyCellTop?: number;
+  dutyCellBottom?: number;
+};
+
+type PdfHorizontalLine = { x1: number; x2: number; y: number };
+
+type PdfFillRectangle = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+};
+
+export const selectPdfBackgroundColor = (
+  rectangles: PdfFillRectangle[],
+  sampleX: number,
+  sampleY: number
+) => {
+  const strictMatches = rectangles.filter(rectangle =>
+    rectangle.color !== '#000000' &&
+    sampleX >= rectangle.x1 && sampleX <= rectangle.x2 &&
+    sampleY >= rectangle.y1 && sampleY <= rectangle.y2
+  );
+  const matches = strictMatches.length > 0
+    ? strictMatches
+    : rectangles.filter(rectangle =>
+        rectangle.color !== '#000000' &&
+        sampleX >= rectangle.x1 - 0.75 && sampleX <= rectangle.x2 + 0.75 &&
+        sampleY >= rectangle.y1 - 0.75 && sampleY <= rectangle.y2 + 0.75
+      );
+  return [...matches].sort((a, b) =>
+    (a.x2 - a.x1) * (a.y2 - a.y1) - (b.x2 - b.x1) * (b.y2 - b.y1)
+  )[0]?.color;
 };
 
 type PdfDayLabel = {
@@ -24,10 +61,23 @@ interface Props {
   onImport: (schedules: DailySchedule[]) => void;
   locations: string[];
   uniforms: string[];
+  academy?: AcademyId;
 }
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const PDF_RED_MARKER = '[[PDF_RED_TEXT]]';
+const normalizeKtaDutyDisplay = (value: string) => {
+  const cleaned = value.replace(/\bN\s*\/?\s*A\b/gi, '').replace(/\s+/g, ' ').trim();
+  if (/^(?:ALL(?:\s+HANDS)?\s*)+$/i.test(cleaned)) return 'ALL';
+  const words = cleaned.split(' ').filter(Boolean);
+  if (words.length % 2 === 0) {
+    const middle = words.length / 2;
+    if (words.slice(0, middle).join(' ').toUpperCase() === words.slice(middle).join(' ').toUpperCase()) {
+      return words.slice(0, middle).join(' ');
+    }
+  }
+  return words.filter((word, index) => index === 0 || word.toUpperCase() !== words[index - 1].toUpperCase()).join(' ');
+};
 
 const median = (values: number[]) => {
   if (values.length === 0) return 0;
@@ -74,6 +124,132 @@ const getPdfGlyphText = (args: any[]) => {
     .trim();
 };
 
+const multiplyPdfMatrices = (a: number[], b: number[]) => [
+  a[0] * b[0] + a[2] * b[1],
+  a[1] * b[0] + a[3] * b[1],
+  a[0] * b[2] + a[2] * b[3],
+  a[1] * b[2] + a[3] * b[3],
+  a[0] * b[4] + a[2] * b[5] + a[4],
+  a[1] * b[4] + a[3] * b[5] + a[5]
+];
+
+const extractPdfFillRectangles = (operatorList: any): PdfFillRectangle[] => {
+  const ops = pdfjsLib.OPS as any;
+  const rectangles: PdfFillRectangle[] = [];
+  const stack: number[][] = [];
+  let matrix = [1, 0, 0, 1, 0, 0];
+  let fillColor = '#000000';
+
+  operatorList.fnArray.forEach((fn: number, index: number) => {
+    const args = operatorList.argsArray[index];
+    if (fn === ops.save) {
+      stack.push([...matrix]);
+      return;
+    }
+    if (fn === ops.restore) {
+      matrix = stack.pop() || matrix;
+      return;
+    }
+    if (fn === ops.transform) {
+      matrix = multiplyPdfMatrices(matrix, args);
+      return;
+    }
+    if (fn === ops.setFillRGBColor) {
+      fillColor = String(args?.[0] || '#000000').toLowerCase();
+      return;
+    }
+    if (fn !== ops.constructPath) return;
+
+    const bounds = args?.[2];
+    if (!bounds || !Number.isFinite(bounds[0]) || !Number.isFinite(bounds[1]) ||
+        !Number.isFinite(bounds[2]) || !Number.isFinite(bounds[3])) return;
+
+    const transformPoint = (x: number, y: number) => ({
+      x: matrix[0] * x + matrix[2] * y + matrix[4],
+      y: matrix[1] * x + matrix[3] * y + matrix[5]
+    });
+    const first = transformPoint(bounds[0], bounds[1]);
+    const second = transformPoint(bounds[2], bounds[3]);
+    const rectangle = {
+      x1: Math.min(first.x, second.x),
+      y1: Math.min(first.y, second.y),
+      x2: Math.max(first.x, second.x),
+      y2: Math.max(first.y, second.y),
+      color: fillColor
+    };
+
+    // Ignore thin borders and page-sized outlines. Schedule cell fills are
+    // broad enough to cover text and at least two PDF points high.
+    if (rectangle.x2 - rectangle.x1 >= 8 && rectangle.y2 - rectangle.y1 >= 2) {
+      rectangles.push(rectangle);
+    }
+  });
+
+  return rectangles;
+};
+
+const extractPdfHorizontalLines = (operatorList: any): PdfHorizontalLine[] => {
+  const ops = pdfjsLib.OPS as any;
+  const lines: PdfHorizontalLine[] = [];
+  const stack: number[][] = [];
+  let matrix = [1, 0, 0, 1, 0, 0];
+
+  operatorList.fnArray.forEach((fn: number, index: number) => {
+    const args = operatorList.argsArray[index];
+    if (fn === ops.save) {
+      stack.push([...matrix]);
+      return;
+    }
+    if (fn === ops.restore) {
+      matrix = stack.pop() || matrix;
+      return;
+    }
+    if (fn === ops.transform) {
+      matrix = multiplyPdfMatrices(matrix, args);
+      return;
+    }
+    if (fn !== ops.constructPath) return;
+
+    const rawData = Array.isArray(args?.[1]) && args[1].length === 1 ? args[1][0] : args?.[1];
+    const data = Array.from(rawData || []) as number[];
+    let dataIndex = 0;
+    let current: { x: number; y: number } | null = null;
+    let start: { x: number; y: number } | null = null;
+    const transformPoint = (x: number, y: number) => ({
+      x: matrix[0] * x + matrix[2] * y + matrix[4],
+      y: matrix[1] * x + matrix[3] * y + matrix[5]
+    });
+    const addLine = (from: { x: number; y: number }, to: { x: number; y: number }) => {
+      if (Math.abs(from.y - to.y) > 0.35 || Math.abs(from.x - to.x) < 4) return;
+      lines.push({ x1: Math.min(from.x, to.x), x2: Math.max(from.x, to.x), y: (from.y + to.y) / 2 });
+    };
+
+    while (dataIndex < data.length) {
+      const code = data[dataIndex++];
+      if (code === 0) {
+        current = transformPoint(data[dataIndex++], data[dataIndex++]);
+        start = current;
+      } else if (code === 1) {
+        const next = transformPoint(data[dataIndex++], data[dataIndex++]);
+        if (current) addLine(current, next);
+        current = next;
+      } else if (code === 2) {
+        dataIndex += 6;
+        current = null;
+      } else if (code === 3) {
+        dataIndex += 4;
+        current = null;
+      } else if (code === 4) {
+        if (current && start) addLine(current, start);
+        current = start;
+      } else {
+        break;
+      }
+    }
+  });
+  return lines;
+};
+
 const extractPdfTextItems = async (page: any): Promise<PdfTextItem[]> => {
   const [content, operatorList] = await Promise.all([
     page.getTextContent(),
@@ -82,6 +258,8 @@ const extractPdfTextItems = async (page: any): Promise<PdfTextItem[]> => {
 
   const redTexts: string[] = [];
   const ops = pdfjsLib.OPS as any;
+  const fillRectangles = extractPdfFillRectangles(operatorList);
+  const horizontalLines = extractPdfHorizontalLines(operatorList);
   let currentFill: any = [0, 0, 0];
 
   operatorList.fnArray.forEach((fn: number, index: number) => {
@@ -127,12 +305,24 @@ const extractPdfTextItems = async (page: any): Promise<PdfTextItem[]> => {
         break;
       }
 
+      const sampleX = Number(item.transform[4]) + 0.5;
+      const sampleY = Number(item.transform[5]) - 1.5;
+
       const pdfItem: PdfTextItem = {
         str,
         x: item.transform[4] as number,
         y: item.transform[5] as number,
-        isRed
+        isRed,
+        backgroundColor: selectPdfBackgroundColor(fillRectangles, sampleX, sampleY)
       };
+      if (/^(?:ALL(?:\s+HANDS)?(?:\s+ALL(?:\s+HANDS)?)?)$/i.test(str)) {
+        const dutyLines = horizontalLines
+          .filter(line => Number(item.transform[4]) >= line.x1 - 0.5 && Number(item.transform[4]) <= line.x2 + 0.5)
+          .filter(line => line.x2 - line.x1 >= 30 && line.x2 - line.x1 <= 70);
+        const itemY = Number(item.transform[5]);
+        pdfItem.dutyCellTop = dutyLines.filter(line => line.y > itemY).sort((a, b) => a.y - b.y)[0]?.y;
+        pdfItem.dutyCellBottom = dutyLines.filter(line => line.y < itemY).sort((a, b) => b.y - a.y)[0]?.y;
+      }
       return pdfItem;
     })
     .filter(Boolean) as PdfTextItem[];
@@ -147,7 +337,7 @@ const getLocalDateString = (date = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
-export default function ScheduleImportModal({ onClose, onImport, locations, uniforms }: Props) {
+export default function ScheduleImportModal({ onClose, onImport, locations, uniforms, academy = 'BLC' }: Props) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedText, setExtractedText] = useState("");
   const [parsedSchedules, setParsedSchedules] = useState<DailySchedule[]>([]);
@@ -179,7 +369,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       const d = new Date(dateStr);
       do {
         d.setDate(d.getDate() + 1);
-      } while (isSunday(d));
+      } while (academy === 'BLC' && isSunday(d));
       return d.toISOString().split('T')[0];
     };
 
@@ -207,7 +397,14 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       if (!normalizedNote) return;
 
       const schedule = ensureCurrentSchedule();
-      schedule.notes = [schedule.notes, normalizedNote].filter(Boolean).join('\n');
+      if (academy === 'KTA' && /^DTY\s+SEC\s*:/i.test(normalizedNote)) {
+        const existingLines = (schedule.notes || '')
+          .split('\n')
+          .filter(line => line.trim() && !/^DTY\s+SEC\s*:/i.test(line.trim()));
+        schedule.notes = [normalizedNote, ...existingLines].join('\n');
+      } else {
+        schedule.notes = [schedule.notes, normalizedNote].filter(Boolean).join('\n');
+      }
       schedule.notesHighlighted = Boolean(schedule.notesHighlighted || highlighted);
     };
 
@@ -308,6 +505,19 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           const endIdx = nextToken ? nextToken.match.index : cleanLine.length;
           let content = cleanLine.substring(startIdx, endIdx).trim();
 
+          let ktaDutyNco = '';
+          if (academy === 'KTA') {
+            const dutyMarker = content.match(/\[\[KTA_DUTY_NCO=([^\]]*)\]\]/i);
+            if (dutyMarker) {
+              try {
+                ktaDutyNco = normalizeKtaDutyDisplay(decodeURIComponent(dutyMarker[1]));
+              } catch {
+                ktaDutyNco = normalizeKtaDutyDisplay(dutyMarker[1]);
+              }
+              content = content.replace(dutyMarker[0], '').trim();
+            }
+          }
+
           if (content.length < 2) return;
 
           let foundLoc = "";
@@ -363,15 +573,20 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
             content = content.substring(0, inlineNoteMatch.index).trim();
           }
 
-          const eventName = content.replace(/^[:\s-]+|[:\s-]+$/g, '').replace(/\s+/g, ' ') || "UNNAMED EVENT";
+          const isNoLaterThan = academy === 'KTA' && /\s*\(NLT\)\s*$/i.test(content);
+          const eventName = content
+            .replace(isNoLaterThan ? /\s*\(NLT\)\s*$/i : /$^/, '')
+            .replace(/^[:\s-]+|[:\s-]+$/g, '')
+            .replace(/\s+/g, ' ') || "UNNAMED EVENT";
 
           const schedule = ensureCurrentSchedule();
           schedule.events.push({
             id: `imp-${lineIdx}-${tIdx}-${Date.now()}`,
             time: `${startTime}-${endTime}`,
+            displayTime: isNoLaterThan ? `NLT-${endTime}` : undefined,
             eventName: eventName.toUpperCase(),
-            location: foundLoc || (locations[0] || "MPR"),
-            uniform: foundUni || (uniforms[0] || "ACU"),
+            location: foundLoc || (academy === 'KTA' ? 'TBD' : (locations[0] || "MPR")),
+            uniform: academy === 'KTA' ? (ktaDutyNco || 'UNASSIGNED') : (foundUni || (uniforms[0] || "ACU")),
             highlighted: lineHighlighted
           });
         }
@@ -379,7 +594,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     });
 
     setParsedSchedules(Object.values(schedulesMap).sort((a, b) => a.date.localeCompare(b.date)));
-  }, [startDate, cycleName, locations, uniforms]);
+  }, [startDate, cycleName, locations, uniforms, academy]);
 
   useEffect(() => {
     parseTextToEvents(extractedText);
@@ -432,6 +647,12 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex++) {
       const page = await pdf.getPage(pageIndex);
       const items = await extractPdfTextItems(page);
+
+      if (academy === 'KTA') {
+        const ktaText = extractKtaCalendarText(items);
+        if (ktaText) pages.push(ktaText);
+        continue;
+      }
 
       const timeHeaderXs = Array.from(new Set(
         items
@@ -667,8 +888,8 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
       <div className="soft-modal bg-white w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]">
         <div className="soft-modal-header bg-blue-900 p-4 sm:p-6 text-white shrink-0">
           <div>
-            <h3 className="text-xl sm:text-2xl font-black">Smart Schedule Import</h3>
-            <p className="text-blue-200 text-sm">PDF schedule parsing</p>
+            <h3 className="text-xl sm:text-2xl font-black">{academy} Smart Schedule Import</h3>
+            <p className="text-blue-200 text-sm">{academy}-specific PDF schedule parsing</p>
           </div>
         </div>
 
@@ -722,7 +943,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
                     <div className="p-3 space-y-2">
                       {day.events.map((ev, eIdx) => (
                         <div key={eIdx} className={`flex items-center gap-3 text-[10px] p-2 rounded-lg ${ev.highlighted ? 'bg-red-50' : 'bg-blue-50/50'}`}>
-                          <span className="font-black text-blue-700 w-16 shrink-0">{ev.time}</span>
+                          <span className="font-black text-blue-700 w-20 shrink-0">{ev.displayTime || ev.time}</span>
                           <span className={`flex-1 min-w-0 font-bold ${ev.highlighted ? 'text-red-700' : 'text-gray-700'}`}>
                             <span className="block truncate">{ev.eventName}</span>
                           </span>

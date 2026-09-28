@@ -1,6 +1,4 @@
-import { AccessProfile, AcademyId } from './types/academy';
-import { getAcademyConfig } from './config/academies';
-import { resolveTvAccess } from './features/auth/resolveTvAccess';
+import { isStagingSession, selectStagingSession, stagingDatabaseUrl, getSessionGeneration, stagingAuth } from './staging';
 import { canUseWebsite } from './features/auth/webAccess';
 import { chooseAutoTvSchedule, chooseTvSchedule } from './features/tv/tvSchedules';
 import TvScheduleControls from './features/tv/TvScheduleControls';
@@ -9,18 +7,31 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Login from './components/Login';
 import Calendar from './components/Calendar';
 import DailyView from './components/DailyView';
-import ScheduleImportModal from './components/ScheduleImportModal';
+import AcademyScheduleImportModal from './features/schedule-import/AcademyScheduleImportModal';
+import AcademySwitcher from './shared/components/AcademySwitcher';
 import ScheduleNotificationModal, { PendingScheduleNotification } from './components/ScheduleNotificationModal';
 import GeneralSettings from './components/GeneralSettings';
 import NotificationPrompt from './components/NotificationPrompt';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
-import { auth, db, firebaseDatabaseUrl } from './firebase';
+import { AccessProfile, AcademyId } from './types/academy';
+import { getAcademyConfig } from './config/academies';
+import { normalizeAccessCode, resolveAccessCode } from './features/auth/accessCodes';
+import { assertTestSessionWriteAllowed } from './features/auth/testModePolicy';
+import { EventSearchResult } from './features/event-search/searchEvents';
+import NcoaChatbot from './features/chatbot/NcoaChatbot';
+import {
+  prepareStudentInterstitial,
+  recordStudentCalendarReturnAndMaybeShow
+} from './features/ads/studentInterstitial';
+import { mockSchedules } from './data/mockData';
+import { auth, db, getDatabaseRestUrl, useFirebaseEmulators } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
-import { signOut } from 'firebase/auth';
+import { signInAnonymously, signOut } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import {
   clearAdminSessionToken,
   createAdminSession,
+  prepareNotificationEnvironment,
   disableNotifications,
   getAdminIdToken,
   isPhoneDevice,
@@ -37,17 +48,11 @@ const DATABASE_WRITE_TIMEOUT_MS = 15000;
 
 export type DisplayMode = 'auto' | 'tv';
 
-type LoginResult = {
-  role: UserRole;
-  studentCycleName?: string;
-  testMode?: boolean;
-};
-
 type SavedLogin = {
-  profile?: AccessProfile;
   code?: string;
   role?: UserRole;
   testMode?: boolean;
+  profile?: AccessProfile;
 };
 
 type NotificationFocus = {
@@ -111,15 +116,16 @@ const requestNativeDatabaseWrite = async (
   method: 'PATCH' | 'PUT' | 'DELETE',
   value?: unknown
 ) => {
+  const staging = isStagingSession();
+  const generation = getSessionGeneration();
   const idToken = await getAdminIdToken();
-  if (!idToken) throw new Error('Administrator authentication is required. Log out and sign in with 2002 again.');
+  if (generation !== getSessionGeneration()) throw new Error('Session changed.');
+  if (!idToken) throw new Error('Administrator authentication is required. Log out and sign in again.');
   const abortController = new AbortController();
   const timeoutId = window.setTimeout(() => abortController.abort(), DATABASE_WRITE_TIMEOUT_MS);
   try {
     const normalizedPath = path.replace(/^\/+|\/+$/g, '');
-    const databaseUrl = new URL(`${firebaseDatabaseUrl}/${normalizedPath}.json`);
-    databaseUrl.searchParams.set('auth', idToken);
-    const response = await fetch(databaseUrl.toString(), {
+    const response = await fetch(staging ? stagingDatabaseUrl(normalizedPath, idToken) : getDatabaseRestUrl(normalizedPath, idToken), {
       method,
       headers: {
         'Content-Type': 'application/json'
@@ -127,6 +133,8 @@ const requestNativeDatabaseWrite = async (
       body: method === 'DELETE' ? undefined : JSON.stringify(value),
       signal: abortController.signal
     });
+    if (generation !== getSessionGeneration()) throw new Error('Session changed.');
+    if (response.ok && staging) window.dispatchEvent(new Event('staging-data-changed'));
     if (!response.ok) {
       const responseError = await response.json().catch(() => null) as { error?: string } | null;
       throw new Error(responseError?.error || `Database update failed (${response.status})`);
@@ -136,8 +144,9 @@ const requestNativeDatabaseWrite = async (
   }
 };
 
-const updateDatabaseValues = async (updates: Record<string, unknown>) => {
-  if (!Capacitor.isNativePlatform()) {
+const updateDatabaseValues = async (updates: Record<string, unknown>, readOnlyTestSession = false) => {
+  assertTestSessionWriteAllowed(readOnlyTestSession, isStagingSession());
+  if (!Capacitor.isNativePlatform() && !isStagingSession()) {
     await update(ref(db), updates);
     return;
   }
@@ -148,23 +157,23 @@ const updateDatabaseValues = async (updates: Record<string, unknown>) => {
   await requestNativeDatabaseWrite('', 'PATCH', restUpdates);
 };
 
-const setDatabaseValue = async (path: string, value: unknown) => {
-  if (Capacitor.isNativePlatform()) {
+const setDatabaseValue = async (path: string, value: unknown, readOnlyTestSession = false) => {
+  assertTestSessionWriteAllowed(readOnlyTestSession, isStagingSession());
+  if (Capacitor.isNativePlatform() || isStagingSession()) {
     await requestNativeDatabaseWrite(path, 'PUT', value);
     return;
   }
   await set(ref(db, path), value);
 };
 
-const removeDatabaseValue = async (path: string) => {
-  if (Capacitor.isNativePlatform()) {
+const removeDatabaseValue = async (path: string, readOnlyTestSession = false) => {
+  assertTestSessionWriteAllowed(readOnlyTestSession, isStagingSession());
+  if (Capacitor.isNativePlatform() || isStagingSession()) {
     await requestNativeDatabaseWrite(path, 'DELETE');
     return;
   }
   await remove(ref(db, path));
 };
-
-const normalizeStudentCode = (cycleName: string) => cycleName.replace(/\D/g, '');
 
 const truncateNotificationPreview = (value: string, maxLength = 90) => {
   const compact = value.replace(/\s+/g, ' ').trim();
@@ -195,34 +204,13 @@ const buildEventPreview = (event: TrainingEvent, fields: string[]) => {
   );
 };
 
-function resolveLoginFromCode(code: string, schedules: DailySchedule[]): LoginResult | null {
-  const normalizedCode = code.trim();
-  if (normalizedCode === '9876') return { role: 'VIEWER' };
-
-  const todayStr = getLocalTodayString();
-  const matchingCycle = schedules.find(schedule => {
-    const cycleName = (schedule.cycleName || '').trim();
-    return cycleName && normalizeStudentCode(cycleName) === normalizedCode;
-  })?.cycleName;
-
-  if (!matchingCycle) return null;
-
-  const cycleSchedules = schedules.filter(schedule => schedule.cycleName === matchingCycle);
-  const cycleStart = cycleSchedules.reduce((earliest, schedule) => schedule.date < earliest ? schedule.date : earliest, cycleSchedules[0].date);
-  const cycleEnd = cycleSchedules.reduce((latest, schedule) => schedule.date > latest ? schedule.date : latest, cycleSchedules[0].date);
-
-  if (todayStr < cycleStart || todayStr > cycleEnd) return null;
-
-  return { role: 'STUDENT', studentCycleName: matchingCycle };
-}
-
 function App() {
   const getSavedProfile = (): AccessProfile | null => {
     if (typeof window === 'undefined') return null;
     try {
       const parsed = JSON.parse(window.localStorage.getItem(LOGIN_STORAGE_KEY) || 'null') as SavedLogin | null;
       const profile = parsed?.profile || null;
-      if (!Capacitor.isNativePlatform() && !canUseWebsite(profile)) return null;
+      if (!Capacitor.isNativePlatform() && parsed?.testMode !== true && !canUseWebsite(profile)) return null;
       return profile;
     } catch {
       return null;
@@ -230,7 +218,6 @@ function App() {
   };
   const [accessProfile, setAccessProfile] = useState<AccessProfile | null>(getSavedProfile);
   const [academy, setAcademy] = useState<AcademyId>(() => getSavedProfile()?.academy || 'BLC');
-
   const [role, setRole] = useState<UserRole>(() => {
     if (typeof window === 'undefined') return null;
 
@@ -240,6 +227,7 @@ function App() {
 
       const parsed = JSON.parse(saved) as SavedLogin | null;
       if (!Capacitor.isNativePlatform()) return getSavedProfile()?.role || null;
+      if (parsed?.profile?.role) return parsed.profile.role;
       if (parsed?.role === 'ADMIN') return 'ADMIN';
       if (!parsed?.code) return null;
       if (parsed.role === 'VIEWER') return parsed.role;
@@ -289,6 +277,12 @@ function App() {
   const [notificationOnboardingComplete, setNotificationOnboardingComplete] = useState(false);
   const [displayMode, setDisplayMode] = useState<DisplayMode>(() => {
     if (typeof window === 'undefined') return 'auto';
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(LOGIN_STORAGE_KEY) || 'null') as SavedLogin | null;
+      if (saved?.testMode) return 'auto';
+    } catch {
+      // Fall back to the saved display preference if the login state is invalid.
+    }
     return window.localStorage.getItem(DISPLAY_MODE_STORAGE_KEY) === 'tv' ? 'tv' : 'auto';
   });
   const [darkMode, setDarkMode] = useState(() => {
@@ -296,6 +290,7 @@ function App() {
     return window.localStorage.getItem(DARK_MODE_STORAGE_KEY) === 'true';
   });
   const hasAutoSelectedTodayRef = useRef(false);
+  const logoutCleanupRef = useRef<Promise<unknown>>(Promise.resolve());
   const scheduleDatabaseKeyByDateRef = useRef<Map<string, string>>(new Map());
 
   const normalizeScheduleEvents = (events: TrainingEvent[] | Record<string, TrainingEvent> | undefined) => {
@@ -310,14 +305,14 @@ function App() {
 
   const getScheduleDatabaseKey = (dateStr: string) =>
     scheduleDatabaseKeyByDateRef.current.get(dateStr);
-  // Code 318709 uses the same schedules and administrator features as 2002.
-  // Test mode only changes notification delivery; it must not fork app data.
-  const getDatabasePath = (path: string) => `${getAcademyConfig(academy).databasePrefix}${path}`;
+  // Academy paths are identical in shape, but staging uses a separate project.
+  const getDatabasePath = (path: string) =>
+    `${getAcademyConfig(academy).databasePrefix}${path.replace(/^\/+/, '')}`;
   const getScheduleUpdatePath = (path: string) =>
     `/${getDatabasePath(path.replace(/^\/+/, ''))}`;
 
   const handleDisplayModeChange = (nextMode: DisplayMode) => {
-    if (isTvDisplay) return;
+    if (isTvDisplay || isTestMode) return;
     setDisplayMode(nextMode);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(DISPLAY_MODE_STORAGE_KEY, nextMode);
@@ -334,7 +329,7 @@ function App() {
   }, [darkMode]);
 
   useEffect(() => {
-    // Dedicated TV profiles always use the existing TV layout.
+    // TV profiles always use the TV layout; other profiles keep their preference.
     if (isTvDisplay && displayMode !== 'tv') {
       setDisplayMode('tv');
     }
@@ -389,7 +384,56 @@ function App() {
 
   // 1. Firebase에서 실시간 데이터 불러오기
   useEffect(() => {
-    const databasePrefix = getAcademyConfig(academy).databasePrefix;
+    const academyConfig = getAcademyConfig(academy);
+    if (isTestMode) {
+      setSchedules([]);
+      setLocations([]);
+      setUniforms([]);
+      setIsLoading(true);
+      scheduleDatabaseKeyByDateRef.current.clear();
+      let controller = new AbortController();
+      let disposed = false;
+      let loading = false;
+      const load = async () => {
+        if (loading || disposed) return;
+        controller = new AbortController();
+        loading = true;
+        const timeout = window.setTimeout(() => controller.abort(), 15000);
+        try {
+          if (!isStagingSession()) throw new Error('Staging session required.');
+          const token = await getAdminIdToken();
+          if (!token) throw new Error('Sign out and sign in to the test environment again.');
+          const values = await Promise.all(['schedules', 'locations', 'uniforms'].map(async name => {
+            const response = await fetch(stagingDatabaseUrl(`${academyConfig.databasePrefix}${name}`, token), {
+              cache: 'no-store', signal: controller.signal
+            });
+            if (!response.ok) throw new Error(`Test database request failed (${response.status}).`);
+            return response.json();
+          }));
+          if (controller.signal.aborted) return;
+          const entries = Object.entries((values[0] || {}) as Record<string, DailySchedule>)
+            .filter(([, day]) => Boolean(day?.date));
+          scheduleDatabaseKeyByDateRef.current = new Map(entries.map(([key, day]) => [day.date, key]));
+          setSchedules(entries.map(([, day]) => ({ ...day, events: normalizeScheduleEvents(day.events) }))
+            .sort((a, b) => a.date.localeCompare(b.date)));
+          setLocations(values[1] ? Object.values(values[1]) as string[] : academyConfig.defaultLocations);
+          setUniforms(values[2] ? Object.values(values[2]) as string[] : academyConfig.defaultUniforms);
+          setApiError(null);
+        } catch {
+          if (!disposed) setApiError('Cannot load the test database. Check the staging deployment or sign in again.');
+        } finally {
+          window.clearTimeout(timeout);
+          loading = false;
+          if (!disposed) setIsLoading(false);
+        }
+      };
+      void load();
+      const timer = window.setInterval(() => void load(), 5000);
+      const refresh = () => { void load(); };
+      window.addEventListener('staging-data-changed', refresh);
+      return () => { disposed = true; controller.abort(); window.clearInterval(timer); window.removeEventListener('staging-data-changed', refresh); };
+    }
+    const databasePrefix = academyConfig.databasePrefix;
     const schedulesPath = `${databasePrefix}schedules`;
     const locationsPath = `${databasePrefix}locations`;
     const uniformsPath = `${databasePrefix}uniforms`;
@@ -407,7 +451,7 @@ function App() {
     // can fail to establish inside an iOS WKWebView.
     const abortController = new AbortController();
     const fetchDatabaseValue = async (path: string) => {
-      const response = await fetch(`${firebaseDatabaseUrl}/${path}.json`, {
+      const response = await fetch(getDatabaseRestUrl(path), {
         cache: 'no-store',
         signal: abortController.signal
       });
@@ -423,7 +467,9 @@ function App() {
       if (abortController.signal.aborted) return;
       const rawEntries = scheduleData && typeof scheduleData === 'object'
         ? Object.entries(scheduleData as Record<string, DailySchedule>)
-        : [];
+        : academy === 'BLC' && useFirebaseEmulators
+          ? mockSchedules.map((schedule, index) => [String(index), schedule] as const)
+          : [];
       scheduleDatabaseKeyByDateRef.current = new Map(
         rawEntries
           .filter((entry): entry is [string, DailySchedule] => Boolean(entry[1]?.date))
@@ -434,7 +480,6 @@ function App() {
         .filter((day): day is DailySchedule => Boolean(day && typeof day === 'object' && day.date))
         .map(day => ({
           ...day,
-          academy,
           notes: day.notes || '',
           notesHighlighted: Boolean(day.notesHighlighted),
           sglNotes: day.sglNotes || '',
@@ -448,15 +493,24 @@ function App() {
       setSchedules(initialSchedules);
       setLocations(locationData
         ? (Array.isArray(locationData) ? locationData : Object.values(locationData)) as string[]
-        : getAcademyConfig(academy).defaultLocations);
+        : academyConfig.defaultLocations);
       setUniforms(uniformData
         ? (Array.isArray(uniformData) ? uniformData : Object.values(uniformData)) as string[]
-        : getAcademyConfig(academy).defaultUniforms);
+        : academyConfig.defaultUniforms);
       setApiError(null);
       setIsLoading(false);
     }).catch(error => {
       if (abortController.signal.aborted) return;
       console.error('Initial database HTTPS load failed:', error);
+      if (academy === 'KTA') {
+        receivedSchedules = true;
+        window.clearTimeout(loadingTimeout);
+        setSchedules([]);
+        setLocations(academyConfig.defaultLocations);
+        setUniforms(academyConfig.defaultUniforms);
+        setApiError(null);
+        setIsLoading(false);
+      }
     });
 
     // 사이클 제목 감시
@@ -465,6 +519,7 @@ function App() {
       receivedSchedules = true;
       window.clearTimeout(loadingTimeout);
       setApiError(null);
+      console.log("Schedules snapshot received:", snapshot.val());
       const data = snapshot.val();
       if (data) {
         const scheduleEntries = Object.entries(data as Record<string, DailySchedule>);
@@ -473,7 +528,7 @@ function App() {
             .filter((entry): entry is [string, DailySchedule] => Boolean(entry[1]?.date))
             .map(([key, day]) => [day.date, key])
         );
-        let schedulesArray = scheduleEntries.map(([, day]) => ({ ...day, academy }));
+        let schedulesArray = scheduleEntries.map(([, day]) => day);
         
         let normalizedLegacyCycle = false;
 
@@ -509,21 +564,39 @@ function App() {
         schedulesArray.sort((a, b) => a.date.localeCompare(b.date));
 
         setSchedules(schedulesArray as DailySchedule[]);
-        if (normalizedLegacyCycle && role === 'ADMIN' && !isTvDisplay) {
+        if (normalizedLegacyCycle && useFirebaseEmulators) {
           set(schedulesRef, schedulesArray).catch(err => {
             console.error("Error normalizing 06-26 cycleName:", err);
           });
         }
         setIsLoading(false);
       } else {
-        setSchedules([]);
-        setIsLoading(false);
+        console.log("No schedules data, setting initial...");
+        if (useFirebaseEmulators && academy === 'BLC') {
+          set(schedulesRef, mockSchedules)
+            .then(() => setIsLoading(false))
+            .catch(err => {
+              console.error("Error setting initial schedules:", err);
+              setApiError("Failed to initialize schedules: " + err.message);
+              setIsLoading(false);
+            });
+        } else {
+          setSchedules([]);
+          setIsLoading(false);
+        }
       }
     }, (error) => {
       receivedSchedules = true;
       window.clearTimeout(loadingTimeout);
       console.error("Schedules sync error:", error);
-      setApiError("Permission denied or database error: " + error.message);
+      if (academy === 'KTA') {
+        setSchedules([]);
+        setLocations(academyConfig.defaultLocations);
+        setUniforms(academyConfig.defaultUniforms);
+        setApiError(null);
+      } else {
+        setApiError("Permission denied or database error: " + error.message);
+      }
       setIsLoading(false);
     });
 
@@ -534,7 +607,7 @@ function App() {
         const locsArray = Array.isArray(data) ? data : Object.values(data);
         setLocations(locsArray as string[]);
       } else {
-        setLocations(getAcademyConfig(academy).defaultLocations);
+        setLocations(academyConfig.defaultLocations);
       }
     });
 
@@ -545,7 +618,7 @@ function App() {
         const unisArray = Array.isArray(data) ? data : Object.values(data);
         setUniforms(unisArray as string[]);
       } else {
-        setUniforms(getAcademyConfig(academy).defaultUniforms);
+        setUniforms(academyConfig.defaultUniforms);
       }
     }, (error) => {
       console.error("Uniforms sync error:", error);
@@ -558,7 +631,7 @@ function App() {
       unsubLocations();
       unsubUniforms();
     };
-  }, [isTestMode, academy, role, isTvDisplay]);
+  }, [isTestMode, academy]);
 
   useEffect(() => {
     if (role || schedules.length === 0 || typeof window === 'undefined') return;
@@ -568,26 +641,28 @@ function App() {
       if (!saved) return;
 
       const parsed = JSON.parse(saved) as SavedLogin | null;
-      if (!Capacitor.isNativePlatform()) {
+      if (!Capacitor.isNativePlatform() && parsed?.testMode !== true && !canUseWebsite(parsed?.profile || null)) {
         window.localStorage.removeItem(LOGIN_STORAGE_KEY);
         return;
       }
       if (parsed?.role === 'ADMIN') return;
       if (!parsed?.code) return;
 
-      const login = resolveLoginFromCode(parsed.code, schedules);
-      if (!login?.role) {
+      const login = resolveAccessCode(parsed.code, schedules, academy);
+      if (!login?.role || (!Capacitor.isNativePlatform() && !canUseWebsite(login))) {
         window.localStorage.removeItem(LOGIN_STORAGE_KEY);
         return;
       }
 
       setRole(login.role);
+      setAccessProfile(login);
+      setAcademy(login.academy);
       setStudentCycleName(login.studentCycleName || null);
       hasAutoSelectedTodayRef.current = false;
     } catch {
       window.localStorage.removeItem(LOGIN_STORAGE_KEY);
     }
-  }, [role, schedules]);
+  }, [role, schedules, academy]);
 
   // 로그인 시 오늘 날짜 자동 선택
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -616,7 +691,7 @@ function App() {
   // 새로운 위치 추가 함수 (Firebase에 직접 반영)
   const addLocation = (loc: string) => {
     if (loc && !locations.includes(loc)) {
-      setDatabaseValue(getDatabasePath('locations'), [...locations, loc]).catch(err => {
+      setDatabaseValue(getDatabasePath('locations'), [...locations, loc], isTestMode).catch(err => {
         alert("Failed to add location: " + err.message);
       });
     }
@@ -625,7 +700,7 @@ function App() {
   // 새로운 복장 추가 함수 (Firebase에 직접 반영)
   const addUniform = (uni: string) => {
     if (uni && !uniforms.includes(uni)) {
-      setDatabaseValue(getDatabasePath('uniforms'), [...uniforms, uni]).catch(err => {
+      setDatabaseValue(getDatabasePath('uniforms'), [...uniforms, uni], isTestMode).catch(err => {
         alert("Failed to add uniform: " + err.message);
       });
     }
@@ -671,7 +746,7 @@ function App() {
           .filter(field => originalEvent[field] !== updatedEvent[field]);
         const updates: any = {};
         updates[getScheduleUpdatePath(`schedules/${dayKey}/events/${eventIndex}`)] = updatedEvent;
-        updateDatabaseValues(updates)
+        updateDatabaseValues(updates, isTestMode)
           .then(() => {
             queueScheduleNotification(
               dateStr,
@@ -694,7 +769,7 @@ function App() {
     if (dayIndex !== -1 && dayKey !== undefined) {
       const updates: any = {};
       updates[getScheduleUpdatePath(`schedules/${dayKey}/notes`)] = notes.trim();
-      updateDatabaseValues(updates)
+      updateDatabaseValues(updates, isTestMode)
         .then(() => {
           updateScheduleLocally(dateStr, day => ({ ...day, notes: notes.trim() }));
           queueScheduleNotification(
@@ -711,13 +786,29 @@ function App() {
     }
   };
 
+  const handleSaveDayLabel = (dateStr: string, dayLabel: string) => {
+    const dayIndex = schedules.findIndex(day => day.date === dateStr);
+    const dayKey = getScheduleDatabaseKey(dateStr);
+    const normalizedLabel = dayLabel.trim().replace(/\s+/g, ' ').toUpperCase();
+    if (dayIndex === -1 || dayKey === undefined || !normalizedLabel) return;
+
+    const updates: any = {};
+    updates[getScheduleUpdatePath(`schedules/${dayKey}/dayLabel`)] = normalizedLabel;
+    updateDatabaseValues(updates, isTestMode)
+      .then(() => {
+        updateScheduleLocally(dateStr, day => ({ ...day, dayLabel: normalizedLabel }));
+        queueScheduleNotification(dateStr, 'Day number updated', 'day', ['dayLabel'], `DAY LABEL: ${normalizedLabel}`);
+      })
+      .catch(err => alert("Failed to update day number: " + err.message));
+  };
+
   const handleToggleDayNotesHighlight = (dateStr: string) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
     const dayKey = getScheduleDatabaseKey(dateStr);
     if (dayIndex !== -1 && dayKey !== undefined) {
       const updates: any = {};
       updates[getScheduleUpdatePath(`schedules/${dayKey}/notesHighlighted`)] = !schedules[dayIndex].notesHighlighted;
-      updateDatabaseValues(updates)
+      updateDatabaseValues(updates, isTestMode)
         .then(() => {
           const highlighted = !schedules[dayIndex].notesHighlighted;
           updateScheduleLocally(dateStr, day => ({ ...day, notesHighlighted: highlighted }));
@@ -741,7 +832,7 @@ function App() {
     if (dayIndex !== -1 && dayKey !== undefined) {
       const updates: any = {};
       updates[getScheduleUpdatePath(`schedules/${dayKey}/sglNotes`)] = notes.trim();
-      updateDatabaseValues(updates)
+      updateDatabaseValues(updates, isTestMode)
         .then(() => {
           updateScheduleLocally(dateStr, day => ({ ...day, sglNotes: notes.trim() }));
           queueScheduleNotification(
@@ -764,7 +855,7 @@ function App() {
     if (dayIndex !== -1 && dayKey !== undefined) {
       const updates: any = {};
       updates[getScheduleUpdatePath(`schedules/${dayKey}/sglNotesHighlighted`)] = !schedules[dayIndex].sglNotesHighlighted;
-      updateDatabaseValues(updates)
+      updateDatabaseValues(updates, isTestMode)
         .then(() => {
           const highlighted = !schedules[dayIndex].sglNotesHighlighted;
           updateScheduleLocally(dateStr, day => ({ ...day, sglNotesHighlighted: highlighted }));
@@ -790,7 +881,7 @@ function App() {
       const currentEvents = schedules[dayIndex].events || [];
       const updates: any = {};
       updates[getScheduleUpdatePath(`schedules/${dayKey}/events`)] = [...currentEvents, newEvent];
-      updateDatabaseValues(updates)
+      updateDatabaseValues(updates, isTestMode)
         .then(() => {
           queueScheduleNotification(
             dateStr,
@@ -815,7 +906,7 @@ function App() {
       const updatedEvents = currentEvents.filter(ev => ev.id !== eventId);
       const updates: any = {};
       updates[getScheduleUpdatePath(`schedules/${dayKey}/events`)] = updatedEvents;
-      updateDatabaseValues(updates)
+      updateDatabaseValues(updates, isTestMode)
         .then(() => {
           const deletedEvent = currentEvents.find(ev => ev.id === eventId);
           queueScheduleNotification(
@@ -839,14 +930,27 @@ function App() {
     newSchedules.forEach(newDay => {
       const existingIndex = updatedSchedules.findIndex(s => s.date === newDay.date);
       if (existingIndex !== -1) {
-        updatedSchedules[existingIndex] = {
-          ...updatedSchedules[existingIndex],
-          notes: [updatedSchedules[existingIndex].notes, newDay.notes].filter(Boolean).join('\n'),
-          notesHighlighted: Boolean(updatedSchedules[existingIndex].notesHighlighted || newDay.notesHighlighted),
-          sglNotes: [updatedSchedules[existingIndex].sglNotes, newDay.sglNotes].filter(Boolean).join('\n'),
-          sglNotesHighlighted: Boolean(updatedSchedules[existingIndex].sglNotesHighlighted || newDay.sglNotesHighlighted),
-          events: [...(updatedSchedules[existingIndex].events || []), ...newDay.events]
-        };
+        if (newDay.academy === 'KTA') {
+          // A corrected KTA PDF import must replace the previously parsed day.
+          // Appending kept stale parser results (such as ROOM CHECK-only duty)
+          // alongside the corrected merged ALL HANDS events.
+          updatedSchedules[existingIndex] = {
+            ...updatedSchedules[existingIndex],
+            ...newDay,
+            notes: newDay.notes || updatedSchedules[existingIndex].notes,
+            notesHighlighted: Boolean(newDay.notesHighlighted || updatedSchedules[existingIndex].notesHighlighted),
+            events: newDay.events
+          };
+        } else {
+          updatedSchedules[existingIndex] = {
+            ...updatedSchedules[existingIndex],
+            notes: [updatedSchedules[existingIndex].notes, newDay.notes].filter(Boolean).join('\n'),
+            notesHighlighted: Boolean(updatedSchedules[existingIndex].notesHighlighted || newDay.notesHighlighted),
+            sglNotes: [updatedSchedules[existingIndex].sglNotes, newDay.sglNotes].filter(Boolean).join('\n'),
+            sglNotesHighlighted: Boolean(updatedSchedules[existingIndex].sglNotesHighlighted || newDay.sglNotesHighlighted),
+            events: [...(updatedSchedules[existingIndex].events || []), ...newDay.events]
+          };
+        }
       } else {
         updatedSchedules.push(newDay);
       }
@@ -854,7 +958,7 @@ function App() {
 
     updatedSchedules.sort((a, b) => a.date.localeCompare(b.date));
 
-    setDatabaseValue(getDatabasePath('schedules'), updatedSchedules)
+    setDatabaseValue(getDatabasePath('schedules'), updatedSchedules, isTestMode)
       .then(() => setSchedules(updatedSchedules))
       .catch(err => {
         alert("Failed to import schedules: " + err.message);
@@ -864,7 +968,7 @@ function App() {
   // 스케줄 초기화 함수 (전체 삭제)
   const handleResetSchedules = () => {
     if (window.confirm("Are you sure you want to CLEAR ALL schedules from the database?")) {
-      removeDatabaseValue(getDatabasePath('schedules')).then(() => {
+      removeDatabaseValue(getDatabasePath('schedules'), isTestMode).then(() => {
         setSchedules([]);
       }).catch(err => {
         alert("Failed to reset schedules: " + err.message);
@@ -876,7 +980,7 @@ function App() {
   const handleDeleteCycle = (targetCycle: string) => {
     if (window.confirm(`Are you sure you want to delete ALL schedules for cycle [${targetCycle}]?`)) {
       const updatedSchedules = schedules.filter(s => s.cycleName !== targetCycle);
-      setDatabaseValue(getDatabasePath('schedules'), updatedSchedules)
+      setDatabaseValue(getDatabasePath('schedules'), updatedSchedules, isTestMode)
         .then(() => setSchedules(updatedSchedules))
         .catch(err => {
           alert("Failed to delete cycle: " + err.message);
@@ -884,27 +988,36 @@ function App() {
     }
   };
   const handleLogout = () => {
-    const previousRole = role;
-    const previousStudentCycleName = studentCycleName;
+    const cleanup = disableNotifications(role, studentCycleName, false, !isTestMode, academy);
 
     // Clear the local session first so slow notification/auth requests cannot
     // leave the user stuck on the calendar after pressing LOGOUT.
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(LOGIN_STORAGE_KEY);
       clearAdminSessionToken();
+      window.dispatchEvent(new Event('ncoa-test-session-changed'));
     }
 
+    selectStagingSession(false);
+    setSchedules([]);
+    setLocations([]);
+    setUniforms([]);
+    setPendingNotification(null);
+    setForegroundNotification(null);
+    setNotificationFocus(null);
+    setNotificationOnboardingComplete(false);
     setRole(null);
-    setAccessProfile(null);
     setTvCycle(null);
+    setAccessProfile(null);
     setIsTestMode(false);
     setSelectedDateId(null);
     setStudentCycleName(null);
     hasAutoSelectedTodayRef.current = false;
 
-    void Promise.allSettled([
-      disableNotifications(previousRole, previousStudentCycleName, false, true, academy),
-      signOut(auth)
+    logoutCleanupRef.current = Promise.allSettled([
+      cleanup,
+      signOut(auth),
+      signOut(stagingAuth)
     ]).then(results => {
       const [notificationResult, authResult] = results;
       if (notificationResult.status === 'rejected') {
@@ -916,76 +1029,154 @@ function App() {
     });
   };
   const handleLogin = async (code: string, rememberLogin: boolean) => {
-    if (!Capacitor.isNativePlatform()) {
-      let profile = resolveTvAccess(code);
-      let webTestMode = false;
-      if (profile && !canUseWebsite(profile)) return false;
-      if (profile?.accessLevel !== 'TV_DISPLAY') {
-        try {
-          await createAdminSession(code.trim());
-          const claims = (await auth.currentUser?.getIdTokenResult())?.claims;
-          const isOwner = claims && (claims.accessLevel
-            ? claims.accessLevel === 'NCOA_MANAGER'
-            : claims.admin === true || claims.testAdmin === true);
-          if (!isOwner) { await signOut(auth); return false; }
-          profile = {
-            role: 'ADMIN', accessLevel: 'NCOA_MANAGER', academy: 'BLC', scope: 'NCOA',
-            permissions: ['schedule.read', 'schedule.write', 'schedule.import', 'location.manage', 'conflict.resolve']
-          };
-          webTestMode = claims?.testAdmin === true;
-          setIsTestMode(webTestMode);
-        } catch { return false; }
-      } else {
-        setIsTestMode(false);
-      }
-      if (!profile || !canUseWebsite(profile)) return false;
-      if (profile.academy !== academy) { setSchedules([]); setIsLoading(true); }
-      setAccessProfile(profile);
-      setAcademy(profile.academy);
-      setRole(profile.role);
+    await logoutCleanupRef.current;
+    if (useFirebaseEmulators) {
+      await signInAnonymously(auth);
+      const emulatorProfile: AccessProfile = {
+        role: 'ADMIN', accessLevel: 'NCOA_MANAGER', academy, scope: 'NCOA',
+        permissions: ['schedule.read', 'schedule.write', 'schedule.import', 'location.manage', 'conflict.resolve']
+      };
+      setRole('ADMIN');
+      setAccessProfile(emulatorProfile);
       setStudentCycleName(null);
       setSelectedDateId(null);
-      setTvCycle(null);
+      setIsTestMode(false);
       hasAutoSelectedTodayRef.current = false;
       if (rememberLogin) {
         window.localStorage.setItem(LOGIN_STORAGE_KEY, JSON.stringify({
-          profile, role: profile.role,
-          testMode: webTestMode
+          role: 'ADMIN', profile: emulatorProfile, localEmulator: true
         }));
-      } else { window.localStorage.removeItem(LOGIN_STORAGE_KEY); }
+      }
+      return true;
+    }
+    const requestedTestMode = code.trim() === '318709';
+    const normalizedCode = normalizeAccessCode(code);
+    const isWeb = !Capacitor.isNativePlatform();
+    const webProfile = resolveAccessCode(code, schedules, academy);
+    if (isWeb && webProfile && !canUseWebsite(webProfile) && !requestedTestMode) return false;
+
+    // Preserve the released BLC SGL login exactly as it worked before the
+    // NCOA/KTA access-code extensions. Legacy codes must never depend on the
+    // new academy resolver or server authentication path.
+    if (normalizedCode === '9876') {
+      try { await prepareNotificationEnvironment(false); } catch { return false; }
+      const legacyProfile: AccessProfile = {
+        role: 'VIEWER',
+        accessLevel: 'SENIOR',
+        academy: 'BLC',
+        scope: 'BLC',
+        permissions: ['schedule.read']
+      };
+      hasAutoSelectedTodayRef.current = false;
+      setRole('VIEWER');
+      setAccessProfile(legacyProfile);
+      setAcademy('BLC');
+      setStudentCycleName(null);
+      if (typeof window !== 'undefined') {
+        if (rememberLogin) {
+          window.localStorage.setItem(LOGIN_STORAGE_KEY, JSON.stringify({
+            code: '9876',
+            role: 'VIEWER',
+            profile: legacyProfile
+          }));
+        } else {
+          window.localStorage.removeItem(LOGIN_STORAGE_KEY);
+        }
+      }
       return true;
     }
 
-    let login = resolveLoginFromCode(code, schedules);
-    const requestedTestMode = code.trim() === '318709';
+    const inferredAcademy: AcademyId = normalizedCode.startsWith('KTA') ? 'KTA' : 'BLC';
+    let schedulesForLogin = schedules;
 
-    if (!login?.role) {
+    if (inferredAcademy !== academy && /^(BLC|KTA)\d{4}$/.test(normalizedCode)) {
       try {
-        await createAdminSession(code.trim());
-        login = { role: 'ADMIN', testMode: requestedTestMode };
+        const path = `${getAcademyConfig(inferredAcademy).databasePrefix}schedules`;
+        const response = await fetch(getDatabaseRestUrl(path), { cache: 'no-store' });
+        if (response.ok) {
+          const data = await response.json();
+          schedulesForLogin = data && typeof data === 'object'
+            ? Object.values(data as Record<string, DailySchedule>)
+            : [];
+        }
       } catch {
         return false;
       }
     }
 
+    let login = resolveAccessCode(code, schedulesForLogin, academy);
+    if (isWeb && !login && !requestedTestMode) return false;
+
+    if (login?.requiresServerAuth) {
+      try {
+        selectStagingSession(false);
+        await createAdminSession(normalizedCode);
+      } catch {
+        return false;
+      }
+    } else if (!login?.role) {
+      // Keep the existing test administrator flow available during migration.
+      try {
+        selectStagingSession(requestedTestMode);
+        await createAdminSession(code.trim());
+        login = {
+          role: 'ADMIN',
+          accessLevel: 'NCOA_MANAGER',
+          academy: 'BLC',
+          scope: 'NCOA',
+          permissions: ['schedule.read', 'schedule.write', 'schedule.import', 'location.manage', 'conflict.resolve']
+        };
+      } catch {
+        clearAdminSessionToken();
+        selectStagingSession(false);
+        return false;
+      }
+    }
+
+    if (isWeb && !canUseWebsite(login) && !requestedTestMode) return false;
+    try { await prepareNotificationEnvironment(requestedTestMode); } catch {
+      clearAdminSessionToken();
+      selectStagingSession(false);
+      return false;
+    }
     hasAutoSelectedTodayRef.current = false;
+    setTvCycle(null);
+    setSelectedDateId(null);
+    if (login.academy !== academy || requestedTestMode !== isTestMode) {
+      setSchedules([]);
+      setIsLoading(true);
+    }
     setRole(login.role);
-    setIsTestMode(Boolean(login.testMode));
+    setAccessProfile(login);
+    setAcademy(login.academy);
+    setIsTestMode(requestedTestMode);
+    setNotificationOnboardingComplete(false);
+    setPendingNotification(null);
+    setNotificationFocus(null);
+    setForegroundNotification(null);
+    if (requestedTestMode) {
+      setDisplayMode('auto');
+      window.localStorage.setItem(DISPLAY_MODE_STORAGE_KEY, 'auto');
+    }
     setStudentCycleName(login.studentCycleName || null);
 
     if (typeof window !== 'undefined') {
-      if (rememberLogin) {
+      if (rememberLogin || requestedTestMode) {
         window.localStorage.setItem(
           LOGIN_STORAGE_KEY,
-          JSON.stringify(login.role === 'ADMIN'
-            ? { role: 'ADMIN', testMode: Boolean(login.testMode) }
-            : { code: code.trim(), role: login.role })
+          JSON.stringify({
+            code: normalizedCode,
+            role: login.role,
+            testMode: requestedTestMode,
+            profile: login
+          })
         );
       } else {
         window.localStorage.removeItem(LOGIN_STORAGE_KEY);
       }
     }
 
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('ncoa-test-session-changed'));
     return true;
   };
 
@@ -993,6 +1184,29 @@ function App() {
     if (isTvDisplay) return;
     hasAutoSelectedTodayRef.current = true;
     setSelectedDateId(null);
+    if (role === 'STUDENT') {
+      // Complete navigation first. An unavailable ad must never delay or block it.
+      window.setTimeout(() => {
+        void recordStudentCalendarReturnAndMaybeShow(isTestMode);
+      }, 350);
+    }
+  };
+
+  useEffect(() => {
+    if (role === 'STUDENT' && selectedDateId) {
+      void prepareStudentInterstitial(isTestMode);
+    }
+  }, [role, selectedDateId, isTestMode]);
+
+  const handleAcademyChange = (nextAcademy: AcademyId) => {
+    if (accessProfile?.scope !== 'NCOA' || nextAcademy === academy) return;
+    setAcademy(nextAcademy);
+    setAccessProfile({ ...accessProfile, academy: nextAcademy });
+    setSelectedDateId(null);
+    setStudentCycleName(null);
+    setSchedules([]);
+    setIsLoading(true);
+    hasAutoSelectedTodayRef.current = false;
   };
 
   useEffect(() => {
@@ -1103,8 +1317,8 @@ function App() {
 
   const cycleTitle = useMemo(() => {
     const titleCycleName = role === 'STUDENT' ? studentCycleName : activeCycleName;
-    return titleCycleName ? `BLC CLASS ${titleCycleName}` : 'BLC CLASS';
-  }, [role, studentCycleName, activeCycleName]);
+    return titleCycleName ? `${academy} CLASS ${titleCycleName}` : `${academy} CLASS`;
+  }, [role, studentCycleName, activeCycleName, academy]);
 
   if (isLoading) {
     return (
@@ -1130,7 +1344,7 @@ function App() {
   }
 
   if (!role) {
-    return <Login onLogin={handleLogin} webOnly={!Capacitor.isNativePlatform()} />;
+    return <Login onLogin={handleLogin} webOnly={!Capacitor.isNativePlatform()} emulatorMode={useFirebaseEmulators} />;
   }
 
   const foregroundNotificationToast = foregroundNotification ? (
@@ -1164,17 +1378,17 @@ function App() {
       </div>
     </button>
   ) : null;
-  const notificationOnboarding = role && isTrackingAuthorizationResolved && !notificationOnboardingComplete && isPhoneDevice() ? (
+  const notificationOnboarding = !useFirebaseEmulators && role && isTrackingAuthorizationResolved && !notificationOnboardingComplete && isPhoneDevice() ? (
     <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[65] mx-auto max-w-md rounded-2xl border border-green-200 bg-white p-3 shadow-2xl">
       <div className="mb-2 text-center">
         <div className="text-sm font-black text-gray-900">Enable Notifications</div>
         <div className="text-[11px] font-semibold text-gray-500">Get schedule update alerts on this device.</div>
       </div>
       <NotificationPrompt
-        academy={academy}
         role={role}
+        academy={academy}
         cycleName={role === 'STUDENT' ? studentCycleName : null}
-        autoPrompt={false}
+        autoPrompt={isTestMode}
         testMode={isTestMode}
         hideWhenGranted
         onStatusChange={(status) => setNotificationOnboardingComplete(status === 'granted')}
@@ -1183,19 +1397,23 @@ function App() {
   ) : null;
   const testModeBadge = isTestMode ? (
     <div className="fixed bottom-3 left-1/2 z-[75] -translate-x-1/2 rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-2 text-xs font-black text-amber-900 shadow-xl">
-      TEST MODE · Shared live data · Notifications only to this device
+      TEST MODE ? Separate test database ? This device only
+    </div>
+  ) : null;
+  const emulatorBadge = useFirebaseEmulators && role ? (
+    <div className="fixed bottom-3 left-1/2 z-[75] -translate-x-1/2 -translate-y-12 rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-2 text-center text-xs font-black text-amber-950 shadow-xl">
+      LOCAL FIREBASE EMULATOR · TEST DATA ONLY · NOTIFICATIONS DISABLED
     </div>
   ) : null;
 
   const selectedSchedule = isTvDisplay
     ? chooseTvSchedule(filteredSchedules, getLocalTodayString(), selectedDateId)
     : filteredSchedules.find(s => s.date === selectedDateId);
-
   const renderGeneralSettings = () => role ? (
     <GeneralSettings
-      academy={academy}
       tvDisplay={isTvDisplay}
       role={role}
+      academy={academy}
       cycleName={role === 'STUDENT' ? studentCycleName : null}
       schedules={schedules}
       displayMode={displayMode}
@@ -1206,6 +1424,7 @@ function App() {
       onDeleteCycle={handleDeleteCycle}
       onResetSchedules={handleResetSchedules}
       testMode={isTestMode}
+      notificationsDisabled={useFirebaseEmulators}
     />
   ) : null;
 
@@ -1234,12 +1453,14 @@ function App() {
       {foregroundNotificationToast}
       {notificationOnboarding}
       {testModeBadge}
+      {emulatorBadge}
       <DailyView 
         schedule={selectedSchedule} 
         role={role}
         onBack={isTvDisplay ? undefined : handleBackToCalendar}
         viewControls={tvControls}
         onSave={handleSaveEvent}
+        onSaveDayLabel={handleSaveDayLabel}
         onSaveNotes={handleSaveDayNotes}
         onToggleNotesHighlight={handleToggleDayNotesHighlight}
         onSaveSglNotes={handleSaveSglNotes}
@@ -1260,12 +1481,13 @@ function App() {
       />
       {pendingNotification && (
         <ScheduleNotificationModal
-          academy={academy}
           change={pendingNotification}
+          academy={academy}
           testMode={isTestMode}
           onClose={() => setPendingNotification(null)}
         />
       )}
+      <NcoaChatbot academy={academy} role={role} cycleName={role === 'STUDENT' ? studentCycleName : activeCycleName} />
       </>
     );
   }
@@ -1273,10 +1495,12 @@ function App() {
   if (isTvDisplay) {
     return (
       <div className="app-safe-screen daily-screen display-mode-tv bg-gray-100 flex flex-col">
+        {emulatorBadge}
         {tvControls}
         <div className="flex flex-1 items-center justify-center p-6 text-center font-bold text-gray-600">
           No schedules available for {academy}.
         </div>
+        <NcoaChatbot academy={academy} role={role} cycleName={effectiveTvCycle || null} />
       </div>
     );
   }
@@ -1286,25 +1510,49 @@ function App() {
       {foregroundNotificationToast}
       {notificationOnboarding}
       {testModeBadge}
+      {emulatorBadge}
       <Calendar 
         schedules={filteredSchedules} 
+        academy={academy}
+        currentCycleName={role === 'STUDENT' ? studentCycleName : activeCycleName}
         onSelectDate={(date) => setSelectedDateId(date)} 
+        onSelectSearchResult={(result: EventSearchResult) => {
+          hasAutoSelectedTodayRef.current = true;
+          setSelectedDateId(result.date);
+          setNotificationFocus(null);
+          window.setTimeout(() => setNotificationFocus({
+            date: result.date,
+            targetId: `event:${result.event.id}`,
+            changeType: 'Search result',
+            previewText: `Search result: ${result.event.eventName}`,
+            changedFields: ['eventName']
+          }), 0);
+        }}
         role={role}
         cycleTitle={cycleTitle}
         onOpenImport={() => setIsImportModalOpen(true)}
-        settingsControl={renderGeneralSettings()}
+        settingsControl={(
+          <div className="flex items-center justify-end gap-2">
+            {accessProfile?.scope === 'NCOA' && (
+              <AcademySwitcher academy={academy} onChange={handleAcademyChange} />
+            )}
+            {renderGeneralSettings()}
+          </div>
+        )}
         showAdBanner={!isImportModalOpen}
         testMode={isTestMode}
         displayMode={displayMode}
       />
       {isImportModalOpen && (
-        <ScheduleImportModal 
+        <AcademyScheduleImportModal
+          academy={academy}
           onClose={() => setIsImportModalOpen(false)}
           onImport={handleImportSchedules}
           locations={locations}
           uniforms={uniforms}
         />
       )}
+      <NcoaChatbot academy={academy} role={role} cycleName={role === 'STUDENT' ? studentCycleName : activeCycleName} />
     </>
   );
 }
