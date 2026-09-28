@@ -1350,6 +1350,14 @@ function App() {
         >
           RETRY
         </button>
+        {isTestMode && (
+          <button
+            onClick={handleLogout}
+            className="mt-3 rounded-lg border border-white px-5 py-2 font-bold text-white"
+          >
+            SIGN OUT &amp; SIGN IN AGAIN
+          </button>
+        )}
       </div>
     );
   }
