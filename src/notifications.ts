@@ -206,7 +206,11 @@ export const getAdminIdToken = async () => {
     return refreshNativeAdminIdToken();
   }
 
-  const currentUser = (isStagingSession() ? stagingAuth : auth).currentUser;
+  const selectedAuth = isStagingSession() ? stagingAuth : auth;
+  // In the phone-preview iframe Firebase may still be restoring its persisted
+  // session when the first staging database read runs.
+  await selectedAuth.authStateReady();
+  const currentUser = selectedAuth.currentUser;
   if (!currentUser) return null;
   return currentUser.getIdToken();
 };

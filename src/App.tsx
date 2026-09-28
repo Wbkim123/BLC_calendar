@@ -407,7 +407,14 @@ function App() {
             const response = await fetch(stagingDatabaseUrl(`${academyConfig.databasePrefix}${name}`, token), {
               cache: 'no-store', signal: controller.signal
             });
-            if (!response.ok) throw new Error(`Test database request failed (${response.status}).`);
+            if (!response.ok) {
+              const reason = response.status === 401 || response.status === 403
+                ? 'Test database rejected access. Check staging rules and sign in again.'
+                : response.status === 404
+                  ? 'Staging database endpoint was not found. Check the staging project setup.'
+                  : `Test database request failed (${response.status}).`;
+              throw new Error(reason);
+            }
             return response.json();
           }));
           if (controller.signal.aborted) return;
@@ -419,8 +426,12 @@ function App() {
           setLocations(values[1] ? Object.values(values[1]) as string[] : academyConfig.defaultLocations);
           setUniforms(values[2] ? Object.values(values[2]) as string[] : academyConfig.defaultUniforms);
           setApiError(null);
-        } catch {
-          if (!disposed) setApiError('Cannot load the test database. Check the staging deployment or sign in again.');
+        } catch (error) {
+          if (!disposed) {
+            setApiError(error instanceof Error
+              ? error.message
+              : 'Cannot load the test database. Check the staging deployment or sign in again.');
+          }
         } finally {
           window.clearTimeout(timeout);
           loading = false;
