@@ -4,7 +4,7 @@ const LOGIN_STORAGE_KEY = 'blc_calendar_login';
 const isTestLoginSaved = () => {
   try {
     const saved = JSON.parse(window.localStorage.getItem(LOGIN_STORAGE_KEY) || 'null');
-    return saved?.testMode === true && saved?.role === 'ADMIN';
+    return saved?.role === 'ADMIN' && (saved?.testMode === true || saved?.localEmulator === true);
   } catch {
     return false;
   }

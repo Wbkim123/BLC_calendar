@@ -174,24 +174,26 @@ export default function Calendar({
         </div>
 
         {/* 데이터 관리 패널 (ADMIN 전용) */}
-        <div className="calendar-actions mb-2 flex w-full gap-2">
+        <div className="mb-2 w-full">
           <button
             onClick={() => setIsSearchOpen(true)}
-            className="calendar-search-action flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-xs font-bold"
+            className="calendar-search-action flex min-h-10 w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-extrabold"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             SEARCH
           </button>
+        </div>
+        <div className={`mb-3 grid w-full items-stretch gap-2.5 ${role === 'ADMIN' ? 'grid-cols-2' : 'grid-cols-1'}`}>
           {role === 'ADMIN' && (
             <button
               onClick={onOpenImport}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-900 py-2 text-xs font-bold text-white shadow-md active:bg-blue-800"
+              className="calendar-import-action flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-extrabold"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
               IMPORT
             </button>
           )}
-          <div className="flex-1">{settingsControl}</div>
+          <div className="min-w-0">{settingsControl}</div>
         </div>
 
         {/* 달력 본체 - 높이 확대 및 내부 패딩 조정 */}

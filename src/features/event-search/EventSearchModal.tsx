@@ -25,8 +25,8 @@ export default function EventSearchModal({ schedules, academy, role, currentCycl
   }), [schedules, academy, query, scope, canSearchAllCycles, currentCycleName]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Event search">
-      <div className="event-search-modal flex max-h-[88vh] w-full max-w-2xl flex-col rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm sm:p-4" role="dialog" aria-modal="true" aria-label="Event search">
+      <div className="event-search-modal flex max-h-[88dvh] w-full max-w-2xl flex-col rounded-3xl bg-white shadow-2xl">
         <div className="event-search-header flex items-center justify-between border-b border-gray-100 p-4 sm:p-5">
           <div>
             <h2 className="text-lg font-black text-gray-900">Search {academy} Events</h2>

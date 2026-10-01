@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { ReactNode, useEffect, useMemo, useState } from 'react';
 import type { DisplayMode } from '../App';
 import { DailySchedule, UserRole } from '../types/schedule';
 import { AcademyId } from '../types/academy';
@@ -8,6 +8,7 @@ import NotificationPrompt from './NotificationPrompt';
 interface Props {
   role: UserRole;
   academy: AcademyId;
+  academyControl?: ReactNode;
   cycleName?: string | null;
   schedules: DailySchedule[];
   displayMode: DisplayMode;
@@ -38,6 +39,7 @@ const Toggle = ({ enabled, onChange, label }: { enabled: boolean; onChange: () =
 export default function GeneralSettings({
   role,
   academy,
+  academyControl,
   cycleName,
   schedules,
   displayMode,
@@ -122,6 +124,16 @@ export default function GeneralSettings({
             </div>
 
             <div className="space-y-3">
+              {academyControl && role === 'ADMIN' && (
+                <section className="settings-card flex items-center justify-between gap-4 rounded-2xl border border-gray-200 p-4">
+                  <div>
+                    <div className="text-sm font-black text-gray-900">Academy</div>
+                    <div className="text-[11px] font-semibold text-gray-500">Switch between BLC and KTA schedules</div>
+                  </div>
+                  {academyControl}
+                </section>
+              )}
+
               {role === 'ADMIN' && !testMode && <section className="settings-card rounded-2xl border border-gray-200 p-4">
                 <div className="mb-3 text-xs font-black uppercase tracking-wider text-gray-500">Display View</div>
                 <div className="grid grid-cols-2 rounded-xl bg-gray-100 p-1">

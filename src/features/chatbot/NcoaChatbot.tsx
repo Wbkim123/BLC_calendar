@@ -106,7 +106,18 @@ export default function NcoaChatbot({ academy, role, cycleName }: Props) {
         {open ? (
           <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
         ) : (
-          <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M21 12a8 8 0 01-8 8 9 9 0 01-4-.9L3 21l1.6-4A8 8 0 113 12" /></svg>
+          <svg className="h-10 w-10" viewBox="0 0 48 48" role="img" aria-label="Cute class schedule helper">
+            <path d="M24 6v5" stroke="#FFE7A3" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="24" cy="5" r="3" fill="#FB7185" />
+            <rect x="8" y="13" width="32" height="27" rx="11" fill="#FFF4CC" stroke="#F6C85F" strokeWidth="2" />
+            <path d="M8 22H5a3 3 0 000 6h3m32-6h3a3 3 0 010 6h-3" fill="#FFF4CC" stroke="#F6C85F" strokeWidth="2" />
+            <circle cx="18" cy="25" r="2.5" fill="#334155" />
+            <circle cx="30" cy="25" r="2.5" fill="#334155" />
+            <path d="M20 31c1.2 1.4 2.5 2 4 2s2.8-.6 4-2" fill="none" stroke="#334155" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="13" cy="30" r="2" fill="#FDA4AF" opacity=".9" />
+            <circle cx="35" cy="30" r="2" fill="#FDA4AF" opacity=".9" />
+            <path d="M15 40v3m18-3v3" stroke="#F6C85F" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
         )}
       </button>
     </div>

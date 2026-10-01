@@ -1058,6 +1058,7 @@ function App() {
           role: 'ADMIN', profile: emulatorProfile, localEmulator: true
         }));
       }
+      window.dispatchEvent(new Event('ncoa-test-session-changed'));
       return true;
     }
     const requestedTestMode = code.trim() === '318709';
@@ -1433,6 +1434,7 @@ function App() {
       tvDisplay={isTvDisplay}
       role={role}
       academy={academy}
+      academyControl={accessProfile?.scope === 'NCOA' ? <AcademySwitcher academy={academy} onChange={handleAcademyChange} /> : undefined}
       cycleName={role === 'STUDENT' ? studentCycleName : null}
       schedules={schedules}
       displayMode={displayMode}
@@ -1550,14 +1552,7 @@ function App() {
         role={role}
         cycleTitle={cycleTitle}
         onOpenImport={() => setIsImportModalOpen(true)}
-        settingsControl={(
-          <div className="flex items-center justify-end gap-2">
-            {accessProfile?.scope === 'NCOA' && (
-              <AcademySwitcher academy={academy} onChange={handleAcademyChange} />
-            )}
-            {renderGeneralSettings()}
-          </div>
-        )}
+        settingsControl={renderGeneralSettings()}
         showAdBanner={!isImportModalOpen}
         testMode={isTestMode}
         displayMode={displayMode}
