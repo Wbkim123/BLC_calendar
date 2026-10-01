@@ -15,7 +15,8 @@ const schedules: DailySchedule[] = [{
 describe('resolveAccessCode', () => {
   it('normalizes the NCOA manager code', () => {
     const result = resolveAccessCode('ncoa6120', schedules);
-    expect(result).toMatchObject({ role: 'ADMIN', scope: 'NCOA', accessLevel: 'NCOA_MANAGER' });
+    expect(result).toMatchObject({ role: 'VIEWER', scope: 'NCOA', accessLevel: 'NCOA_MANAGER' });
+    expect(result?.permissions).toEqual(['schedule.read', 'conflict.resolve']);
   });
 
   it('scopes BLC and KTA importers', () => {
@@ -47,5 +48,9 @@ describe('resolveAccessCode', () => {
 
   it('rejects an inactive student cycle', () => {
     expect(resolveAccessCode('BLC0726', schedules)).toBeNull();
+  });
+
+  it('does not accept KTA student cycle logins', () => {
+    expect(resolveAccessCode('KTA0826', schedules)).toBeNull();
   });
 });

@@ -2,16 +2,22 @@
   "rules": {
     ".read": true,
     "schedules": {
-      ".write": "auth != null && (auth.token.admin === true || auth.token.testAdmin === true)"
+      ".write": "auth != null && auth.token.admin === true && auth.token.scope === 'BLC'"
     },
     "locations": {
-      ".write": "auth != null && (auth.token.admin === true || auth.token.testAdmin === true)"
+      ".write": "auth != null && auth.token.admin === true && auth.token.scope === 'BLC'"
     },
     "uniforms": {
-      ".write": "auth != null && (auth.token.admin === true || auth.token.testAdmin === true)"
+      ".write": "auth != null && auth.token.admin === true && auth.token.scope === 'BLC'"
+    },
+    "academies": {
+      "kta": {
+        ".read": true,
+        ".write": "auth != null && auth.token.admin === true && auth.token.scope === 'KTA'"
+      }
     },
     "test": {
-      ".write": "auth != null && (auth.token.admin === true || auth.token.testAdmin === true)"
+      ".write": "auth != null && auth.token.admin === true"
     }
   }
 }

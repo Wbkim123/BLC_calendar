@@ -1,0 +1,14 @@
+{
+  "database": {
+    "rules": "database.rules.emulator.json"
+  },
+  "functions": {
+    "source": "firebase-functions"
+  },
+  "emulators": {
+    "auth": { "host": "127.0.0.1", "port": 9099 },
+    "database": { "host": "127.0.0.1", "port": 9000 },
+    "functions": { "host": "127.0.0.1", "port": 5001 },
+    "ui": { "enabled": true, "host": "127.0.0.1", "port": 4000 }
+  }
+}

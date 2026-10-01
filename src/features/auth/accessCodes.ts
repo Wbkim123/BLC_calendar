@@ -10,7 +10,7 @@ const IMPORTER: AccessProfile['permissions'] = [
   'location.manage',
   'conflict.resolve'
 ];
-const NCOA_MANAGER: AccessProfile['permissions'] = [...IMPORTER];
+const NCOA_MANAGER: AccessProfile['permissions'] = ['schedule.read', 'conflict.resolve'];
 
 export const normalizeAccessCode = (code: string) =>
   code.replace(/\s+/g, '').toUpperCase();
@@ -61,7 +61,7 @@ export function resolveAccessCode(
 
   if (normalized === 'NCOA6120') {
     return {
-      role: 'ADMIN',
+      role: 'VIEWER',
       accessLevel: 'NCOA_MANAGER',
       academy: selectedAcademy,
       scope: 'NCOA',
@@ -84,10 +84,11 @@ export function resolveAccessCode(
     };
   }
 
-  const studentMatch = /^(BLC|KTA)(\d{4})$/.exec(normalized);
+  // KTA has no student app users. Keep cycle-code sign-in BLC-only.
+  const studentMatch = /^BLC(\d{4})$/.exec(normalized);
   if (studentMatch) {
-    const academy = studentMatch[1] as AcademyId;
-    const cycleName = cycleFromDigits(studentMatch[2]);
+    const academy: AcademyId = 'BLC';
+    const cycleName = cycleFromDigits(studentMatch[1]);
     if (!isCycleActive(cycleName, schedules)) return null;
     return {
       role: 'STUDENT',

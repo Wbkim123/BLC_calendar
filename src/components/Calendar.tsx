@@ -9,6 +9,8 @@ import { EventSearchResult } from '../features/event-search/searchEvents';
 
 interface Props {
   schedules: DailySchedule[];
+  crossAcademySchedules?: DailySchedule[];
+  showCrossAcademyConflicts?: boolean;
   academy: AcademyId;
   currentCycleName?: string | null;
   onSelectDate: (date: string) => void;
@@ -23,28 +25,31 @@ interface Props {
   displayMode: DisplayMode;
 }
 
-const hasScheduleConflict = (schedule: DailySchedule) => {
+export const hasScheduleConflict = (schedule: DailySchedule) => {
   const sortedEvents = [...(schedule.events || [])].sort((a, b) => a.time.localeCompare(b.time));
-
-  if (schedule.academy === 'KTA') {
-    return sortedEvents.some((event, index) => sortedEvents.slice(index + 1).some(other => {
-      const [start, end] = event.time.split('-').map(Number);
-      const [otherStart, otherEnd] = other.time.split('-').map(Number);
-      const location = event.location.trim().toUpperCase();
-      const otherLocation = other.location.trim().toUpperCase();
-      const hasKnownSharedLocation = Boolean(location && location !== 'TBD' && location === otherLocation);
-      return hasKnownSharedLocation && start < otherEnd && otherStart < end;
-    }));
-  }
-
-  return sortedEvents.some((event, index) => {
-    if (index === 0) return false;
-
-    const previousEnd = parseInt(sortedEvents[index - 1].time.split('-')[1]);
-    const currentStart = parseInt(event.time.split('-')[0]);
-    return currentStart < previousEnd;
-  });
+  return sortedEvents.some((event, index) => sortedEvents.slice(index + 1).some(other => {
+    const [start, end] = event.time.split('-').map(Number);
+    const [otherStart, otherEnd] = other.time.split('-').map(Number);
+    return Number.isFinite(start) && Number.isFinite(end) && Number.isFinite(otherStart) && Number.isFinite(otherEnd)
+      && start < otherEnd && otherStart < end;
+  }));
 };
+
+export const hasCrossAcademyLocationConflict = (schedule: DailySchedule, otherSchedules: DailySchedule[]) =>
+  (schedule.events || []).some(event => {
+    const location = event.location.trim().toUpperCase();
+    if (!location || location === 'TBD') return false;
+    const [start, end] = event.time.split('-').map(Number);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
+    return otherSchedules.filter(other => other.date === schedule.date && other.academy !== schedule.academy)
+      .some(other => (other.events || []).some(otherEvent => {
+        const otherLocation = otherEvent.location.trim().toUpperCase();
+        const [otherStart, otherEnd] = otherEvent.time.split('-').map(Number);
+        return location === otherLocation && location !== 'TBD'
+          && Number.isFinite(otherStart) && Number.isFinite(otherEnd)
+          && start < otherEnd && otherStart < end;
+      }));
+  });
 
 const getCalendarDayLabel = (dayLabel: string) =>
   /^FEDERAL\s+HOLIDAY\b/i.test(dayLabel.trim())
@@ -53,6 +58,8 @@ const getCalendarDayLabel = (dayLabel: string) =>
 
 export default function Calendar({ 
   schedules, 
+  crossAcademySchedules = [],
+  showCrossAcademyConflicts = false,
   academy,
   currentCycleName,
   onSelectDate, 
@@ -234,7 +241,10 @@ export default function Calendar({
               today.setHours(0, 0, 0, 0);
               const isToday = cellDate.getTime() === today.getTime();
               const isPastScheduledDate = Boolean(schedule) && cellDate.getTime() < today.getTime();
-              const hasConflict = schedule ? hasScheduleConflict(schedule) : false;
+              const hasInternalConflict = schedule ? hasScheduleConflict(schedule) : false;
+              const hasLocationConflict = Boolean(schedule && showCrossAcademyConflicts
+                && hasCrossAcademyLocationConflict(schedule, crossAcademySchedules));
+              const hasConflict = hasInternalConflict || hasLocationConflict;
               const hasHighlightedEvent = Boolean(schedule?.events?.some(event => event.highlighted));
               const hasStudentNotes = Boolean(schedule?.notes?.trim());
               const hasSglNotes = role !== 'STUDENT' && Boolean(schedule?.sglNotes?.trim());
@@ -282,7 +292,8 @@ export default function Calendar({
                   {hasConflict && (
                     <div
                       className="absolute top-0.5 left-0.5 lg:top-2 lg:left-2 w-4 h-4 lg:w-7 lg:h-7 bg-red-700 text-white rounded-full shadow-sm flex items-center justify-center text-[10px] lg:text-base font-black"
-                      aria-label="Schedule conflict"
+                      aria-label={hasLocationConflict ? 'BLC/KTA location conflict at overlapping times' : 'Schedule time conflict'}
+                      title={hasLocationConflict ? 'BLC/KTA schedules overlap at the same location and time' : 'Schedule time conflict'}
                     >
                       !
                     </div>

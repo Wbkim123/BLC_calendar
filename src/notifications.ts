@@ -331,7 +331,7 @@ export async function getNotificationAvailability(): Promise<NotificationAvailab
   return 'prompt';
 }
 
-export async function enableNotifications(role: UserRole, cycleName?: string | null, testMode = false, academy: AcademyId = 'BLC') {
+export async function enableNotifications(role: UserRole, cycleName?: string | null, testMode = false, academy: AcademyId = 'BLC', allAcademies = false) {
   if (useFirebaseEmulators) throw new Error('Push notifications are disabled in local emulator mode.');
   if (!isPhoneDevice()) throw new Error('unsupported');
 
@@ -352,7 +352,7 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
       if (!isStagingSession()) throw new Error('Staging session required.');
       const idToken = await getAdminIdToken();
       if (!idToken) throw new Error('permission-denied');
-      await callNativeFunction('registerPushToken', { token, academy }, idToken);
+      await callNativeFunction('registerPushToken', { token, academy, allAcademies }, idToken);
       window.localStorage.setItem(PUSH_TOKEN_KEY, token);
       window.localStorage.removeItem(PUSH_TOPIC_KEY);
       window.localStorage.removeItem(PUSH_DISABLED_KEY);
@@ -367,6 +367,7 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
         role: role || 'UNKNOWN',
         cycleName: cycleName || null,
         academy,
+        allAcademies,
         platform: `${Capacitor.getPlatform()}-native`,
         previousTopic: window.localStorage.getItem(PUSH_TOPIC_KEY)
       }
@@ -399,7 +400,7 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
 
   if (testMode) {
     if (!isStagingSession()) throw new Error('Staging session required.');
-    await httpsCallable(activeFunctions(), 'registerPushToken')({ token, academy });
+    await httpsCallable(activeFunctions(), 'registerPushToken')({ token, academy, allAcademies });
     window.localStorage.setItem(PUSH_TOKEN_KEY, token);
     window.localStorage.removeItem(PUSH_TOPIC_KEY);
     window.localStorage.removeItem(PUSH_DISABLED_KEY);
@@ -411,6 +412,7 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
     role: role || 'UNKNOWN',
     cycleName: cycleName || null,
     academy,
+    allAcademies,
     platform: isIos() ? 'ios-web' : 'web',
     previousTopic: window.localStorage.getItem(PUSH_TOPIC_KEY)
   });
@@ -424,17 +426,17 @@ export async function enableNotifications(role: UserRole, cycleName?: string | n
   window.localStorage.removeItem(PUSH_DISABLED_KEY);
 }
 
-export async function syncNotificationSubscription(role: UserRole, cycleName?: string | null, academy: AcademyId = 'BLC') {
+export async function syncNotificationSubscription(role: UserRole, cycleName?: string | null, academy: AcademyId = 'BLC', allAcademies = false) {
   if (useFirebaseEmulators) return;
   if (isNativePlatform()) {
     const permission = await FirebaseMessaging.checkPermissions();
     if (permission.receive !== 'granted') return;
-    await enableNotifications(role, cycleName, isStagingSession(), academy);
+    await enableNotifications(role, cycleName, isStagingSession(), academy, allAcademies);
     return;
   }
 
   if (Notification.permission !== 'granted' || !window.localStorage.getItem(PUSH_TOKEN_KEY)) return;
-  await enableNotifications(role, cycleName, isStagingSession(), academy);
+  await enableNotifications(role, cycleName, isStagingSession(), academy, allAcademies);
 }
 
 async function disableNotificationsInternal(
@@ -442,7 +444,8 @@ async function disableNotificationsInternal(
   cycleName?: string | null,
   recoverMissingToken = true,
   deleteNativeToken = true,
-  academy: AcademyId = 'BLC'
+  academy: AcademyId = 'BLC',
+  allAcademies = false
 ) {
   if (useFirebaseEmulators) {
     window.localStorage.removeItem(PUSH_TOKEN_KEY);
@@ -474,9 +477,9 @@ async function disableNotificationsInternal(
   if (token) {
     try {
       if (isNativePlatform()) {
-        if (!staging) await callNativeFunction('unregisterPushToken', { token, topic, role, cycleName, academy });
+        if (!staging) await callNativeFunction('unregisterPushToken', { token, topic, role, cycleName, academy, allAcademies });
       } else {
-        await httpsCallable(activeFunctions(), 'unregisterPushToken')({ token, topic, role, cycleName, academy });
+        await httpsCallable(activeFunctions(), 'unregisterPushToken')({ token, topic, role, cycleName, academy, allAcademies });
       }
     } catch (error) {
       unregisterError = error;
@@ -502,14 +505,16 @@ export async function disableNotifications(
   cycleName?: string | null,
   recoverMissingToken = true,
   deleteNativeToken = true,
-  academy: AcademyId = 'BLC'
+  academy: AcademyId = 'BLC',
+  allAcademies = false
 ) {
   const operation = disableNotificationsInternal(
     role,
     cycleName,
     recoverMissingToken,
     deleteNativeToken,
-    academy
+    academy,
+    allAcademies
   );
   if (!isNativePlatform()) return operation;
 

@@ -106,7 +106,7 @@ export default function NcoaChatbot({ academy, role, cycleName }: Props) {
         {open ? (
           <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
         ) : (
-          <svg className="h-10 w-10" viewBox="0 0 48 48" role="img" aria-label="Cute class schedule helper">
+          <svg className="h-10 w-10" viewBox="0 0 48 48" role="img" aria-label="Cute NCOA helper bot">
             <path d="M24 6v5" stroke="#FFE7A3" strokeWidth="3" strokeLinecap="round" />
             <circle cx="24" cy="5" r="3" fill="#FB7185" />
             <rect x="8" y="13" width="32" height="27" rx="11" fill="#FFF4CC" stroke="#F6C85F" strokeWidth="2" />

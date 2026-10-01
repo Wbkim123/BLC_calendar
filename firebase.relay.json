@@ -1,0 +1,6 @@
+{
+  "functions": {
+    "source": "release-assets/staging-relay-deploy/functions",
+    "codebase": "default"
+  }
+}

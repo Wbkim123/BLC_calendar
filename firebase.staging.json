@@ -1,0 +1,10 @@
+{
+  "database": {
+    "rules": "database.rules.staging.json",
+    "predeploy": ["node scripts/assert-staging-deploy.cjs \"$GCLOUD_PROJECT\""]
+  },
+  "functions": {
+    "source": "firebase-functions", "codebase": "staging",
+    "predeploy": ["node scripts/assert-staging-deploy.cjs \"$GCLOUD_PROJECT\""]
+  }
+}

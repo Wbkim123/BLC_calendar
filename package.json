@@ -29,8 +29,15 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "prebuild": "node scripts/assert-production-firebase.cjs",
     "build": "cross-env CI=false react-scripts build",
     "test": "react-scripts test",
+    "test:unit:ci": "react-scripts test --watchAll=false --runInBand",
+    "emulators": "node scripts/firebase-emulators.cjs start",
+    "test:emulator": "node scripts/firebase-emulators.cjs exec",
+    "release:check": "node scripts/release-readiness.cjs",
+    "release:verify": "npm run release:check && npm test -- --watchAll=false --runInBand && npm run build",
+    "native:sync": "npm run build && npx cap sync",
     "eject": "react-scripts eject",
     "postinstall": "patch-package"
   },

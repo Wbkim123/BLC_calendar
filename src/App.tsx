@@ -209,7 +209,10 @@ function App() {
     if (typeof window === 'undefined') return null;
     try {
       const parsed = JSON.parse(window.localStorage.getItem(LOGIN_STORAGE_KEY) || 'null') as SavedLogin | null;
-      const profile = parsed?.profile || null;
+      const savedProfile = parsed?.profile || null;
+      const profile = savedProfile?.accessLevel === 'NCOA_MANAGER'
+        ? { ...savedProfile, role: 'VIEWER' as const, permissions: ['schedule.read', 'conflict.resolve'] as AccessProfile['permissions'] }
+        : savedProfile;
       if (!Capacitor.isNativePlatform() && parsed?.testMode !== true && !canUseWebsite(profile)) return null;
       return profile;
     } catch {
@@ -246,6 +249,7 @@ function App() {
     }
   });
   const [schedules, setSchedules] = useState<DailySchedule[]>([]);
+  const [crossAcademySchedules, setCrossAcademySchedules] = useState<DailySchedule[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [uniforms, setUniforms] = useState<string[]>([]);
   const [selectedDateId, setSelectedDateId] = useState<string | null>(null);
@@ -370,6 +374,44 @@ function App() {
     const clearTimer = window.setTimeout(() => setForegroundNotification(null), 8000);
     return () => window.clearTimeout(clearTimer);
   }, [foregroundNotification]);
+
+  useEffect(() => {
+    if (accessProfile?.accessLevel !== 'NCOA_MANAGER') {
+      setCrossAcademySchedules([]);
+      return;
+    }
+    let disposed = false;
+    const otherAcademy: AcademyId = academy === 'BLC' ? 'KTA' : 'BLC';
+    const path = `${getAcademyConfig(otherAcademy).databasePrefix}schedules`;
+    const loadOtherAcademy = async () => {
+      try {
+        let url: string;
+        if (isTestMode) {
+          if (!isStagingSession()) return;
+          const token = await getAdminIdToken();
+          if (!token) return;
+          url = stagingDatabaseUrl(path, token);
+        } else {
+          url = getDatabaseRestUrl(path);
+        }
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Cross-academy schedule request failed (${response.status})`);
+        const values = await response.json();
+        const entries = values && typeof values === 'object' ? Object.values(values) as DailySchedule[] : [];
+        if (!disposed) setCrossAcademySchedules(entries
+          .filter(day => Boolean(day?.date))
+          .map(day => ({ ...day, academy: otherAcademy, events: normalizeScheduleEvents(day.events) })));
+      } catch (error) {
+        if (!disposed) {
+          console.error('Could not load schedules for commander location-conflict check:', error);
+          setCrossAcademySchedules([]);
+        }
+      }
+    };
+    void loadOtherAcademy();
+    const timer = window.setInterval(() => void loadOtherAcademy(), 30000);
+    return () => { disposed = true; window.clearInterval(timer); };
+  }, [accessProfile?.accessLevel, academy, isTestMode]);
 
   useEffect(() => {
     if (!notificationFocus || selectedDateId !== notificationFocus.date) return;
@@ -999,7 +1041,7 @@ function App() {
     }
   };
   const handleLogout = () => {
-    const cleanup = disableNotifications(role, studentCycleName, false, !isTestMode, academy);
+    const cleanup = disableNotifications(role, studentCycleName, false, !isTestMode, academy, accessProfile?.accessLevel === 'NCOA_MANAGER');
 
     // Clear the local session first so slow notification/auth requests cannot
     // leave the user stuck on the calendar after pressing LOGOUT.
@@ -1407,6 +1449,7 @@ function App() {
       <NotificationPrompt
         role={role}
         academy={academy}
+        allAcademies={accessProfile?.accessLevel === 'NCOA_MANAGER'}
         cycleName={role === 'STUDENT' ? studentCycleName : null}
         autoPrompt={isTestMode}
         testMode={isTestMode}
@@ -1434,6 +1477,8 @@ function App() {
       tvDisplay={isTvDisplay}
       role={role}
       academy={academy}
+      allAcademies={accessProfile?.accessLevel === 'NCOA_MANAGER'}
+      accessLevel={accessProfile?.accessLevel}
       academyControl={accessProfile?.scope === 'NCOA' ? <AcademySwitcher academy={academy} onChange={handleAcademyChange} /> : undefined}
       cycleName={role === 'STUDENT' ? studentCycleName : null}
       schedules={schedules}
@@ -1534,6 +1579,8 @@ function App() {
       {emulatorBadge}
       <Calendar 
         schedules={filteredSchedules} 
+        crossAcademySchedules={crossAcademySchedules}
+        showCrossAcademyConflicts={accessProfile?.accessLevel === 'NCOA_MANAGER'}
         academy={academy}
         currentCycleName={role === 'STUDENT' ? studentCycleName : activeCycleName}
         onSelectDate={(date) => setSelectedDateId(date)} 
@@ -1552,7 +1599,9 @@ function App() {
         role={role}
         cycleTitle={cycleTitle}
         onOpenImport={() => setIsImportModalOpen(true)}
-        settingsControl={renderGeneralSettings()}
+        settingsControl={(
+          renderGeneralSettings()
+        )}
         showAdBanner={!isImportModalOpen}
         testMode={isTestMode}
         displayMode={displayMode}

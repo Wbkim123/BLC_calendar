@@ -2,12 +2,15 @@ import React, { ReactNode, useEffect, useMemo, useState } from 'react';
 import type { DisplayMode } from '../App';
 import { DailySchedule, UserRole } from '../types/schedule';
 import { AcademyId } from '../types/academy';
+import type { AccessLevel } from '../types/academy';
 import { isAdPrivacyOptionsRequired, showAdPrivacyOptions } from './AdMobBanner';
 import NotificationPrompt from './NotificationPrompt';
 
 interface Props {
   role: UserRole;
   academy: AcademyId;
+  allAcademies?: boolean;
+  accessLevel?: AccessLevel;
   academyControl?: ReactNode;
   cycleName?: string | null;
   schedules: DailySchedule[];
@@ -39,6 +42,8 @@ const Toggle = ({ enabled, onChange, label }: { enabled: boolean; onChange: () =
 export default function GeneralSettings({
   role,
   academy,
+  allAcademies = false,
+  accessLevel,
   academyControl,
   cycleName,
   schedules,
@@ -116,7 +121,7 @@ export default function GeneralSettings({
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-black text-gray-900">Settings</h2>
-                <p className="text-xs font-bold text-gray-500">{tvDisplay ? 'TV Display' : role === 'ADMIN' ? 'Administrator' : role === 'VIEWER' ? 'SGL' : 'Student'}</p>
+                <p className="text-xs font-bold text-gray-500">{tvDisplay ? 'TV Display' : accessLevel === 'NCOA_MANAGER' ? 'NCOA Commander' : role === 'ADMIN' ? 'Chief' : role === 'VIEWER' ? 'SGL' : 'Student'}</p>
               </div>
               <button onClick={() => setOpen(false)} className="rounded-full bg-gray-100 p-2 text-gray-600" aria-label="Close settings">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -154,7 +159,7 @@ export default function GeneralSettings({
                   <div className="text-sm font-black text-gray-900">Notifications</div>
                   <div className="text-[11px] font-semibold text-gray-500">Schedule update alerts</div>
                 </div>
-                {notificationsDisabled ? <span className="text-xs font-bold text-gray-500">Disabled in local emulator</span> : <NotificationPrompt role={role} academy={academy} cycleName={cycleName} variant="toggle" autoPrompt={false} testMode={testMode} />}
+                {notificationsDisabled ? <span className="text-xs font-bold text-gray-500">Disabled in local emulator</span> : <NotificationPrompt role={role} academy={academy} allAcademies={allAcademies} cycleName={cycleName} variant="toggle" autoPrompt={false} testMode={testMode} />}
               </section>
 
               <section className="settings-card flex items-center justify-between rounded-2xl border border-gray-200 p-4">

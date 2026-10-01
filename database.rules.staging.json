@@ -1,0 +1,34 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "schedules": {
+      ".read": "auth != null && auth.token.staging === true && auth.token.admin === true && auth.token.scope === 'NCOA'",
+      ".write": "auth != null && auth.token.staging === true && auth.token.admin === true && auth.token.scope === 'NCOA'"
+    },
+    "locations": {
+      ".read": "auth != null && auth.token.staging === true && auth.token.admin === true && auth.token.scope === 'NCOA'",
+      ".write": "auth != null && auth.token.staging === true && auth.token.admin === true && auth.token.scope === 'NCOA'"
+    },
+    "uniforms": {
+      ".read": "auth != null && auth.token.staging === true && auth.token.admin === true && auth.token.scope === 'NCOA'",
+      ".write": "auth != null && auth.token.staging === true && auth.token.admin === true && auth.token.scope === 'NCOA'"
+    },
+    "academies": {
+      "kta": {
+        "schedules": {
+          ".read": "auth != null && auth.token.staging === true && auth.token.admin === true && auth.token.scope === 'NCOA'",
+          ".write": "auth != null && auth.token.staging === true && auth.token.admin === true && auth.token.scope === 'NCOA'"
+        },
+        "locations": {
+          ".read": "auth != null && auth.token.staging === true && auth.token.admin === true && auth.token.scope === 'NCOA'",
+          ".write": "auth != null && auth.token.staging === true && auth.token.admin === true && auth.token.scope === 'NCOA'"
+        },
+        "uniforms": {
+          ".read": "auth != null && auth.token.staging === true && auth.token.admin === true && auth.token.scope === 'NCOA'",
+          ".write": "auth != null && auth.token.staging === true && auth.token.admin === true && auth.token.scope === 'NCOA'"
+        }
+      }
+    }
+  }
+}
