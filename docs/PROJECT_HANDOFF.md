@@ -1,15 +1,22 @@
 # NCOA Schedule Calendar — Project Handoff
 
-Last updated: 2026-10-01
+Last updated: 2026-10-02
+
+## Cycle-start interim protection and calendar controls (2026-10-02)
+
+- Deployed temporary production Realtime Database Rules to `blc-calendar-e302f`: existing write paths require `auth.token.admin === true`, removing the old `testAdmin` write bypass. The deployed rules were read back and confirmed. Root `.read: true` and existing ordinary admin writes remain unchanged. This blocks the deployed test custom token, which carries `testAdmin` but not `admin`; it does not yet enforce commander read-only or academy-scoped admin writes. Replace with the full Functions + academy-scoped Rules rollout when the required Secret Manager policy is resolved.
+- Admin calendar controls now place Import left and Search right in one row. Settings is a circular fixed button at bottom-left, opposite the chatbot. Removed the Display View setting and obsolete saved preference; TV-display profiles still select TV mode automatically.
+- Validation from a clean worktree based on `origin/master` (`69bf730`): 19 Jest suites / 64 tests, TypeScript, and production build passed. The build has the existing AdMob source-map and Browserslist warnings. Cloudflare Pages direct deployment was completed before this source update; this source update will be published through the GitHub `master` push. No native app/store update was made.
+- Full Functions deployment remains blocked by the UCSD organization resource-location policy. Per-cycle read confidentiality remains app-level only, with root `.read: true` retained for TV/client compatibility.
 
 ## Role permissions clarified (2026-10-01)
 
 - NCOA commander profiles are read-only in the app and receive schedule notifications for both academies. The calendar can flag cross-academy conflicts only when locations match and event times overlap. Within either academy, overlapping event times remain conflicts regardless of location.
 - Academy Chief profiles retain the existing administrator tools for their own academy: event editing, PDF import, locations, uniforms, and cycle database management. SGL profiles remain read-only for all cycles in their academy. Student access-code resolution is BLC-only and active-cycle scoped; the app filters calendar/search results to the assigned cycle and inactive cycles do not resolve.
-- Production custom tokens no longer grant the commander `admin`; schedule notifications reject cross-academy/commander send attempts. The pending production Database Rules restrict schedule/location/uniform writes to academy-scoped admins and deny NCOA-scoped writes. Staging remains separately scoped to its staging manager token.
+- Production custom tokens no longer grant the commander `admin`; schedule notifications reject cross-academy/commander send attempts. Full academy-scoped production Database Rules remain pending; the temporary rules deployed 2026-10-02 only remove `testAdmin` writes while preserving legacy admin writes. Staging remains separately scoped to its staging manager token.
 - Commander push registration uses a dedicated audience topic for all schedule updates; Chief and SGL subscriptions remain academy-scoped. The staging test path continues to relay only to the approved test device.
 - Important limitation: production RTDB still has root `.read: true` for existing client and TV compatibility. Student cycle filtering is currently an app-level view restriction, not a database-level confidentiality boundary; direct database reads can retrieve schedules outside the assigned cycle. Enforcing per-cycle server-side reads requires a separate student-authentication/rules migration and compatibility work for existing TV clients.
-- Verification for this source change: Jest 18 suites / 59 tests passed; TypeScript passed; production build passed with existing AdMob source-map and Browserslist warnings; Functions JavaScript syntax and scoped `git diff --check` passed. No push or Firebase/Cloudflare deployment was performed. The Firebase Functions dependency migration remains separate and unchanged by this role work.
+- Verification for the scoped role source change: Jest 19 suites / 64 tests passed; TypeScript and production build passed with existing AdMob source-map and Browserslist warnings; Functions JavaScript syntax and scoped `git diff --check` passed. Pushed to GitHub `master` as `69bf730`. The full production Functions/Database Rules deployment stopped because the organization resource-location policy rejected creating the required automatic-replication Secret Manager secret in `global`; the temporary test-write block was deployed separately on 2026-10-02. Cloudflare Pages status for the role release was not independently verified. The Firebase Functions dependency migration remains separate and unchanged.
 
 ## Web calendar UX release (2026-10-01)
 

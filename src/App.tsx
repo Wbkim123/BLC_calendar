@@ -279,16 +279,7 @@ function App() {
     () => Capacitor.getPlatform() !== 'ios'
   );
   const [notificationOnboardingComplete, setNotificationOnboardingComplete] = useState(false);
-  const [displayMode, setDisplayMode] = useState<DisplayMode>(() => {
-    if (typeof window === 'undefined') return 'auto';
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(LOGIN_STORAGE_KEY) || 'null') as SavedLogin | null;
-      if (saved?.testMode) return 'auto';
-    } catch {
-      // Fall back to the saved display preference if the login state is invalid.
-    }
-    return window.localStorage.getItem(DISPLAY_MODE_STORAGE_KEY) === 'tv' ? 'tv' : 'auto';
-  });
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('auto');
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(DARK_MODE_STORAGE_KEY) === 'true';
@@ -315,18 +306,14 @@ function App() {
   const getScheduleUpdatePath = (path: string) =>
     `/${getDatabasePath(path.replace(/^\/+/, ''))}`;
 
-  const handleDisplayModeChange = (nextMode: DisplayMode) => {
-    if (isTvDisplay || isTestMode) return;
-    setDisplayMode(nextMode);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(DISPLAY_MODE_STORAGE_KEY, nextMode);
-    }
-  };
-
   const handleDarkModeChange = (enabled: boolean) => {
     setDarkMode(enabled);
     window.localStorage.setItem(DARK_MODE_STORAGE_KEY, String(enabled));
   };
+
+  useEffect(() => {
+    window.localStorage.removeItem(DISPLAY_MODE_STORAGE_KEY);
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle('theme-dark', darkMode);
@@ -1210,7 +1197,6 @@ function App() {
     setForegroundNotification(null);
     if (requestedTestMode) {
       setDisplayMode('auto');
-      window.localStorage.setItem(DISPLAY_MODE_STORAGE_KEY, 'auto');
     }
     setStudentCycleName(login.studentCycleName || null);
 
@@ -1482,8 +1468,6 @@ function App() {
       academyControl={accessProfile?.scope === 'NCOA' ? <AcademySwitcher academy={academy} onChange={handleAcademyChange} /> : undefined}
       cycleName={role === 'STUDENT' ? studentCycleName : null}
       schedules={schedules}
-      displayMode={displayMode}
-      onDisplayModeChange={handleDisplayModeChange}
       darkMode={darkMode}
       onDarkModeChange={handleDarkModeChange}
       onLogout={handleLogout}

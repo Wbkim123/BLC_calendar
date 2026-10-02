@@ -1,5 +1,5 @@
 import React, { ReactNode, useEffect, useMemo, useState } from 'react';
-import type { DisplayMode } from '../App';
+import { Capacitor } from '@capacitor/core';
 import { DailySchedule, UserRole } from '../types/schedule';
 import { AcademyId } from '../types/academy';
 import type { AccessLevel } from '../types/academy';
@@ -14,8 +14,6 @@ interface Props {
   academyControl?: ReactNode;
   cycleName?: string | null;
   schedules: DailySchedule[];
-  displayMode: DisplayMode;
-  onDisplayModeChange: (mode: DisplayMode) => void;
   darkMode: boolean;
   onDarkModeChange: (enabled: boolean) => void;
   onLogout: () => void;
@@ -47,8 +45,6 @@ export default function GeneralSettings({
   academyControl,
   cycleName,
   schedules,
-  displayMode,
-  onDisplayModeChange,
   darkMode,
   onDarkModeChange,
   onLogout,
@@ -63,6 +59,9 @@ export default function GeneralSettings({
   const [showAdPrivacy, setShowAdPrivacy] = useState(false);
   const [adPrivacyBusy, setAdPrivacyBusy] = useState(false);
   const [adPrivacyError, setAdPrivacyError] = useState(false);
+  const settingsButtonBottom = Capacitor.isNativePlatform()
+    ? 'calc(4.75rem + env(safe-area-inset-bottom))'
+    : 'calc(1rem + env(safe-area-inset-bottom))';
   const uniqueCycles = useMemo(() => Array.from(new Set(
     schedules.map(schedule => schedule.cycleName?.trim()).filter((value): value is string => Boolean(value))
   )).sort(), [schedules]);
@@ -103,14 +102,15 @@ export default function GeneralSettings({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-700 py-2 text-xs font-bold text-white shadow-md active:bg-gray-600"
+        className="settings-launcher fixed left-3 z-[70] flex h-14 w-14 items-center justify-center rounded-full bg-gray-700 text-white shadow-xl ring-2 ring-white/70 active:bg-gray-600 sm:left-5"
+        style={{ bottom: settingsButtonBottom }}
         aria-label="Open settings"
+        aria-haspopup="dialog"
       >
-        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
-        <span>SETTINGS</span>
       </button>
 
       <div
@@ -138,21 +138,6 @@ export default function GeneralSettings({
                   {academyControl}
                 </section>
               )}
-
-              {role === 'ADMIN' && !testMode && <section className="settings-card rounded-2xl border border-gray-200 p-4">
-                <div className="mb-3 text-xs font-black uppercase tracking-wider text-gray-500">Display View</div>
-                <div className="grid grid-cols-2 rounded-xl bg-gray-100 p-1">
-                  {(['auto', 'tv'] as DisplayMode[]).map(mode => (
-                    <button
-                      key={mode}
-                      onClick={() => onDisplayModeChange(mode)}
-                      className={`rounded-lg py-2 text-xs font-black ${displayMode === mode ? 'bg-blue-900 text-white shadow' : 'text-gray-500'}`}
-                    >
-                      {mode === 'auto' ? 'AUTO' : 'TV VIEW'}
-                    </button>
-                  ))}
-                </div>
-              </section>}
 
               <section className="settings-card flex items-center justify-between rounded-2xl border border-gray-200 p-4">
                 <div>
