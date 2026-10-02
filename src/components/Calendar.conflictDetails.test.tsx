@@ -20,25 +20,23 @@ const schedule: DailySchedule = {
   ]
 };
 
-describe('calendar conflict details', () => {
-  it('opens exact conflicting event pairs from the marker', () => {
+describe('calendar conflict navigation', () => {
+  it('opens Event View from the conflict marker instead of a calendar dialog', () => {
+    const onSelectDate = jest.fn();
     render(
       <Calendar
         schedules={[schedule]}
         academy="BLC"
-        onSelectDate={() => undefined}
+        onSelectDate={onSelectDate}
         onSelectSearchResult={() => undefined}
         settingsControl={null}
         displayMode="auto"
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open conflict details for this date' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open event view to see conflict details' }));
 
-    expect(screen.queryByRole('dialog')).not.toBeNull();
-    expect(screen.queryByText('Morning Formation')).not.toBeNull();
-    expect(screen.queryByText('Medical Brief')).not.toBeNull();
-    expect(screen.queryByText('0900-1100')).not.toBeNull();
-    expect(screen.queryByText('1000-1200')).not.toBeNull();
+    expect(onSelectDate).toHaveBeenCalledWith(date);
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

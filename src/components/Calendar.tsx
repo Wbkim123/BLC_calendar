@@ -6,7 +6,7 @@ import AdMobBanner from './AdMobBanner';
 import { AcademyId } from '../types/academy';
 import EventSearchModal from '../features/event-search/EventSearchModal';
 import { EventSearchResult } from '../features/event-search/searchEvents';
-import { getScheduleConflicts, hasCrossAcademyLocationConflict, hasScheduleConflict } from '../features/schedule-conflicts/conflicts';
+import { hasCrossAcademyLocationConflict, hasScheduleConflict } from '../features/schedule-conflicts/conflicts';
 
 export { hasCrossAcademyLocationConflict, hasScheduleConflict } from '../features/schedule-conflicts/conflicts';
 
@@ -55,7 +55,6 @@ export default function Calendar({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [newTitle, setNewTitle] = useState(cycleTitle);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [conflictDate, setConflictDate] = useState<string | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const year = viewDate.getFullYear();
@@ -274,10 +273,10 @@ export default function Calendar({
                   {hasConflict && (
                     <button
                       type="button"
-                      onClick={() => schedule && setConflictDate(schedule.date)}
+                      onClick={() => schedule && onSelectDate(schedule.date)}
                       className="absolute top-0.5 left-0.5 z-30 w-7 h-7 lg:top-2 lg:left-2 lg:w-8 lg:h-8 bg-red-700 text-white rounded-full shadow-sm flex items-center justify-center text-xs lg:text-base font-black cursor-pointer hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-300"
-                      aria-label="Open conflict details for this date"
-                      title="Tap to see which events conflict"
+                      aria-label="Open event view to see conflict details"
+                      title="Open Event View to see which events conflict"
                     >
                       !
                     </button>
@@ -310,51 +309,6 @@ export default function Calendar({
           }}
         />
       )}
-      {conflictDate && (() => {
-        const schedule = schedules.find(item => item.date === conflictDate);
-        const conflicts = schedule
-          ? getScheduleConflicts(schedule, crossAcademySchedules, showCrossAcademyConflicts)
-          : [];
-        return (
-          <div
-            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4"
-            role="presentation"
-            onClick={() => setConflictDate(null)}
-          >
-            <section
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="schedule-conflict-title"
-              className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"
-              onClick={event => event.stopPropagation()}
-            >
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-red-700">Schedule conflict</p>
-                  <h2 id="schedule-conflict-title" className="text-xl font-black text-gray-900">{conflictDate}</h2>
-                </div>
-                <button type="button" onClick={() => setConflictDate(null)} className="rounded-lg px-3 py-2 font-bold text-gray-600 hover:bg-gray-100" aria-label="Close conflict details">✕</button>
-              </div>
-              <div className="space-y-3">
-                {conflicts.map((conflict, index) => (
-                  <div key={`${conflict.first.id}-${conflict.second.id}-${index}`} className="rounded-xl border border-red-200 bg-red-50 p-3">
-                    <p className="mb-2 text-[11px] font-black uppercase text-red-800">
-                      {conflict.kind === 'location' ? `Shared ${conflict.first.location} location · ${schedule?.academy} / ${conflict.otherAcademy}` : 'Overlapping times'}
-                    </p>
-                    {[conflict.first, conflict.second].map((event, eventIndex) => (
-                      <div key={`${event.id}-${eventIndex}`} className="flex items-start gap-2 py-1 text-sm">
-                        <span className="shrink-0 rounded bg-white px-2 py-0.5 font-bold text-gray-700">{event.displayTime || event.time}</span>
-                        <span className="min-w-0 font-semibold text-gray-900">{event.eventName} <span className="font-normal text-gray-600">· {event.location}</span></span>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-              <button type="button" onClick={() => setConflictDate(null)} className="mt-5 w-full rounded-xl bg-blue-900 px-4 py-3 font-black text-white hover:bg-blue-800">CLOSE</button>
-            </section>
-          </div>
-        );
-      })()}
     </div>
   );
 }

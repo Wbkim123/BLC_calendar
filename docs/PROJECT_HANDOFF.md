@@ -4,10 +4,11 @@ Last updated: 2026-10-02
 
 ## Conflict details and KTA UTC display (2026-10-02)
 
-- Calendar conflict markers open a dialog listing the exact overlapping event pairs, including names, displayed times, locations, and academy labels for commander cross-academy AUD/MPR conflicts. BLC and KTA daily event highlighting now share the same time-overlap rule.
+- Event View now lists each affected counterpart directly inside its event card, including event name, displayed time, location, and academy for commander cross-academy AUD/MPR conflicts. Calendar conflict markers navigate to that day's Event View; no conflict details dialog is used from the calendar. BLC and KTA event highlighting share the same time-overlap rule.
 - KTA `start-UTC` entries display that source-facing time in import preview and schedule view. Since the end time is unknown, calculations use a zero-length numeric range so later events are not falsely marked as conflicts; staff may edit the event to a known time range.
 - Verified: 20 Jest suites / 69 tests passed, TypeScript passed, production build completed with known AdMob source-map and Browserslist warnings. Conflict details and UTC behavior were pushed as `3d8ec51`; Cloudflare Pages later marked it Active.
 - Follow-up after the user reported the marker was difficult to activate: increased its phone touch target from 16px to 28px and clarified its accessible label/title. The focused marker-click test, TypeScript, and build passed. Pushed as `343cb8e`; Cloudflare Pages reports Production Active at `https://96908b31.blc-calendar.pages.dev`. The stable project URL remains `https://blc-calendar.pages.dev`.
+- User clarified that conflict details belong in Event View, not a Calendar dialog. Updated each affected event card to list its counterpart and made the Calendar marker navigate to that date's Event View. Commander cross-academy AUD/MPR conflict counterparts are included there. Verified all 21 Jest suites / 71 tests, TypeScript, and production build; build retains known AdMob source-map and stale Browserslist warnings. This follow-up is local and has not been pushed or deployed.
 
 ## Cycle-start interim protection and calendar controls (2026-10-02)
 

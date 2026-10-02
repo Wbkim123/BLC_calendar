@@ -4,9 +4,12 @@ import { DailySchedule, UserRole, TrainingEvent } from '../types/schedule';
 import type { DisplayMode } from '../App';
 import AdMobBanner from './AdMobBanner';
 import { getScheduleConflicts } from '../features/schedule-conflicts/conflicts';
+import type { ScheduleConflict } from '../features/schedule-conflicts/conflicts';
 
 interface Props {
   schedule: DailySchedule;
+  crossAcademySchedules?: DailySchedule[];
+  showCrossAcademyConflicts?: boolean;
   role: UserRole;
   onBack?: () => void;
   viewControls?: React.ReactNode;
@@ -33,6 +36,8 @@ interface Props {
 
 export default function DailyView({ 
   schedule, 
+  crossAcademySchedules = [],
+  showCrossAcademyConflicts = false,
   role, 
   onBack,
   viewControls,
@@ -205,7 +210,8 @@ export default function DailyView({
     : sortedEvents;
 
   // 각 이벤트가 충돌하는지 여부를 판단하는 함수
-  const conflictingEventIds = new Set(getScheduleConflicts(schedule).flatMap(conflict => [conflict.first.id, conflict.second.id]));
+  const scheduleConflicts = getScheduleConflicts(schedule, crossAcademySchedules, showCrossAcademyConflicts);
+  const conflictingEventIds = new Set(scheduleConflicts.flatMap(conflict => [conflict.first.id, conflict.second.id]));
   const checkConflict = (idx: number) => sortedEvents[idx] ? conflictingEventIds.has(sortedEvents[idx].id) : false;
   const hasGlobalConflict = sortedEvents.some((_, idx) => checkConflict(idx));
 
@@ -283,7 +289,7 @@ export default function DailyView({
           <div className="schedule-conflict-warning bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-2 rounded-r-lg flex items-center gap-3">
             <span className="text-xl">⚠️</span>
             <p className="text-xs lg:text-sm text-yellow-800 font-bold">
-              Conflict detected: Overlapping schedule.
+              Schedule conflicts are listed on the affected events below.
             </p>
           </div>
         )}
@@ -325,6 +331,7 @@ export default function DailyView({
           const isOngoing = Boolean(startTime && endTime && now >= startTime && now <= endTime);
           const sortedIndex = sortedEvents.findIndex(event => event.id === ev.id);
           const isConflicting = sortedIndex >= 0 ? checkConflict(sortedIndex) : false;
+          const eventConflicts = scheduleConflicts.filter(conflict => conflict.first.id === ev.id || conflict.second.id === ev.id);
           // ----------------------------
 
           return (
@@ -367,6 +374,26 @@ export default function DailyView({
                       {notificationChangedFields.includes('uniform') && (
                         <span className="notification-field-highlight px-1.5 py-0.5">{isKtaSchedule ? 'DUTY NCO' : 'UNI'} changed: {ev.uniform}</span>
                       )}
+                    </div>
+                  )}
+                  {eventConflicts.length > 0 && (
+                    <div className="mt-2 space-y-1.5" aria-label={`Conflicts for ${ev.eventName}`}>
+                      {eventConflicts.map((conflict: ScheduleConflict, index: number) => {
+                        const otherEvent = conflict.first.id === ev.id ? conflict.second : conflict.first;
+                        const otherAcademy = conflict.kind === 'location' ? conflict.otherAcademy : schedule.academy;
+                        return (
+                          <div key={`${otherAcademy || ''}-${otherEvent.id}-${index}`} className="rounded-lg border border-red-300 bg-red-50 px-2.5 py-2 text-[11px] leading-snug text-red-950">
+                            <div className="font-black uppercase tracking-wide text-red-800">
+                              {conflict.kind === 'location' ? `Location conflict · ${conflict.first.location} · ${otherAcademy}` : 'Time conflict'}
+                            </div>
+                            <div className="mt-0.5">
+                              <span className="font-bold">{otherEvent.displayTime || otherEvent.time}</span>
+                              {otherAcademy && <span className="font-semibold"> · {otherAcademy}</span>}
+                              <span> · {otherEvent.eventName} · {otherEvent.location}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   <div className="flex items-start gap-2 min-w-0">

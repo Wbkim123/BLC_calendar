@@ -1504,6 +1504,8 @@ function App() {
       {emulatorBadge}
       <DailyView 
         schedule={selectedSchedule} 
+        crossAcademySchedules={crossAcademySchedules}
+        showCrossAcademyConflicts={accessProfile?.accessLevel === 'NCOA_MANAGER'}
         role={role}
         onBack={isTvDisplay ? undefined : handleBackToCalendar}
         viewControls={tvControls}
