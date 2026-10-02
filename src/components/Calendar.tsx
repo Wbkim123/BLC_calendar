@@ -275,9 +275,9 @@ export default function Calendar({
                     <button
                       type="button"
                       onClick={() => schedule && setConflictDate(schedule.date)}
-                      className="absolute top-0.5 left-0.5 z-30 w-4 h-4 lg:top-2 lg:left-2 lg:w-7 lg:h-7 bg-red-700 text-white rounded-full shadow-sm flex items-center justify-center text-[10px] lg:text-base font-black cursor-pointer hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-300"
-                      aria-label="Show conflicting schedules"
-                      title="Tap to see conflicting schedules"
+                      className="absolute top-0.5 left-0.5 z-30 w-7 h-7 lg:top-2 lg:left-2 lg:w-8 lg:h-8 bg-red-700 text-white rounded-full shadow-sm flex items-center justify-center text-xs lg:text-base font-black cursor-pointer hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-300"
+                      aria-label="Open conflict details for this date"
+                      title="Tap to see which events conflict"
                     >
                       !
                     </button>

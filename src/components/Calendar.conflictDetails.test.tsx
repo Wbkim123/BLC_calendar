@@ -33,7 +33,7 @@ describe('calendar conflict details', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show conflicting schedules' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open conflict details for this date' }));
 
     expect(screen.queryByRole('dialog')).not.toBeNull();
     expect(screen.queryByText('Morning Formation')).not.toBeNull();
