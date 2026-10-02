@@ -60,7 +60,7 @@ describe('Event View conflict details', () => {
     expect(container.querySelector('[aria-label="Conflicts for BLC Formation"]')?.textContent).toContain('KTA');
   });
 
-  it('lets a viewer dismiss one event conflict notice without changing schedule data', () => {
+  it('lets a viewer dismiss a conflict pair and normalizes both event cards without changing schedule data', () => {
     const schedule: DailySchedule = {
       academy: 'KTA', date: '2099-10-02', dayLabel: 'DAY 1', cycleName: 'cycle',
       events: [event('a', '0900-1100', 'Class A', 'Room 1'), event('b', '1000-1200', 'Class B', 'Room 2')]
@@ -74,8 +74,30 @@ describe('Event View conflict details', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss conflict with Class B' }));
 
     expect(classA?.className).not.toContain('schedule-conflict-event');
-    expect(classB?.className).toContain('schedule-conflict-event');
-    expect(screen.getByText('Schedule conflicts are listed on the affected events below.')).toBeTruthy();
+    expect(classB?.className).not.toContain('schedule-conflict-event');
+    expect(screen.queryByText('Schedule conflicts are listed on the affected events below.')).toBeNull();
+    expect(schedule.events).toHaveLength(2);
+  });
+
+  it('wraps same-time KTA events in different rooms in one colored group container', () => {
+    const schedule: DailySchedule = {
+      academy: 'KTA', date: '2099-10-02', dayLabel: 'DAY 1', cycleName: 'cycle',
+      events: [event('a', '0800-1030', 'Class A', 'RM 1165'), event('b', '0800-1030', 'Class B', 'RM 1157')]
+    };
+
+    const { container } = render(<DailyView {...baseProps} schedule={schedule} />);
+    const group = container.querySelector('.daily-simultaneous-events');
+
+    expect(group).not.toBeNull();
+    expect(screen.getByText('Same time · different rooms')).toBeTruthy();
+    expect(group?.querySelectorAll('.daily-event-card')).toHaveLength(2);
+    expect(group?.className).toContain('border-amber-400');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss conflict with Class B' }));
+
+    expect(group?.className).toContain('border-emerald-400');
+    expect(group?.querySelectorAll('.schedule-conflict-event')).toHaveLength(0);
+    expect(group?.querySelectorAll('.daily-event-card')).toHaveLength(2);
     expect(schedule.events).toHaveLength(2);
   });
 

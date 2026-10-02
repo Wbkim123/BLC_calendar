@@ -222,22 +222,22 @@ export default function DailyView({
     && conflict.first.time === conflict.second.time
     && conflict.first.location.trim().toUpperCase() === conflict.second.location.trim().toUpperCase();
   const mergedConflictPairs = new Set(scheduleConflicts.filter(isExactSameTimeAndPlace).map(getConflictPairKey));
-  const eventConflictNoticeKey = (eventId: string, conflict: ScheduleConflict) =>
-    `${eventId}:${getConflictPairKey(conflict)}`;
-  const hasGlobalConflict = scheduleConflicts.some(conflict => {
-    const pairKey = getConflictPairKey(conflict);
-    if (dismissedConflictNoticeKeys.has(pairKey)) return false;
-    if (mergedConflictPairs.has(pairKey)) return true;
-    return !dismissedConflictNoticeKeys.has(eventConflictNoticeKey(conflict.first.id, conflict))
-      || !dismissedConflictNoticeKeys.has(eventConflictNoticeKey(conflict.second.id, conflict));
-  });
+  const hasGlobalConflict = scheduleConflicts.some(conflict =>
+    !dismissedConflictNoticeKeys.has(getConflictPairKey(conflict))
+  );
   const checkEventConflict = (eventId: string) => scheduleConflicts.some(conflict => {
     if (conflict.first.id !== eventId && conflict.second.id !== eventId) return false;
-    const pairKey = getConflictPairKey(conflict);
-    if (dismissedConflictNoticeKeys.has(pairKey)) return false;
-    if (mergedConflictPairs.has(pairKey)) return true;
-    return !dismissedConflictNoticeKeys.has(eventConflictNoticeKey(eventId, conflict));
+    return !dismissedConflictNoticeKeys.has(getConflictPairKey(conflict));
   });
+  const visibleEventGroups: TrainingEvent[][] = (() => {
+    if (schedule.academy !== 'KTA') return visibleEvents.map(event => [event]);
+    const byExactTime = new Map<string, TrainingEvent[]>();
+    visibleEvents.forEach(event => byExactTime.set(event.time, [...(byExactTime.get(event.time) || []), event]));
+    return Array.from(byExactTime.values()).flatMap(group => {
+      const distinctRooms = new Set(group.map(event => event.location.trim().toUpperCase()));
+      return group.length > 1 && distinctRooms.size === group.length ? [group] : group.map(event => [event]);
+    });
+  })();
 
   return (
     <div 
@@ -367,7 +367,8 @@ export default function DailyView({
           </div>
         )}
 
-        {visibleEvents.map((ev) => {
+        {visibleEventGroups.map((eventGroup) => {
+          const renderEventCard = (ev: TrainingEvent, isGrouped = false) => {
           // --- 현재 시각 기준 상태 계산 ---
           const [startTimeStr, endTimeStr] = ev.time.split('-');
 
@@ -381,7 +382,7 @@ export default function DailyView({
           const eventConflicts = scheduleConflicts.filter(conflict =>
             (conflict.first.id === ev.id || conflict.second.id === ev.id)
             && !mergedConflictPairs.has(getConflictPairKey(conflict))
-            && !dismissedConflictNoticeKeys.has(eventConflictNoticeKey(ev.id, conflict))
+            && !dismissedConflictNoticeKeys.has(getConflictPairKey(conflict))
           );
           // ----------------------------
 
@@ -389,7 +390,7 @@ export default function DailyView({
             <div 
               key={ev.id} 
               ref={notificationHighlightTarget === `event:${ev.id}` ? highlightedTargetRef : undefined}
-              className={`daily-event-card py-2 px-3 lg:py-3 lg:px-4 rounded-xl shadow-sm border-l-4 transition-colors relative ${
+              className={`daily-event-card py-2 px-3 lg:py-3 lg:px-4 rounded-xl shadow-sm ${isGrouped ? 'border-l-0' : 'border-l-4'} transition-colors relative ${
                 notificationHighlightTarget === `event:${ev.id}` ? 'notification-change-highlight ' : ''
               }${
                 isPast 
@@ -447,7 +448,7 @@ export default function DailyView({
                               </div>
                               <button
                                 type="button"
-                                onClick={() => setDismissedConflictNoticeKeys(previous => new Set(previous).add(eventConflictNoticeKey(ev.id, conflict)))}
+                                onClick={() => setDismissedConflictNoticeKeys(previous => new Set(previous).add(getConflictPairKey(conflict)))}
                                 className="shrink-0 rounded-md border border-red-200 bg-white px-2 py-1 text-[9px] font-black text-red-800 hover:bg-red-100"
                                 aria-label={`Dismiss conflict with ${otherEvent.eventName}`}
                               >
@@ -497,6 +498,36 @@ export default function DailyView({
                 )}
               </div>
             </div>
+          );
+          };
+
+          if (eventGroup.length === 1) return renderEventCard(eventGroup[0]);
+
+          const groupEventIds = new Set(eventGroup.map(event => event.id));
+          const groupConflicts = scheduleConflicts.filter(conflict =>
+            groupEventIds.has(conflict.first.id) && groupEventIds.has(conflict.second.id)
+          );
+          const groupConflictsDismissed = groupConflicts.length > 0
+            && groupConflicts.every(conflict => dismissedConflictNoticeKeys.has(getConflictPairKey(conflict)));
+          const roomNames = eventGroup.map(event => event.location).join(' · ');
+
+          return (
+            <section
+              key={`simultaneous-${schedule.date}-${eventGroup[0].time}`}
+              className={`daily-simultaneous-events rounded-2xl border border-l-4 p-2 shadow-sm ${groupConflictsDismissed ? 'border-emerald-400 bg-emerald-50/50' : 'border-amber-400 bg-amber-50/50'}`}
+              aria-label={`Simultaneous KTA events at ${eventGroup[0].displayTime || eventGroup[0].time}`}
+            >
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-1 px-1">
+                <span className={`text-[10px] font-black uppercase tracking-wide ${groupConflictsDismissed ? 'text-emerald-800' : 'text-amber-900'}`}>
+                  Same time · different rooms
+                </span>
+                <span className="rounded-md bg-white/80 px-2 py-0.5 text-[10px] font-black text-gray-700">
+                  {eventGroup[0].displayTime || eventGroup[0].time}
+                </span>
+                <span className="w-full truncate px-0.5 text-[9px] font-semibold text-gray-600">{roomNames}</span>
+              </div>
+              <div className="space-y-2">{eventGroup.map(event => renderEventCard(event, true))}</div>
+            </section>
           );
         })}
         </div>
