@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { resolveAccessCode } from './accessCodes';
+import { resolveAccessCode, restoreSavedAccessProfile } from './accessCodes';
 import { DailySchedule } from '../../types/schedule';
 
 const today = new Date();
@@ -52,5 +52,34 @@ describe('resolveAccessCode', () => {
 
   it('does not accept KTA student cycle logins', () => {
     expect(resolveAccessCode('KTA0826', schedules)).toBeNull();
+  });
+});
+
+describe('restoreSavedAccessProfile', () => {
+  it('preserves administrator tools for a saved test manager profile', () => {
+    const testProfile = {
+      role: 'ADMIN' as const,
+      accessLevel: 'NCOA_MANAGER' as const,
+      academy: 'BLC' as const,
+      scope: 'NCOA' as const,
+      permissions: ['schedule.read', 'schedule.write', 'schedule.import', 'location.manage', 'conflict.resolve'] as const
+    };
+
+    expect(restoreSavedAccessProfile({ ...testProfile, permissions: [...testProfile.permissions] }, true))
+      .toMatchObject({
+        role: 'ADMIN',
+        accessLevel: 'NCOA_MANAGER',
+        scope: 'NCOA',
+        permissions: ['schedule.read', 'schedule.write', 'schedule.import', 'location.manage', 'conflict.resolve']
+      });
+  });
+
+  it('keeps a saved production NCOA manager read-only', () => {
+    const profile = resolveAccessCode('ncoa6120', schedules);
+    expect(restoreSavedAccessProfile(profile, false)).toMatchObject({
+      role: 'VIEWER',
+      accessLevel: 'NCOA_MANAGER',
+      permissions: ['schedule.read', 'conflict.resolve']
+    });
   });
 });

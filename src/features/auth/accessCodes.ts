@@ -12,6 +12,14 @@ const IMPORTER: AccessProfile['permissions'] = [
 ];
 const NCOA_MANAGER: AccessProfile['permissions'] = ['schedule.read', 'conflict.resolve'];
 
+export const restoreSavedAccessProfile = (
+  profile: AccessProfile | null,
+  testMode: boolean
+): AccessProfile | null => {
+  if (!profile || testMode || profile.accessLevel !== 'NCOA_MANAGER') return profile;
+  return { ...profile, role: 'VIEWER', permissions: NCOA_MANAGER };
+};
+
 export const normalizeAccessCode = (code: string) =>
   code.replace(/\s+/g, '').toUpperCase();
 

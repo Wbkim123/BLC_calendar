@@ -15,7 +15,7 @@ import NotificationPrompt from './components/NotificationPrompt';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
 import { AccessProfile, AcademyId } from './types/academy';
 import { getAcademyConfig } from './config/academies';
-import { normalizeAccessCode, resolveAccessCode } from './features/auth/accessCodes';
+import { normalizeAccessCode, resolveAccessCode, restoreSavedAccessProfile } from './features/auth/accessCodes';
 import { assertTestSessionWriteAllowed } from './features/auth/testModePolicy';
 import { EventSearchResult } from './features/event-search/searchEvents';
 import NcoaChatbot from './features/chatbot/NcoaChatbot';
@@ -210,9 +210,7 @@ function App() {
     try {
       const parsed = JSON.parse(window.localStorage.getItem(LOGIN_STORAGE_KEY) || 'null') as SavedLogin | null;
       const savedProfile = parsed?.profile || null;
-      const profile = savedProfile?.accessLevel === 'NCOA_MANAGER'
-        ? { ...savedProfile, role: 'VIEWER' as const, permissions: ['schedule.read', 'conflict.resolve'] as AccessProfile['permissions'] }
-        : savedProfile;
+      const profile = restoreSavedAccessProfile(savedProfile, parsed?.testMode === true);
       if (!Capacitor.isNativePlatform() && parsed?.testMode !== true && !canUseWebsite(profile)) return null;
       return profile;
     } catch {
