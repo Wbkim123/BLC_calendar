@@ -6,6 +6,9 @@ import AdMobBanner from './AdMobBanner';
 import { AcademyId } from '../types/academy';
 import EventSearchModal from '../features/event-search/EventSearchModal';
 import { EventSearchResult } from '../features/event-search/searchEvents';
+import { getScheduleConflicts, hasCrossAcademyLocationConflict, hasScheduleConflict } from '../features/schedule-conflicts/conflicts';
+
+export { hasCrossAcademyLocationConflict, hasScheduleConflict } from '../features/schedule-conflicts/conflicts';
 
 interface Props {
   schedules: DailySchedule[];
@@ -24,32 +27,6 @@ interface Props {
   testMode?: boolean;
   displayMode: DisplayMode;
 }
-
-export const hasScheduleConflict = (schedule: DailySchedule) => {
-  const sortedEvents = [...(schedule.events || [])].sort((a, b) => a.time.localeCompare(b.time));
-  return sortedEvents.some((event, index) => sortedEvents.slice(index + 1).some(other => {
-    const [start, end] = event.time.split('-').map(Number);
-    const [otherStart, otherEnd] = other.time.split('-').map(Number);
-    return Number.isFinite(start) && Number.isFinite(end) && Number.isFinite(otherStart) && Number.isFinite(otherEnd)
-      && start < otherEnd && otherStart < end;
-  }));
-};
-
-export const hasCrossAcademyLocationConflict = (schedule: DailySchedule, otherSchedules: DailySchedule[]) =>
-  (schedule.events || []).some(event => {
-    const location = event.location.trim().toUpperCase();
-    if (!location || location === 'TBD') return false;
-    const [start, end] = event.time.split('-').map(Number);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
-    return otherSchedules.filter(other => other.date === schedule.date && other.academy !== schedule.academy)
-      .some(other => (other.events || []).some(otherEvent => {
-        const otherLocation = otherEvent.location.trim().toUpperCase();
-        const [otherStart, otherEnd] = otherEvent.time.split('-').map(Number);
-        return location === otherLocation && location !== 'TBD'
-          && Number.isFinite(otherStart) && Number.isFinite(otherEnd)
-          && start < otherEnd && otherStart < end;
-      }));
-  });
 
 const getCalendarDayLabel = (dayLabel: string) =>
   /^FEDERAL\s+HOLIDAY\b/i.test(dayLabel.trim())
@@ -78,6 +55,7 @@ export default function Calendar({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [newTitle, setNewTitle] = useState(cycleTitle);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [conflictDate, setConflictDate] = useState<string | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const year = viewDate.getFullYear();
@@ -253,12 +231,10 @@ export default function Calendar({
               const hasRedHighlight = hasHighlightedEvent || hasHighlightedNotes;
 
               return (
-                <button
+                <div
                   key={day}
-                  onClick={() => schedule && onSelectDate(schedule.date)}
-                  disabled={!schedule}
                   title={hasConflict ? 'Conflict detected: Overlapping schedule.' : undefined}
-                  className={`calendar-day ${isToday ? 'calendar-day-today' : ''} ${isPastScheduledDate ? 'calendar-day-past' : ''} aspect-square lg:aspect-auto lg:h-full rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all border-2 ${
+                  className={`calendar-day ${!schedule ? 'calendar-day-disabled' : ''} ${hasConflict ? 'calendar-day-conflict' : ''} ${isToday ? 'calendar-day-today' : ''} ${isPastScheduledDate ? 'calendar-day-past' : ''} aspect-square lg:aspect-auto lg:h-full rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all border-2 ${
                     hasConflict
                       ? 'bg-red-50 text-red-900 font-bold border-red-400 active:scale-95 hover:bg-red-100 shadow-sm'
                       : schedule 
@@ -266,37 +242,47 @@ export default function Calendar({
                       : 'text-gray-300 pointer-events-none border-transparent'
                   } ${isToday ? 'ring-2 lg:ring-4 ring-blue-900 ring-offset-1' : ''}`}
                 >
-                  <span className={`absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-sm lg:text-2xl ${isPastScheduledDate ? 'calendar-past-text' : ''}`}>
-                    {day}
-                  </span>
-                  {schedule && (
-                    <span className={`absolute bottom-1 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap text-[8px] font-black leading-none text-blue-500 lg:bottom-2 lg:text-xs ${isPastScheduledDate ? 'calendar-past-text' : ''}`}>
-                      {getCalendarDayLabel(schedule.dayLabel)}
+                  <button
+                    type="button"
+                    onClick={() => schedule && onSelectDate(schedule.date)}
+                    disabled={!schedule}
+                    aria-label={schedule ? `${schedule.date}, ${schedule.dayLabel}` : undefined}
+                    className="absolute inset-0 h-full w-full rounded-lg lg:rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 active:scale-95"
+                  >
+                    <span className={`absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-sm lg:text-2xl ${isPastScheduledDate ? 'calendar-past-text' : ''}`}>
+                      {day}
                     </span>
-                  )}
-                  {(hasRedHighlight || hasStudentNotes || hasSglNotes) && (
-                    <div className="absolute left-1/2 top-1 z-20 flex -translate-x-1/2 items-center gap-1 lg:top-2 lg:gap-1.5">
-                      {hasRedHighlight && (
-                        <span className="h-1.5 w-1.5 rounded-full bg-red-600 shadow-sm lg:h-2.5 lg:w-2.5" aria-label="Contains highlighted content" />
-                      )}
-                      {hasStudentNotes && (
-                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shadow-sm lg:h-2.5 lg:w-2.5" aria-label="Contains student notes" />
-                      )}
-                      {hasSglNotes && (
-                        <span className="h-1.5 w-1.5 rounded-full bg-purple-500 shadow-sm lg:h-2.5 lg:w-2.5" aria-label="Contains SGL notes" />
-                      )}
-                    </div>
-                  )}
+                    {schedule && (
+                      <span className={`absolute bottom-1 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap text-[8px] font-black leading-none text-blue-500 lg:bottom-2 lg:text-xs ${isPastScheduledDate ? 'calendar-past-text' : ''}`}>
+                        {getCalendarDayLabel(schedule.dayLabel)}
+                      </span>
+                    )}
+                    {(hasRedHighlight || hasStudentNotes || hasSglNotes) && (
+                      <div className="pointer-events-none absolute left-1/2 top-1 z-20 flex -translate-x-1/2 items-center gap-1 lg:top-2 lg:gap-1.5">
+                        {hasRedHighlight && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-red-600 shadow-sm lg:h-2.5 lg:w-2.5" aria-label="Contains highlighted content" />
+                        )}
+                        {hasStudentNotes && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shadow-sm lg:h-2.5 lg:w-2.5" aria-label="Contains student notes" />
+                        )}
+                        {hasSglNotes && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-purple-500 shadow-sm lg:h-2.5 lg:w-2.5" aria-label="Contains SGL notes" />
+                        )}
+                      </div>
+                    )}
+                  </button>
                   {hasConflict && (
-                    <div
-                      className="absolute top-0.5 left-0.5 lg:top-2 lg:left-2 w-4 h-4 lg:w-7 lg:h-7 bg-red-700 text-white rounded-full shadow-sm flex items-center justify-center text-[10px] lg:text-base font-black"
-                      aria-label={hasLocationConflict ? 'BLC/KTA location conflict at overlapping times' : 'Schedule time conflict'}
-                      title={hasLocationConflict ? 'BLC/KTA schedules overlap at the same location and time' : 'Schedule time conflict'}
+                    <button
+                      type="button"
+                      onClick={() => schedule && setConflictDate(schedule.date)}
+                      className="absolute top-0.5 left-0.5 z-30 w-4 h-4 lg:top-2 lg:left-2 lg:w-7 lg:h-7 bg-red-700 text-white rounded-full shadow-sm flex items-center justify-center text-[10px] lg:text-base font-black cursor-pointer hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-300"
+                      aria-label="Show conflicting schedules"
+                      title="Tap to see conflicting schedules"
                     >
                       !
-                    </div>
+                    </button>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
@@ -324,6 +310,51 @@ export default function Calendar({
           }}
         />
       )}
+      {conflictDate && (() => {
+        const schedule = schedules.find(item => item.date === conflictDate);
+        const conflicts = schedule
+          ? getScheduleConflicts(schedule, crossAcademySchedules, showCrossAcademyConflicts)
+          : [];
+        return (
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4"
+            role="presentation"
+            onClick={() => setConflictDate(null)}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="schedule-conflict-title"
+              className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"
+              onClick={event => event.stopPropagation()}
+            >
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-red-700">Schedule conflict</p>
+                  <h2 id="schedule-conflict-title" className="text-xl font-black text-gray-900">{conflictDate}</h2>
+                </div>
+                <button type="button" onClick={() => setConflictDate(null)} className="rounded-lg px-3 py-2 font-bold text-gray-600 hover:bg-gray-100" aria-label="Close conflict details">✕</button>
+              </div>
+              <div className="space-y-3">
+                {conflicts.map((conflict, index) => (
+                  <div key={`${conflict.first.id}-${conflict.second.id}-${index}`} className="rounded-xl border border-red-200 bg-red-50 p-3">
+                    <p className="mb-2 text-[11px] font-black uppercase text-red-800">
+                      {conflict.kind === 'location' ? `Shared ${conflict.first.location} location · ${schedule?.academy} / ${conflict.otherAcademy}` : 'Overlapping times'}
+                    </p>
+                    {[conflict.first, conflict.second].map((event, eventIndex) => (
+                      <div key={`${event.id}-${eventIndex}`} className="flex items-start gap-2 py-1 text-sm">
+                        <span className="shrink-0 rounded bg-white px-2 py-0.5 font-bold text-gray-700">{event.displayTime || event.time}</span>
+                        <span className="min-w-0 font-semibold text-gray-900">{event.eventName} <span className="font-normal text-gray-600">· {event.location}</span></span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={() => setConflictDate(null)} className="mt-5 w-full rounded-xl bg-blue-900 px-4 py-3 font-black text-white hover:bg-blue-800">CLOSE</button>
+            </section>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -2,6 +2,12 @@
 
 Last updated: 2026-10-02
 
+## Conflict details and KTA UTC display (2026-10-02)
+
+- Calendar conflict markers open a dialog listing the exact overlapping event pairs, including names, displayed times, locations, and academy labels for commander cross-academy AUD/MPR conflicts. BLC and KTA daily event highlighting now share the same time-overlap rule.
+- KTA `start-UTC` entries display that source-facing time in import preview and schedule view. Since the end time is unknown, calculations use a zero-length numeric range so later events are not falsely marked as conflicts; staff may edit the event to a known time range.
+- Verified: 20 Jest suites / 69 tests passed, TypeScript passed, production build completed with known AdMob source-map and Browserslist warnings. Released in commit to GitHub `master`; Cloudflare Pages auto-deploy status to be checked.
+
 ## Cycle-start interim protection and calendar controls (2026-10-02)
 
 - Fixed saved web test-session restoration: only production NCOA manager profiles are normalized to read-only on reload. A saved test manager retains its test administrator profile, restoring Import and the BLC/KTA switch after refresh; production commander permissions remain read-only.

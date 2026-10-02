@@ -61,4 +61,24 @@ describe('ScheduleImportModal KTA preview', () => {
       notesPanel?.textContent?.indexOf('MPR setup the morning of pickup') ?? -1
     );
   });
+
+  it('shows a KTA UTC end marker as UTC without extending the event into later schedules', async () => {
+    const { container } = render(
+      <ScheduleImportModal
+        academy="KTA"
+        onClose={() => undefined}
+        onImport={() => undefined}
+        locations={['ACA', 'MPR', 'TBD']}
+        uniforms={['UNASSIGNED']}
+      />
+    );
+
+    fireEvent.change(container.querySelector('textarea') as HTMLTextAreaElement, {
+      target: { value: 'DAY 0\n1300-UTC AAR [[KTA_DUTY_NCO=ALL]]\n1400-1500 FOLLOW ON [[KTA_DUTY_NCO=ALL]]' }
+    });
+
+    await waitFor(() => expect(screen.queryByText('AAR')).not.toBeNull());
+    expect(screen.getByText('1300-UTC')).not.toBeNull();
+    expect(screen.getByText('1400-1500').parentElement?.textContent).toContain('FOLLOW ON');
+  });
 });

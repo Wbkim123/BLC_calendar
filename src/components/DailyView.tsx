@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { DailySchedule, UserRole, TrainingEvent } from '../types/schedule';
 import type { DisplayMode } from '../App';
 import AdMobBanner from './AdMobBanner';
+import { getScheduleConflicts } from '../features/schedule-conflicts/conflicts';
 
 interface Props {
   schedule: DailySchedule;
@@ -204,37 +205,8 @@ export default function DailyView({
     : sortedEvents;
 
   // 각 이벤트가 충돌하는지 여부를 판단하는 함수
-  const checkConflict = (idx: number) => {
-    if (sortedEvents.length <= 1) return false;
-
-    const curr = sortedEvents[idx];
-    const [currStart, currEnd] = curr.time.split('-').map(t => parseInt(t));
-
-    if (schedule.academy === 'KTA') {
-      const location = curr.location.trim().toUpperCase();
-      if (!location || location === 'TBD') return false;
-      return sortedEvents.some((other, otherIndex) => {
-        if (otherIndex === idx || other.location.trim().toUpperCase() !== location) return false;
-        const [otherStart, otherEnd] = other.time.split('-').map(t => parseInt(t));
-        return currStart < otherEnd && otherStart < currEnd;
-      });
-    }
-
-    // 이전 이벤트와 겹치는지 확인
-    if (idx > 0) {
-      const prevEnd = parseInt(sortedEvents[idx - 1].time.split('-')[1]);
-      if (currStart < prevEnd) return true;
-    }
-
-    // 다음 이벤트와 겹치는지 확인
-    if (idx < sortedEvents.length - 1) {
-      const nextStart = parseInt(sortedEvents[idx + 1].time.split('-')[0]);
-      if (currEnd > nextStart) return true;
-    }
-
-    return false;
-  };
-
+  const conflictingEventIds = new Set(getScheduleConflicts(schedule).flatMap(conflict => [conflict.first.id, conflict.second.id]));
+  const checkConflict = (idx: number) => sortedEvents[idx] ? conflictingEventIds.has(sortedEvents[idx].id) : false;
   const hasGlobalConflict = sortedEvents.some((_, idx) => checkConflict(idx));
 
   return (

@@ -411,7 +411,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
     // More aggressive Regex: allow noise, common OCR artifacts, and wide spacing
     const dayMarkerRegex = /^(?:\d{1,2}\s+[A-Z]{3}\s+)?(PICK\s*-\s*UP\s*DAY|DAY\s*[#\- ]?\s*(\d{1,2})|FEDERAL\s+HOLIDAY(?:\s*-\s*[A-Z\s]+)?)\b/i;
     // Flexible time: handle spaces around dash, O instead of 0, etc.
-    const timePattern = /([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})\s*[-–—~_ ]+\s*([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})/g;
+    const timePattern = /([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2})\s*[-–—~_ ]+\s*([0-9OoIil]{1,2}[:\s]?[0-9Oo]{2}|UTC)\b/gi;
 
     lines.forEach((line, lineIdx) => {
       // 1. Heavy Cleanup
@@ -496,7 +496,8 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           };
 
           const startTime = normalizeTime(m[1]);
-          const endTime = normalizeTime(m[2]);
+          const isUtcEnd = academy === 'KTA' && m[2].toUpperCase() === 'UTC';
+          const endTime = isUtcEnd ? startTime : normalizeTime(m[2]);
           if (startTime === "0000" && endTime === "0000") return;
 
           // Extract content until next token or end of line
@@ -583,7 +584,7 @@ export default function ScheduleImportModal({ onClose, onImport, locations, unif
           schedule.events.push({
             id: `imp-${lineIdx}-${tIdx}-${Date.now()}`,
             time: `${startTime}-${endTime}`,
-            displayTime: isNoLaterThan ? `NLT-${endTime}` : undefined,
+            displayTime: isUtcEnd ? `${startTime}-UTC` : isNoLaterThan ? `NLT-${endTime}` : undefined,
             eventName: eventName.toUpperCase(),
             location: foundLoc || (academy === 'KTA' ? 'TBD' : (locations[0] || "MPR")),
             uniform: academy === 'KTA' ? (ktaDutyNco || 'UNASSIGNED') : (foundUni || (uniforms[0] || "ACU")),

@@ -148,7 +148,8 @@ const findKtaTime = (text: string) => {
       length: spotPull[0].length,
       start: normalizeTime(spotPull[1]),
       end: normalizeTime(spotPull[2]),
-      qualifier: ''
+      qualifier: '',
+      displayEnd: undefined as string | undefined
     };
   }
 
@@ -159,7 +160,8 @@ const findKtaTime = (text: string) => {
       length: range[0].length,
       start: normalizeTime(range[1]),
       end: normalizeTime(range[2]),
-      qualifier: ''
+      qualifier: '',
+      displayEnd: undefined as string | undefined
     };
   }
 
@@ -169,10 +171,11 @@ const findKtaTime = (text: string) => {
       index: untilComplete.index,
       length: untilComplete[0].length,
       start: normalizeTime(untilComplete[1]),
-      // The data model requires a numeric range. Keep the open-ended event
-      // active through the day and preserve UTC in its visible name.
-      end: '2359',
-      qualifier: ' (UTC)'
+      // The source has no known end, so preserve UTC visually and use a
+      // zero-length numeric range to avoid false conflicts with later events.
+      end: normalizeTime(untilComplete[1]),
+      qualifier: '',
+      displayEnd: 'UTC'
     };
   }
 
@@ -184,7 +187,8 @@ const findKtaTime = (text: string) => {
       length: noLaterThan[0].length,
       start: deadline,
       end: deadline,
-      qualifier: ' (NLT)'
+      qualifier: ' (NLT)',
+      displayEnd: undefined as string | undefined
     };
   }
 
@@ -196,7 +200,8 @@ const findKtaTime = (text: string) => {
       length: single[0].length,
       start: point,
       end: point,
-      qualifier: ''
+      qualifier: '',
+      displayEnd: undefined as string | undefined
     };
   }
 
@@ -483,7 +488,7 @@ export function extractKtaCalendarText(items: PositionedPdfText[]) {
           const dutyNco = inferMergedDutyNco(row.y, explicitDutyNco);
           const dutyMarker = `[[KTA_DUTY_NCO=${encodeURIComponent(dutyNco)}]]`;
           const marker = rowItems.some(item => item.isRed) ? '[[PDF_RED_TEXT]] ' : '';
-          output.push(`${marker}${start}-${end} ${eventName}${location ? ` ${location}` : ''} ${dutyMarker}`);
+          output.push(`${marker}${start}-${time.displayEnd || end} ${eventName}${location ? ` ${location}` : ''} ${dutyMarker}`);
         });
     });
   });

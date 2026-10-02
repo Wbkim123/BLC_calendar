@@ -238,15 +238,21 @@ button:active:not(:disabled) {
   border-radius: 0.9rem !important;
 }
 
-.calendar-day:not(:disabled) {
+.calendar-day:not(.calendar-day-disabled) {
   background: #eef6ff !important;
   color: var(--soft-text) !important;
   box-shadow: 0 4px 10px rgba(49, 130, 246, 0.10);
 }
 
-.calendar-day:not(:disabled):active {
+.calendar-day:not(.calendar-day-disabled):active {
   background: #dbeeff !important;
   box-shadow: var(--soft-inset);
+}
+
+.calendar-day.calendar-day-conflict:not(.calendar-day-disabled) {
+  background: #fef2f2 !important;
+  border-color: #f87171 !important;
+  color: #7f1d1d !important;
 }
 
 .calendar-info {
@@ -498,9 +504,15 @@ button:active:not(:disabled) {
   color: rgb(253 230 138) !important;
 }
 
-.theme-dark .calendar-day:not(:disabled) {
+.theme-dark .calendar-day:not(.calendar-day-disabled) {
   background: rgb(30 58 92) !important;
   color: rgb(243 244 246) !important;
+}
+
+.theme-dark .calendar-day.calendar-day-conflict:not(.calendar-day-disabled) {
+  background: rgb(69 10 10) !important;
+  border-color: rgb(185 28 28) !important;
+  color: rgb(254 226 226) !important;
 }
 
 .calendar-day-past {

@@ -54,7 +54,7 @@ describe('extractKtaCalendarText', () => {
     expect(result).toContain('1900-1900 CHIEF/SENIOR BRIEF (NLT)');
     expect(result).toContain('CHIEF/SENIOR BRIEF (NLT) [[KTA_DUTY_NCO=KIM%20%2F%20WHENMAN]]');
     expect(result).toContain('1900-1930 ROOM CHECK [[KTA_DUTY_NCO=ALL]]');
-    expect(result).toContain('1300-2359 AAR (UTC)');
+    expect(result).toContain('1300-UTC AAR');
   });
 
   it('keeps parallel events and maps KTA cell colors to locations', () => {

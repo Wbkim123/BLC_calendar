@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { DailySchedule } from '../types/schedule';
+import { getScheduleConflicts } from '../features/schedule-conflicts/conflicts';
 import { hasCrossAcademyLocationConflict, hasScheduleConflict } from './Calendar';
 
 const day = (academy: 'BLC' | 'KTA', events: DailySchedule['events']): DailySchedule => ({
@@ -20,11 +21,25 @@ describe('schedule conflict rules', () => {
     expect(hasScheduleConflict(day('KTA', [event('a', '0900-1100', 'ROOM A'), event('b', '1000-1200', 'ROOM B')]))).toBe(true);
   });
 
-  it('flags commander cross-academy conflicts only when location and time overlap', () => {
-    const blc = day('BLC', [event('blc', '0900-1100', 'GYM')]);
-    expect(hasCrossAcademyLocationConflict(blc, [day('KTA', [event('kta', '1000-1200', 'gym')])])).toBe(true);
-    expect(hasCrossAcademyLocationConflict(blc, [day('KTA', [event('kta', '1100-1200', 'GYM')])])).toBe(false);
-    expect(hasCrossAcademyLocationConflict(blc, [day('KTA', [event('kta', '1000-1200', 'FIELD')])])).toBe(false);
+  it('returns exact conflict pairs and ignores UTC marker events without a known end', () => {
+    const first = event('briefing', '0900-1100', 'ROOM A');
+    const second = event('training', '1000-1200', 'ROOM B');
+    const utc = { ...event('open-ended', '0800-0800', 'TBD'), displayTime: '0800-UTC' };
+    expect(getScheduleConflicts(day('KTA', [utc, first, second]))).toMatchObject([
+      { first, second, kind: 'time' }
+    ]);
+  });
+
+  it('flags commander cross-academy location conflicts only at AUD or MPR when times overlap', () => {
+    const blc = day('BLC', [event('blc', '0900-1100', 'MPR')]);
+    expect(hasCrossAcademyLocationConflict(blc, [day('KTA', [event('kta', '1000-1200', 'MPR')])])).toBe(true);
+    expect(hasCrossAcademyLocationConflict(day('BLC', [event('blc', '0900-1100', 'AUD')]), [
+      day('KTA', [event('kta', '1000-1200', 'AUDITORIUM')])
+    ])).toBe(true);
+    expect(hasCrossAcademyLocationConflict(day('BLC', [event('blc', '0900-1100', 'GYM')]), [
+      day('KTA', [event('kta', '1000-1200', 'GYM')])
+    ])).toBe(false);
+    expect(hasCrossAcademyLocationConflict(blc, [day('KTA', [event('kta', '1100-1200', 'MPR')])])).toBe(false);
     expect(hasCrossAcademyLocationConflict(blc, [day('KTA', [event('kta', '1000-1200', 'TBD')])])).toBe(false);
   });
 });
