@@ -276,7 +276,9 @@ function App() {
   const [isTrackingAuthorizationResolved, setIsTrackingAuthorizationResolved] = useState(
     () => Capacitor.getPlatform() !== 'ios'
   );
-  const [notificationOnboardingComplete, setNotificationOnboardingComplete] = useState(false);
+  const [notificationOnboardingComplete, setNotificationOnboardingComplete] = useState(() =>
+    typeof window !== 'undefined' && window.localStorage.getItem('blc_notification_onboarding_dismissed') === 'true'
+  );
   const [displayMode, setDisplayMode] = useState<DisplayMode>('auto');
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -1425,7 +1427,19 @@ function App() {
     </button>
   ) : null;
   const notificationOnboarding = !useFirebaseEmulators && role && isTrackingAuthorizationResolved && !notificationOnboardingComplete && isPhoneDevice() ? (
-    <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[65] mx-auto max-w-md rounded-2xl border border-green-200 bg-white p-3 shadow-2xl">
+    <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[65] mx-auto max-w-md rounded-2xl border border-green-200 bg-white p-3 pr-11 shadow-2xl">
+      <button
+        type="button"
+        onClick={() => {
+          window.localStorage.setItem('blc_notification_onboarding_dismissed', 'true');
+          setNotificationOnboardingComplete(true);
+        }}
+        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full text-lg font-bold leading-none text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+        aria-label="Dismiss notification prompt"
+        title="Not now"
+      >
+        ×
+      </button>
       <div className="mb-2 text-center">
         <div className="text-sm font-black text-gray-900">Enable Notifications</div>
         <div className="text-[11px] font-semibold text-gray-500">Get schedule update alerts on this device.</div>
@@ -1435,7 +1449,7 @@ function App() {
         academy={academy}
         allAcademies={accessProfile?.accessLevel === 'NCOA_MANAGER'}
         cycleName={role === 'STUDENT' ? studentCycleName : null}
-        autoPrompt={isTestMode}
+        autoPrompt={false}
         testMode={isTestMode}
         hideWhenGranted
         onStatusChange={(status) => setNotificationOnboardingComplete(status === 'granted')}

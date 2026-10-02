@@ -185,7 +185,16 @@ export default function NotificationPrompt({ role, academy, allAcademies = false
     >
       {busy ? 'UPDATING...' : status === 'granted' ? 'NOTIFICATIONS OFF' : 'ENABLE NOTIFICATIONS'}
     </button>
-    {error && <p role="alert" className="mt-2 break-all text-xs font-semibold text-red-600">{error}</p>}
+    {error && (
+      <div role="alert" className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-left text-xs font-semibold text-red-700">
+        <p className="break-all">{error}</p>
+        {/Approve test device: [a-f0-9]{64}/.test(error) && (
+          <p className="mt-1 text-[10px] font-medium leading-snug text-amber-900">
+            This phone is not approved for test alerts yet. The test notification relay must approve this device fingerprint.
+          </p>
+        )}
+      </div>
+    )}
     </div>
   );
 }

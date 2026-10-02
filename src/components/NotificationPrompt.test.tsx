@@ -16,6 +16,7 @@ test('keeps failed device approval visible and never reports registration succes
     hideWhenGranted onStatusChange={onStatusChange} />);
   fireEvent.click(await screen.findByRole('button', { name: 'ENABLE NOTIFICATIONS' }));
   const alert = await screen.findByRole('alert');
-  expect(alert.textContent).toBe(`Approve test device: ${'a'.repeat(64)}`);
+  expect(alert.textContent).toContain(`Approve test device: ${'a'.repeat(64)}`);
+  expect(alert.textContent).toContain('This phone is not approved for test alerts yet.');
   expect(onStatusChange).not.toHaveBeenCalledWith('granted');
 });

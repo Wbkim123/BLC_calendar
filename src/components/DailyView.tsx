@@ -66,6 +66,7 @@ export default function DailyView({
   const [dayLabelDraft, setDayLabelDraft] = useState(schedule.dayLabel);
   const [editingNotes, setEditingNotes] = useState<'public' | 'sgl' | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [dismissedConflictNoticeKeys, setDismissedConflictNoticeKeys] = useState<Set<string>>(() => new Set());
   const highlightedTargetRef = useRef<HTMLDivElement>(null);
   // KTA staff use one shared NOTES field. The public/SGL split remains BLC-only.
   const isKtaSchedule = schedule.academy === 'KTA';
@@ -81,6 +82,7 @@ export default function DailyView({
   useEffect(() => {
     setDayLabelDraft(schedule.dayLabel);
     setEditingDayLabel(false);
+    setDismissedConflictNoticeKeys(new Set());
   }, [schedule.date, schedule.dayLabel]);
 
   useEffect(() => {
@@ -213,9 +215,29 @@ export default function DailyView({
   const scheduleConflicts = role === 'STUDENT'
     ? []
     : getScheduleConflicts(schedule, crossAcademySchedules, showCrossAcademyConflicts);
-  const conflictingEventIds = new Set(scheduleConflicts.flatMap(conflict => [conflict.first.id, conflict.second.id]));
-  const checkConflict = (idx: number) => sortedEvents[idx] ? conflictingEventIds.has(sortedEvents[idx].id) : false;
-  const hasGlobalConflict = sortedEvents.some((_, idx) => checkConflict(idx));
+  const getConflictPairKey = (conflict: ScheduleConflict) =>
+    `${conflict.kind}:${[conflict.first.id, conflict.second.id].sort().join(':')}:${conflict.otherAcademy || ''}`;
+  const isExactSameTimeAndPlace = (conflict: ScheduleConflict) =>
+    conflict.kind === 'time'
+    && conflict.first.time === conflict.second.time
+    && conflict.first.location.trim().toUpperCase() === conflict.second.location.trim().toUpperCase();
+  const mergedConflictPairs = new Set(scheduleConflicts.filter(isExactSameTimeAndPlace).map(getConflictPairKey));
+  const eventConflictNoticeKey = (eventId: string, conflict: ScheduleConflict) =>
+    `${eventId}:${getConflictPairKey(conflict)}`;
+  const hasGlobalConflict = scheduleConflicts.some(conflict => {
+    const pairKey = getConflictPairKey(conflict);
+    if (dismissedConflictNoticeKeys.has(pairKey)) return false;
+    if (mergedConflictPairs.has(pairKey)) return true;
+    return !dismissedConflictNoticeKeys.has(eventConflictNoticeKey(conflict.first.id, conflict))
+      || !dismissedConflictNoticeKeys.has(eventConflictNoticeKey(conflict.second.id, conflict));
+  });
+  const checkEventConflict = (eventId: string) => scheduleConflicts.some(conflict => {
+    if (conflict.first.id !== eventId && conflict.second.id !== eventId) return false;
+    const pairKey = getConflictPairKey(conflict);
+    if (dismissedConflictNoticeKeys.has(pairKey)) return false;
+    if (mergedConflictPairs.has(pairKey)) return true;
+    return !dismissedConflictNoticeKeys.has(eventConflictNoticeKey(eventId, conflict));
+  });
 
   return (
     <div 
@@ -296,6 +318,29 @@ export default function DailyView({
           </div>
         )}
 
+        {scheduleConflicts.filter(conflict => isExactSameTimeAndPlace(conflict)
+          && !dismissedConflictNoticeKeys.has(getConflictPairKey(conflict))).map(conflict => (
+          <div key={getConflictPairKey(conflict)} className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-950 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-black">Same time &amp; place · listed together</p>
+                <p className="mt-0.5 font-semibold">
+                  {conflict.first.displayTime || conflict.first.time} · {conflict.first.location}
+                </p>
+                <p className="mt-1 break-words">{conflict.first.eventName} <span className="font-black text-blue-500">+</span> {conflict.second.eventName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDismissedConflictNoticeKeys(previous => new Set(previous).add(getConflictPairKey(conflict)))}
+                className="shrink-0 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-[10px] font-black text-blue-800 hover:bg-blue-100"
+                aria-label={`Dismiss shared conflict for ${conflict.first.eventName} and ${conflict.second.eventName}`}
+              >
+                DISMISS
+              </button>
+            </div>
+          </div>
+        ))}
+
         {notificationHighlightTarget === 'notes' && !schedule.notes && (
           <div
             ref={highlightedTargetRef}
@@ -332,8 +377,12 @@ export default function DailyView({
           const isPast = endTime ? now > endTime : false;
           const isOngoing = Boolean(startTime && endTime && now >= startTime && now <= endTime);
           const sortedIndex = sortedEvents.findIndex(event => event.id === ev.id);
-          const isConflicting = sortedIndex >= 0 ? checkConflict(sortedIndex) : false;
-          const eventConflicts = scheduleConflicts.filter(conflict => conflict.first.id === ev.id || conflict.second.id === ev.id);
+          const isConflicting = sortedIndex >= 0 ? checkEventConflict(ev.id) : false;
+          const eventConflicts = scheduleConflicts.filter(conflict =>
+            (conflict.first.id === ev.id || conflict.second.id === ev.id)
+            && !mergedConflictPairs.has(getConflictPairKey(conflict))
+            && !dismissedConflictNoticeKeys.has(eventConflictNoticeKey(ev.id, conflict))
+          );
           // ----------------------------
 
           return (
@@ -385,13 +434,25 @@ export default function DailyView({
                         const otherAcademy = conflict.kind === 'location' ? conflict.otherAcademy : schedule.academy;
                         return (
                           <div key={`${otherAcademy || ''}-${otherEvent.id}-${index}`} className="rounded-lg border border-red-300 bg-red-50 px-2.5 py-2 text-[11px] leading-snug text-red-950">
-                            <div className="font-black uppercase tracking-wide text-red-800">
-                              {conflict.kind === 'location' ? `Location conflict · ${conflict.first.location} · ${otherAcademy}` : 'Time conflict'}
-                            </div>
-                            <div className="mt-0.5">
-                              <span className="font-bold">{otherEvent.displayTime || otherEvent.time}</span>
-                              {otherAcademy && <span className="font-semibold"> · {otherAcademy}</span>}
-                              <span> · {otherEvent.eventName} · {otherEvent.location}</span>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="font-black uppercase tracking-wide text-red-800">
+                                  {conflict.kind === 'location' ? `Location conflict · ${conflict.first.location} · ${otherAcademy}` : 'Time conflict'}
+                                </div>
+                                <div className="mt-0.5">
+                                  <span className="font-bold">{otherEvent.displayTime || otherEvent.time}</span>
+                                  {otherAcademy && <span className="font-semibold"> · {otherAcademy}</span>}
+                                  <span> · {otherEvent.eventName} · {otherEvent.location}</span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setDismissedConflictNoticeKeys(previous => new Set(previous).add(eventConflictNoticeKey(ev.id, conflict)))}
+                                className="shrink-0 rounded-md border border-red-200 bg-white px-2 py-1 text-[9px] font-black text-red-800 hover:bg-red-100"
+                                aria-label={`Dismiss conflict with ${otherEvent.eventName}`}
+                              >
+                                DISMISS
+                              </button>
                             </div>
                           </div>
                         );
