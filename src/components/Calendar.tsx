@@ -216,8 +216,9 @@ export default function Calendar({
               today.setHours(0, 0, 0, 0);
               const isToday = cellDate.getTime() === today.getTime();
               const isPastScheduledDate = Boolean(schedule) && cellDate.getTime() < today.getTime();
-              const hasInternalConflict = schedule ? hasScheduleConflict(schedule) : false;
-              const hasLocationConflict = Boolean(schedule && showCrossAcademyConflicts
+              const canViewConflicts = role !== 'STUDENT';
+              const hasInternalConflict = canViewConflicts && schedule ? hasScheduleConflict(schedule) : false;
+              const hasLocationConflict = Boolean(canViewConflicts && schedule && showCrossAcademyConflicts
                 && hasCrossAcademyLocationConflict(schedule, crossAcademySchedules));
               const hasConflict = hasInternalConflict || hasLocationConflict;
               const hasHighlightedEvent = Boolean(schedule?.events?.some(event => event.highlighted));

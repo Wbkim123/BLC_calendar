@@ -59,4 +59,18 @@ describe('Event View conflict details', () => {
     expect(container.querySelector('[aria-label="Conflicts for BLC Formation"]')?.textContent).toContain('KTA Lecture');
     expect(container.querySelector('[aria-label="Conflicts for BLC Formation"]')?.textContent).toContain('KTA');
   });
+
+  it('hides conflict warnings and counterpart details from students', () => {
+    const schedule: DailySchedule = {
+      academy: 'BLC', date: '2026-10-02', dayLabel: 'DAY 1', cycleName: 'cycle',
+      events: [event('a', '0900-1100', 'Morning Formation', 'MPR'), event('b', '1000-1200', 'Medical Brief', 'AUD')]
+    };
+
+    const { container } = render(<DailyView {...baseProps} role="STUDENT" schedule={schedule} />);
+
+    expect(screen.queryByText('Schedule conflicts are listed on the affected events below.')).toBeNull();
+    expect(screen.queryByLabelText(/Conflicts for/)).toBeNull();
+    expect(container.querySelector('.schedule-conflict-event')).toBeNull();
+    expect(screen.queryByTitle('Time Conflict')).toBeNull();
+  });
 });

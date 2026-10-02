@@ -10,6 +10,7 @@ Last updated: 2026-10-02
 - Follow-up after the user reported the marker was difficult to activate: increased its phone touch target from 16px to 28px and clarified its accessible label/title. The focused marker-click test, TypeScript, and build passed. Pushed as `343cb8e`; Cloudflare Pages reports Production Active at `https://96908b31.blc-calendar.pages.dev`. The stable project URL remains `https://blc-calendar.pages.dev`.
 - User clarified that conflict details belong in Event View, not a Calendar dialog. Updated each affected event card to list its counterpart and made the Calendar marker navigate to that date's Event View. Commander cross-academy AUD/MPR conflict counterparts are included there. Verified all 21 Jest suites / 71 tests, TypeScript, and production build; build retains known AdMob source-map and stale Browserslist warnings. This follow-up is local and has not been pushed or deployed.
 - Removed the Calendar conflict exclamation button and its legend; conflict dates retain the red visual treatment, and selecting the date still opens Event View. Focused Calendar navigation test updated. This change is local and has not been pushed.
+- BLC student profiles no longer see conflict highlighting on Calendar or conflict warnings/counterpart details in Event View. Chief, SGL, and commander conflict visibility remains. Added regression coverage; this change is local and has not been pushed.
 
 ## Cycle-start interim protection and calendar controls (2026-10-02)
 

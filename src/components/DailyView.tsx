@@ -210,7 +210,9 @@ export default function DailyView({
     : sortedEvents;
 
   // 각 이벤트가 충돌하는지 여부를 판단하는 함수
-  const scheduleConflicts = getScheduleConflicts(schedule, crossAcademySchedules, showCrossAcademyConflicts);
+  const scheduleConflicts = role === 'STUDENT'
+    ? []
+    : getScheduleConflicts(schedule, crossAcademySchedules, showCrossAcademyConflicts);
   const conflictingEventIds = new Set(scheduleConflicts.flatMap(conflict => [conflict.first.id, conflict.second.id]));
   const checkConflict = (idx: number) => sortedEvents[idx] ? conflictingEventIds.has(sortedEvents[idx].id) : false;
   const hasGlobalConflict = sortedEvents.some((_, idx) => checkConflict(idx));

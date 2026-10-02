@@ -40,4 +40,20 @@ describe('calendar conflict navigation', () => {
     expect(onSelectDate).toHaveBeenCalledWith(date);
     expect(screen.queryByRole('dialog')).toBeNull();
   });
+
+  it('does not visually mark conflict dates for students', () => {
+    render(
+      <Calendar
+        schedules={[schedule]}
+        academy="BLC"
+        role="STUDENT"
+        onSelectDate={() => undefined}
+        onSelectSearchResult={() => undefined}
+        settingsControl={null}
+        displayMode="auto"
+      />
+    );
+
+    expect(document.querySelector('.calendar-day-conflict')).toBeNull();
+  });
 });
