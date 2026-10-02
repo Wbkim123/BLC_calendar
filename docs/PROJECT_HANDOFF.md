@@ -6,8 +6,8 @@ Last updated: 2026-10-02
 
 - Calendar conflict markers open a dialog listing the exact overlapping event pairs, including names, displayed times, locations, and academy labels for commander cross-academy AUD/MPR conflicts. BLC and KTA daily event highlighting now share the same time-overlap rule.
 - KTA `start-UTC` entries display that source-facing time in import preview and schedule view. Since the end time is unknown, calculations use a zero-length numeric range so later events are not falsely marked as conflicts; staff may edit the event to a known time range.
-- Verified: 20 Jest suites / 69 tests passed, TypeScript passed, production build completed with known AdMob source-map and Browserslist warnings. Released in commit to GitHub `master`; Cloudflare Pages auto-deploy status to be checked.
-- Follow-up after release: increased the conflict marker's phone tap target from 16px to 28px and clarified its accessible label/title after the user reported that details did not open. The focused marker-click test and TypeScript passed; the build passed with existing warnings. This follow-up still needs to be pushed and its Pages deployment checked.
+- Verified: 20 Jest suites / 69 tests passed, TypeScript passed, production build completed with known AdMob source-map and Browserslist warnings. Conflict details and UTC behavior were pushed as `3d8ec51`; Cloudflare Pages later marked it Active.
+- Follow-up after the user reported the marker was difficult to activate: increased its phone touch target from 16px to 28px and clarified its accessible label/title. The focused marker-click test, TypeScript, and build passed. Pushed as `343cb8e`; Cloudflare Pages reports Production Active at `https://96908b31.blc-calendar.pages.dev`. The stable project URL remains `https://blc-calendar.pages.dev`.
 
 ## Cycle-start interim protection and calendar controls (2026-10-02)
 
