@@ -6,6 +6,19 @@ import AdMobBanner from './AdMobBanner';
 import { getScheduleConflicts } from '../features/schedule-conflicts/conflicts';
 import type { ScheduleConflict } from '../features/schedule-conflicts/conflicts';
 
+const getDismissedConflictStorageKey = (academy: string | undefined, date: string) =>
+  `blc_dismissed_conflicts_v1:${academy || 'unknown'}:${date}`;
+
+const loadDismissedConflictKeys = (storageKey: string) => {
+  if (typeof window === 'undefined') return new Set<string>();
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(storageKey) || '[]');
+    return Array.isArray(saved) ? new Set(saved.filter((value): value is string => typeof value === 'string')) : new Set<string>();
+  } catch {
+    return new Set<string>();
+  }
+};
+
 interface Props {
   schedule: DailySchedule;
   crossAcademySchedules?: DailySchedule[];
@@ -61,12 +74,15 @@ export default function DailyView({
   testMode = false,
   displayMode
 }: Props) {
+  const dismissedConflictStorageKey = getDismissedConflictStorageKey(schedule.academy, schedule.date);
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
   const [editingDayLabel, setEditingDayLabel] = useState(false);
   const [dayLabelDraft, setDayLabelDraft] = useState(schedule.dayLabel);
   const [editingNotes, setEditingNotes] = useState<'public' | 'sgl' | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [dismissedConflictNoticeKeys, setDismissedConflictNoticeKeys] = useState<Set<string>>(() => new Set());
+  const [dismissedConflictNoticeKeys, setDismissedConflictNoticeKeys] = useState<Set<string>>(
+    () => loadDismissedConflictKeys(dismissedConflictStorageKey)
+  );
   const highlightedTargetRef = useRef<HTMLDivElement>(null);
   // KTA staff use one shared NOTES field. The public/SGL split remains BLC-only.
   const isKtaSchedule = schedule.academy === 'KTA';
@@ -82,8 +98,8 @@ export default function DailyView({
   useEffect(() => {
     setDayLabelDraft(schedule.dayLabel);
     setEditingDayLabel(false);
-    setDismissedConflictNoticeKeys(new Set());
-  }, [schedule.date, schedule.dayLabel]);
+    setDismissedConflictNoticeKeys(loadDismissedConflictKeys(dismissedConflictStorageKey));
+  }, [schedule.date, schedule.dayLabel, dismissedConflictStorageKey]);
 
   useEffect(() => {
     if (!notificationHighlightTarget) return;
@@ -216,7 +232,25 @@ export default function DailyView({
     ? []
     : getScheduleConflicts(schedule, crossAcademySchedules, showCrossAcademyConflicts);
   const getConflictPairKey = (conflict: ScheduleConflict) =>
-    `${conflict.kind}:${[conflict.first.id, conflict.second.id].sort().join(':')}:${conflict.otherAcademy || ''}`;
+    JSON.stringify([
+      conflict.kind,
+      [conflict.first, conflict.second]
+        .map(event => [event.id, event.time, event.location.trim().toUpperCase()])
+        .sort((first, second) => String(first[0]).localeCompare(String(second[0]))),
+      conflict.otherAcademy || ''
+    ]);
+  const dismissConflictPair = (conflict: ScheduleConflict) => {
+    const pairKey = getConflictPairKey(conflict);
+    setDismissedConflictNoticeKeys(previous => {
+      const next = new Set(previous).add(pairKey);
+      try {
+        window.localStorage.setItem(dismissedConflictStorageKey, JSON.stringify(Array.from(next)));
+      } catch {
+        // Dismissal remains available for the current view if storage is unavailable.
+      }
+      return next;
+    });
+  };
   const isExactSameTimeAndPlace = (conflict: ScheduleConflict) =>
     conflict.kind === 'time'
     && conflict.first.time === conflict.second.time
@@ -331,7 +365,7 @@ export default function DailyView({
               </div>
               <button
                 type="button"
-                onClick={() => setDismissedConflictNoticeKeys(previous => new Set(previous).add(getConflictPairKey(conflict)))}
+                onClick={() => dismissConflictPair(conflict)}
                 className="shrink-0 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-[10px] font-black text-blue-800 hover:bg-blue-100"
                 aria-label={`Dismiss shared conflict for ${conflict.first.eventName} and ${conflict.second.eventName}`}
               >
@@ -448,7 +482,7 @@ export default function DailyView({
                               </div>
                               <button
                                 type="button"
-                                onClick={() => setDismissedConflictNoticeKeys(previous => new Set(previous).add(getConflictPairKey(conflict)))}
+                                onClick={() => dismissConflictPair(conflict)}
                                 className="shrink-0 rounded-md border border-red-200 bg-white px-2 py-1 text-[9px] font-black text-red-800 hover:bg-red-100"
                                 aria-label={`Dismiss conflict with ${otherEvent.eventName}`}
                               >

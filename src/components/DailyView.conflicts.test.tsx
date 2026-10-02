@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, expect, it, jest } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen } from '@testing-library/react';
 import DailyView from './DailyView';
 import { DailySchedule } from '../types/schedule';
@@ -29,6 +29,8 @@ const baseProps = {
 };
 
 describe('Event View conflict details', () => {
+  beforeEach(() => window.localStorage.clear());
+
   it('lists each overlapping event on the affected event cards', () => {
     const schedule: DailySchedule = {
       academy: 'BLC', date: '2026-10-02', dayLabel: 'DAY 1', cycleName: 'cycle',
@@ -77,6 +79,25 @@ describe('Event View conflict details', () => {
     expect(classB?.className).not.toContain('schedule-conflict-event');
     expect(screen.queryByText('Schedule conflicts are listed on the affected events below.')).toBeNull();
     expect(schedule.events).toHaveLength(2);
+  });
+
+  it('keeps a dismissed conflict pair hidden after leaving and reopening Event View', () => {
+    const schedule: DailySchedule = {
+      academy: 'KTA', date: '2099-10-03', dayLabel: 'DAY 2', cycleName: 'cycle',
+      events: [event('a', '0900-1100', 'Class A', 'Room 1'), event('b', '1000-1200', 'Class B', 'Room 2')]
+    };
+
+    const firstView = render(<DailyView {...baseProps} schedule={schedule} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss conflict with Class B' }));
+    expect(screen.queryByText('Schedule conflicts are listed on the affected events below.')).toBeNull();
+
+    firstView.unmount();
+    render(<DailyView {...baseProps} schedule={schedule} />);
+
+    expect(screen.queryByText('Schedule conflicts are listed on the affected events below.')).toBeNull();
+    expect(screen.queryByLabelText(/Conflicts for/)).toBeNull();
+    expect(screen.getByText('Class A').closest('.daily-event-card')?.className).not.toContain('schedule-conflict-event');
+    expect(screen.getByText('Class B').closest('.daily-event-card')?.className).not.toContain('schedule-conflict-event');
   });
 
   it('wraps same-time KTA events in different rooms in one colored group container', () => {
