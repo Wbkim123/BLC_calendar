@@ -21,7 +21,7 @@ const schedule: DailySchedule = {
 };
 
 describe('calendar conflict navigation', () => {
-  it('opens Event View from the conflict marker instead of a calendar dialog', () => {
+  it('has no conflict exclamation button and opens Event View by selecting the date', () => {
     const onSelectDate = jest.fn();
     render(
       <Calendar
@@ -34,7 +34,8 @@ describe('calendar conflict navigation', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open event view to see conflict details' }));
+    expect(screen.queryByRole('button', { name: /conflict details/i })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: `${date}, ${schedule.dayLabel}` }));
 
     expect(onSelectDate).toHaveBeenCalledWith(date);
     expect(screen.queryByRole('dialog')).toBeNull();

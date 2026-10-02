@@ -270,17 +270,6 @@ export default function Calendar({
                       </div>
                     )}
                   </button>
-                  {hasConflict && (
-                    <button
-                      type="button"
-                      onClick={() => schedule && onSelectDate(schedule.date)}
-                      className="absolute top-0.5 left-0.5 z-30 w-7 h-7 lg:top-2 lg:left-2 lg:w-8 lg:h-8 bg-red-700 text-white rounded-full shadow-sm flex items-center justify-center text-xs lg:text-base font-black cursor-pointer hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-300"
-                      aria-label="Open event view to see conflict details"
-                      title="Open Event View to see which events conflict"
-                    >
-                      !
-                    </button>
-                  )}
                 </div>
               );
             })}
@@ -291,7 +280,7 @@ export default function Calendar({
         <div className="calendar-info mt-2 lg:mt-4 p-2 lg:p-4 bg-blue-50 rounded-lg lg:rounded-2xl flex items-start gap-2 lg:gap-4 border border-blue-100 shrink-0">
           <svg className="w-5 h-5 lg:w-7 lg:h-7 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           <p className="text-[10px] lg:text-lg text-blue-700 font-medium leading-tight">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600 mx-0.5 lg:h-3 lg:w-3" /> Highlighted content · <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mx-0.5 lg:h-3 lg:w-3" /> Student notes{role !== 'STUDENT' && <><span> · </span><span className="inline-block h-1.5 w-1.5 rounded-full bg-purple-500 mx-0.5 lg:h-3 lg:w-3" /> SGL notes</>}. A <span className="inline-flex w-3.5 h-3.5 lg:w-6 lg:h-6 bg-red-700 text-white rounded-full mx-0.5 items-center justify-center text-[9px] lg:text-sm font-black align-middle">!</span> indicates overlapping events. Tap a scheduled date to view details.
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600 mx-0.5 lg:h-3 lg:w-3" /> Highlighted content · <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mx-0.5 lg:h-3 lg:w-3" /> Student notes{role !== 'STUDENT' && <><span> · </span><span className="inline-block h-1.5 w-1.5 rounded-full bg-purple-500 mx-0.5 lg:h-3 lg:w-3" /> SGL notes</>}. Red calendar dates indicate overlapping events. Tap a scheduled date to view details.
           </p>
         </div>
         <AdMobBanner visible={showAdBanner} testMode={testMode} />
