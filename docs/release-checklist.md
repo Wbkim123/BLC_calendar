@@ -96,9 +96,8 @@ cd android
 
 ## 7. iOS release
 
-- Current marketing version: `1.0`.
-- Choose the next App Store marketing version before submission.
-- Codemagic already supplies a unique build number using `BUILD_NUMBER`.
+- Marketing version for the next App Store release: `2.0` (configured in the iOS Xcode project).
+- Codemagic supplies the build number using `BUILD_NUMBER`; keep it separate from the marketing version and do not manually reset it.
 - Smoke-test login, search, KTA/BLC separation, AdMob consent/banner behavior, and notifications on a physical iPhone.
 - Run Codemagic only after the reviewed changes are intentionally pushed.
 

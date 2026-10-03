@@ -1,5 +1,12 @@
 # NCOA Schedule Calendar — Project Handoff
 
+## iOS App Store version decision (2026-10-03)
+
+- The user selected marketing version `2.0` for the next iOS release. Both iOS Xcode build configurations now use `MARKETING_VERSION = 2.0`; the bundle ID remains `dev.pages.blccalendar`.
+- Codemagic supplies `CURRENT_PROJECT_VERSION` from its `BUILD_NUMBER` environment value. Keep this build number separate from marketing version; the user's last upload log showed build 69, and Codemagic should assign the next build number automatically.
+- The last upload failed with Apple's `Cannot determine the Apple ID from Bundle ID ...` error after a successful IPA build/sign. Updating the marketing version does not itself resolve that independent App Store Connect upload error. Recheck after the next authorized build/upload.
+- No store build was run or submitted, and no push/deployment was performed for this version-only change.
+
 Last updated: 2026-10-02
 
 ## Calendar conflict color follows Event View resolution (2026-10-03)
