@@ -108,18 +108,46 @@ describe('Event View conflict details', () => {
 
     const { container } = render(<DailyView {...baseProps} schedule={schedule} />);
     const group = container.querySelector('.daily-simultaneous-events');
+    const header = group?.firstElementChild;
 
     expect(group).not.toBeNull();
-    expect(screen.getByText('Same time · different rooms')).toBeTruthy();
+    expect(header?.firstElementChild?.textContent).toBe('0800-1030');
+    expect(header?.lastElementChild?.textContent).toBe('Same time · different rooms');
     expect(group?.querySelectorAll('.daily-event-card')).toHaveLength(2);
-    expect(group?.className).toContain('border-amber-400');
+    expect(group?.className).toContain('border-yellow-500');
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss conflict with Class B' }));
 
-    expect(group?.className).toContain('border-emerald-400');
+    expect(group?.className).toContain('border-yellow-500');
     expect(group?.querySelectorAll('.schedule-conflict-event')).toHaveLength(0);
     expect(group?.querySelectorAll('.daily-event-card')).toHaveLength(2);
     expect(schedule.events).toHaveLength(2);
+  });
+
+  it('uses the normal schedule colors for upcoming, ongoing, and completed groups', () => {
+    const makeSchedule = (date: string, time: string): DailySchedule => ({
+      academy: 'KTA', date, dayLabel: 'DAY', cycleName: 'cycle',
+      events: [event('a', time, 'Class A', 'RM 1'), event('b', time, 'Class B', 'RM 2')]
+    });
+    const future = render(<DailyView {...baseProps} schedule={makeSchedule('2099-10-02', '0800-1030')} />);
+    const futureGroup = future.container.querySelector('.daily-simultaneous-events');
+    expect(futureGroup?.className).toContain('border-yellow-500');
+    future.unmount();
+
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 9, 3, 12, 0));
+    try {
+      const ongoing = render(<DailyView {...baseProps} schedule={makeSchedule('2026-10-03', '0800-1600')} />);
+      expect(ongoing.container.querySelector('.daily-simultaneous-events')?.className).toContain('border-green-500');
+      ongoing.unmount();
+    } finally {
+      jest.useRealTimers();
+    }
+
+    const past = render(<DailyView {...baseProps} schedule={makeSchedule('2000-10-02', '0800-1030')} />);
+    const pastGroup = past.container.querySelector('.daily-simultaneous-events');
+    expect(pastGroup?.className).toContain('border-gray-400');
+    expect(pastGroup?.className).toContain('opacity-60');
   });
 
   it('groups exact same-time, same-location events in one dismissible shared card', () => {

@@ -537,28 +537,30 @@ export default function DailyView({
 
           if (eventGroup.length === 1) return renderEventCard(eventGroup[0]);
 
-          const groupEventIds = new Set(eventGroup.map(event => event.id));
-          const groupConflicts = scheduleConflicts.filter(conflict =>
-            groupEventIds.has(conflict.first.id) && groupEventIds.has(conflict.second.id)
-          );
-          const groupConflictsDismissed = groupConflicts.length > 0
-            && groupConflicts.every(conflict => dismissedConflictNoticeKeys.has(getConflictPairKey(conflict)));
-          const roomNames = eventGroup.map(event => event.location).join(' · ');
+          const [groupStartText, groupEndText] = eventGroup[0].time.split('-');
+          const groupStart = getEventDate(groupStartText);
+          const groupEnd = getEventDate(groupEndText);
+          const groupIsPast = groupEnd ? now > groupEnd : false;
+          const groupIsOngoing = Boolean(groupStart && groupEnd && now >= groupStart && now <= groupEnd);
+          const groupStatusClasses = groupIsPast
+            ? 'bg-gray-200 border-gray-400 opacity-60'
+            : groupIsOngoing
+              ? 'bg-white border-green-500 ring-2 ring-green-100'
+              : 'bg-white border-yellow-500';
 
           return (
             <section
               key={`simultaneous-${schedule.date}-${eventGroup[0].time}`}
-              className={`daily-simultaneous-events rounded-2xl border border-l-4 p-2 shadow-sm ${groupConflictsDismissed ? 'border-emerald-400 bg-emerald-50/50' : 'border-amber-400 bg-amber-50/50'}`}
+              className={`daily-simultaneous-events rounded-xl border-l-4 p-2 shadow-sm transition-colors relative ${groupStatusClasses}`}
               aria-label={`Simultaneous KTA events at ${eventGroup[0].displayTime || eventGroup[0].time}`}
             >
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-1 px-1">
-                <span className={`text-[10px] font-black uppercase tracking-wide ${groupConflictsDismissed ? 'text-emerald-800' : 'text-amber-900'}`}>
-                  Same time · different rooms
-                </span>
-                <span className="rounded-md bg-white/80 px-2 py-0.5 text-[10px] font-black text-gray-700">
+              <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-700">
                   {eventGroup[0].displayTime || eventGroup[0].time}
                 </span>
-                <span className="w-full truncate px-0.5 text-[9px] font-semibold text-gray-600">{roomNames}</span>
+                <span className="text-right text-[10px] font-black uppercase tracking-wide text-gray-600">
+                  Same time · different rooms
+                </span>
               </div>
               <div className="space-y-2">{eventGroup.map(event => renderEventCard(event, true))}</div>
             </section>
