@@ -12,6 +12,8 @@ import AcademySwitcher from './shared/components/AcademySwitcher';
 import ScheduleNotificationModal, { PendingScheduleNotification } from './components/ScheduleNotificationModal';
 import GeneralSettings from './components/GeneralSettings';
 import NotificationPrompt from './components/NotificationPrompt';
+import TestSessionControls from './features/test-session/TestSessionControls';
+import { activeBLCStudentCycles, createTestAccessProfile, TestViewId } from './features/test-session/testAccessProfiles';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
 import { AccessProfile, AcademyId } from './types/academy';
 import { getAcademyConfig } from './config/academies';
@@ -246,6 +248,8 @@ function App() {
       return false;
     }
   });
+  const [testViewId, setTestViewId] = useState<TestViewId>('test-manager');
+  const [testStudentCycles, setTestStudentCycles] = useState<string[]>([]);
   const [schedules, setSchedules] = useState<DailySchedule[]>([]);
   const [crossAcademySchedules, setCrossAcademySchedules] = useState<DailySchedule[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
@@ -399,6 +403,33 @@ function App() {
     const timer = window.setInterval(() => void loadOtherAcademy(), 30000);
     return () => { disposed = true; window.clearInterval(timer); };
   }, [accessProfile?.accessLevel, academy, isTestMode]);
+
+  useEffect(() => {
+    if (!isTestMode) {
+      setTestStudentCycles([]);
+      return;
+    }
+    let disposed = false;
+    const loadBLCStudentCycles = async () => {
+      try {
+        if (!isStagingSession()) return;
+        const token = await getAdminIdToken();
+        if (!token) return;
+        const path = `${getAcademyConfig('BLC').databasePrefix}schedules`;
+        const response = await fetch(stagingDatabaseUrl(path, token), { cache: 'no-store' });
+        if (!response.ok) return;
+        const value = await response.json();
+        const entries = Array.isArray(value) ? value : value && typeof value === 'object'
+          ? Object.values(value as Record<string, DailySchedule>)
+          : [];
+        if (!disposed) setTestStudentCycles(activeBLCStudentCycles(entries as DailySchedule[]));
+      } catch {
+        if (!disposed) setTestStudentCycles([]);
+      }
+    };
+    void loadBLCStudentCycles();
+    return () => { disposed = true; };
+  }, [isTestMode]);
 
   useEffect(() => {
     if (!notificationFocus || selectedDateId !== notificationFocus.date) return;
@@ -1197,6 +1228,7 @@ function App() {
     setForegroundNotification(null);
     if (requestedTestMode) {
       setDisplayMode('auto');
+      setTestViewId('test-manager');
     }
     setStudentCycleName(login.studentCycleName || null);
 
@@ -1246,6 +1278,21 @@ function App() {
     setStudentCycleName(null);
     setSchedules([]);
     setIsLoading(true);
+    hasAutoSelectedTodayRef.current = false;
+  };
+
+  const handleTestViewChange = (viewId: TestViewId) => {
+    if (!isTestMode) return;
+    const profile = createTestAccessProfile(viewId, academy, testStudentCycles);
+    if (!profile) return;
+    setTestViewId(viewId);
+    setRole(profile.role);
+    setAccessProfile(profile);
+    setAcademy(profile.academy);
+    setStudentCycleName(profile.studentCycleName || null);
+    setSelectedDateId(null);
+    setTvCycle(null);
+    setDisplayMode('auto');
     hasAutoSelectedTodayRef.current = false;
   };
 
@@ -1487,6 +1534,13 @@ function App() {
       onResetSchedules={handleResetSchedules}
       testMode={isTestMode}
       notificationsDisabled={useFirebaseEmulators}
+      testSessionControl={isTestMode ? (
+        <TestSessionControls
+          activeStudentCycles={testStudentCycles}
+          viewId={testViewId}
+          onViewChange={handleTestViewChange}
+        />
+      ) : undefined}
     />
   ) : null;
 

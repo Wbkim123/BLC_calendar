@@ -1,5 +1,12 @@
 # NCOA Schedule Calendar — Project Handoff
 
+## Test-session role and notification preview (2026-10-04)
+
+- The 318709 staging session now has a Settings control to preview the commander, BLC/KTA chief, BLC/KTA SGL, active BLC student-cycle, and BLC/KTA TV views without entering another access code. The test administrator view restores full staging-only tools. Student previews are limited to currently active BLC cycles.
+- Manual notification tests use role-specific sample payloads: commander BLC + KTA, Chief/SGL their academy, and student their active BLC cycle. Commander preview sends two sample pushes. The staging relay delivers only to the current approved device; this does not contact other users or simulate actual role subscriptions.
+- Role switching changes the client view only; authentication remains the staging administrator, and all database reads/writes remain in the separate staging project. Production auth and notification routing were not changed.
+- Verification: TypeScript passed; 22 Jest suites / 85 tests passed; production web build passed with existing AdMob source-map and Browserslist warnings. No Firebase deployment or store build was run.
+
 ## iOS App Store version decision (2026-10-03)
 
 - The user selected marketing version `2.0` for the next iOS release. Both iOS Xcode build configurations now use `MARKETING_VERSION = 2.0`; the bundle ID remains `dev.pages.blccalendar`.

@@ -22,6 +22,7 @@ interface Props {
   testMode?: boolean;
   tvDisplay?: boolean;
   notificationsDisabled?: boolean;
+  testSessionControl?: ReactNode;
 }
 
 const Toggle = ({ enabled, onChange, label }: { enabled: boolean; onChange: () => void; label: string }) => (
@@ -52,7 +53,8 @@ export default function GeneralSettings({
   onResetSchedules,
   testMode = false,
   tvDisplay = false,
-  notificationsDisabled = false
+  notificationsDisabled = false,
+  testSessionControl
 }: Props) {
   const [open, setOpen] = useState(false);
   const [showDatabase, setShowDatabase] = useState(false);
@@ -129,7 +131,9 @@ export default function GeneralSettings({
             </div>
 
             <div className="space-y-3">
-              {academyControl && role === 'ADMIN' && (
+              {testMode && testSessionControl}
+
+              {academyControl && (role === 'ADMIN' || (testMode && allAcademies)) && (
                 <section className="settings-card flex items-center justify-between gap-4 rounded-2xl border border-gray-200 p-4">
                   <div>
                     <div className="text-sm font-black text-gray-900">Academy</div>
