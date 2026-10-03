@@ -21,4 +21,9 @@ describe('App Open ad policy and cadence', () => {
     expect(getAppOpenAdId(true, 'ios')).toBe('ca-app-pub-3940256099942544/5575463023');
     expect(getAppOpenAdId(true, 'android')).toBe('ca-app-pub-3940256099942544/9257395921');
   });
+
+  it('uses the matching production unit for each native platform', () => {
+    expect(getAppOpenAdId(false, 'android', 'production')).toBe('ca-app-pub-1251095758735054/8496510995');
+    expect(getAppOpenAdId(false, 'ios', 'production')).toBe('ca-app-pub-1251095758735054/8739044413');
+  });
 });

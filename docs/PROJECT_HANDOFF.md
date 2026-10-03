@@ -8,21 +8,21 @@
   generated iOS/Android icons, and changed web favicon/PWA icons. Store listing
   names/icons still need manual updates in App Store Connect and Google Play Console.
 - Added native App Open ads for all access roles, on first entry and app foreground, with
-  a one-hour cooldown. Web/TV does not load ads. Production display is disabled until
-  separate Android/iOS App Open unit IDs are supplied as build environment variables;
-  test/development uses Google's demo units. This needs physical-device validation with
-  the production IDs before release.
+  a one-hour cooldown. Web/TV does not load ads. Production uses the Android/iOS App Open
+  unit IDs supplied by the user; staging/development continues using Google's demo units.
+  This needs physical-device validation with each platform's production build.
 - iOS marketing version remains 2.0 and Codemagic uses its automatic build number. The
   user reports the current build is now uploaded to App Store Connect; do not overwrite
   or submit another build without an explicit request. Android is prepared as `4.0.8`
   (`versionCode 11`), incrementing the existing Play version `4.0.7` (`versionCode 10`).
-- Verification: TypeScript passed, 22 Jest suites / 86 tests passed, production web
-  build passed with known AdMob source-map and Browserslist warnings, and Capacitor sync
-  completed with AdMob 8.0.1. Android debug compilation was attempted but could not
-  complete because this isolated Windows path has non-ASCII characters and its Gradle
-  distribution/Android SDK dependencies are not available in this worktree. User then
-  explicitly requested the GitHub push; this update does not deploy Firebase or submit
-  an app version for review.
+- After the user provided separate Android/iOS App Open unit IDs, production platform
+  selection was connected while test/development keeps Google's demo units. Verification:
+  TypeScript passed, 22 Jest suites / 87 tests passed, and production web build passed
+  with known AdMob source-map and Browserslist warnings. Android debug compilation was
+  attempted but could not complete because this isolated Windows path has non-ASCII
+  characters and its Gradle distribution/Android SDK dependencies are unavailable.
+  This follow-up is ready for GitHub push; it does not deploy Firebase or submit an app
+  version for review.
 
 ## Test-session role and notification preview (2026-10-04)
 

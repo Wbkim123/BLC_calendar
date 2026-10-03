@@ -7,16 +7,20 @@ export const APP_OPEN_AD_LAST_SHOWN_KEY = 'ncoa_app_open_ad_last_shown';
 
 const GOOGLE_ANDROID_TEST_APP_OPEN_ID = 'ca-app-pub-3940256099942544/9257395921';
 const GOOGLE_IOS_TEST_APP_OPEN_ID = 'ca-app-pub-3940256099942544/5575463023';
-const ANDROID_APP_OPEN_AD_ID = process.env.REACT_APP_ANDROID_APP_OPEN_AD_ID || '';
-const IOS_APP_OPEN_AD_ID = process.env.REACT_APP_IOS_APP_OPEN_AD_ID || '';
+const ANDROID_APP_OPEN_AD_ID = 'ca-app-pub-1251095758735054/8496510995';
+const IOS_APP_OPEN_AD_ID = 'ca-app-pub-1251095758735054/8739044413';
 
 let showPromise: Promise<boolean> | null = null;
 
 export const isAppOpenAdEligible = (lastShownAt: number, now = Date.now()) =>
   lastShownAt <= 0 || now - lastShownAt >= APP_OPEN_AD_COOLDOWN_MS;
 
-export const getAppOpenAdId = (testMode: boolean, platform = Capacitor.getPlatform()) => {
-  if (testMode || process.env.NODE_ENV !== 'production') {
+export const getAppOpenAdId = (
+  testMode: boolean,
+  platform = Capacitor.getPlatform(),
+  environment = process.env.NODE_ENV
+) => {
+  if (testMode || environment !== 'production') {
     return platform === 'ios' ? GOOGLE_IOS_TEST_APP_OPEN_ID : GOOGLE_ANDROID_TEST_APP_OPEN_ID;
   }
 

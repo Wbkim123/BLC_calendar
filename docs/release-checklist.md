@@ -24,11 +24,9 @@ No command in this checklist should be run until the release is explicitly appro
 - The requested store/display name is **NCOA Schedule Calendar**. Update the App Store Connect product name and Google Play main store listing title manually; this repository change updates the installed app label only.
 - Use the selected neutral calendar icon in `assets/icon.png`; generated platform assets must be reviewed before submitting the store build. Google Play's 512×512 store listing icon must also be uploaded in Play Console.
 - The app-open ad flow runs on native iOS/Android for all access roles, at most once per
-  hour while opening or returning to the app. It does not run on Web/TV. Create separate
-  AdMob App Open units for Android and iOS and set `REACT_APP_ANDROID_APP_OPEN_AD_ID`
-  and `REACT_APP_IOS_APP_OPEN_AD_ID` in the native build environment. Until these IDs
-  are configured, production app-open ads remain disabled; development uses Google's
-  demo ad units.
+  hour while opening or returning to the app. It does not run on Web/TV. Production
+  Android/iOS App Open unit IDs are configured in the client; development uses Google's
+  demo ad units. Validate each platform using its corresponding signed store build.
 - Download the Android Firebase configuration to `android/app/google-services.json` if Android push notifications are required.
 
 ## 2. Backend prerequisite for KTA
