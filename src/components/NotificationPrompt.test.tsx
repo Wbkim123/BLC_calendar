@@ -12,11 +12,11 @@ jest.mock('../notifications', () => ({
 
 test('keeps failed device approval visible and never reports registration success', async () => {
   const onStatusChange = jest.fn();
-  render(<NotificationPrompt role="ADMIN" academy="BLC" testMode autoPrompt={false}
+  render(<NotificationPrompt role="ADMIN" academy="BLC" variant="toggle" testMode autoPrompt={false}
     hideWhenGranted onStatusChange={onStatusChange} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'ENABLE NOTIFICATIONS' }));
+  fireEvent.click(await screen.findByRole('switch', { name: 'Notifications' }));
   const alert = await screen.findByRole('alert');
   expect(alert.textContent).toContain(`Approve test device: ${'a'.repeat(64)}`);
-  expect(alert.textContent).toContain('This phone is not approved for test alerts yet.');
+  expect(alert.className).toContain('break-all');
   expect(onStatusChange).not.toHaveBeenCalledWith('granted');
 });

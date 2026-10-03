@@ -166,7 +166,7 @@ export default function NotificationPrompt({ role, academy, allAcademies = false
             <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
           </button>
         </div>
-        {error && <span className="max-w-52 text-right text-[9px] font-bold text-red-600">{error}</span>}
+        {error && <span role="alert" className="max-w-52 break-all text-right text-[9px] font-bold text-red-600">{error}</span>}
       </div>
     );
   }
