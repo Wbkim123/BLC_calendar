@@ -2,6 +2,12 @@
 
 Last updated: 2026-10-02
 
+## Calendar conflict color follows Event View resolution (2026-10-03)
+
+- Calendar View now reads the same per-academy/date dismissed-conflict records as Event View. Dismissing an overlap in Event View clears that date's red conflict color in Calendar View; changing an event so it no longer overlaps also returns the date to the normal blue schedule color.
+- Conflict pair identity and dismissed-state storage helpers are shared by both views. Added regression coverage for dismissed conflicts and edited times with no remaining overlap.
+- Verification: 21 Jest suites / 80 tests passed, TypeScript passed, and the production build passed with the existing AdMob source-map and Browserslist warnings. This change is local; it has not been pushed or deployed.
+
 ## Conflict details and KTA UTC display (2026-10-02)
 
 - Event View now lists each affected counterpart directly inside its event card, including event name, displayed time, location, and academy for commander cross-academy AUD/MPR conflicts. Calendar conflict markers navigate to that day's Event View; no conflict details dialog is used from the calendar. BLC and KTA event highlighting share the same time-overlap rule.

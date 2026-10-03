@@ -6,7 +6,12 @@ import AdMobBanner from './AdMobBanner';
 import { AcademyId } from '../types/academy';
 import EventSearchModal from '../features/event-search/EventSearchModal';
 import { EventSearchResult } from '../features/event-search/searchEvents';
-import { hasCrossAcademyLocationConflict, hasScheduleConflict } from '../features/schedule-conflicts/conflicts';
+import { getScheduleConflicts } from '../features/schedule-conflicts/conflicts';
+import {
+  getConflictPairKey,
+  getDismissedConflictStorageKey,
+  loadDismissedConflictKeys
+} from '../features/schedule-conflicts/dismissals';
 
 export { hasCrossAcademyLocationConflict, hasScheduleConflict } from '../features/schedule-conflicts/conflicts';
 
@@ -217,9 +222,14 @@ export default function Calendar({
               const isToday = cellDate.getTime() === today.getTime();
               const isPastScheduledDate = Boolean(schedule) && cellDate.getTime() < today.getTime();
               const canViewConflicts = role !== 'STUDENT';
-              const hasInternalConflict = canViewConflicts && schedule ? hasScheduleConflict(schedule) : false;
+              const dismissedConflictKeys = schedule
+                ? loadDismissedConflictKeys(getDismissedConflictStorageKey(schedule.academy, schedule.date))
+                : new Set<string>();
+              const hasInternalConflict = Boolean(canViewConflicts && schedule
+                && getScheduleConflicts(schedule).some(conflict => !dismissedConflictKeys.has(getConflictPairKey(conflict))));
               const hasLocationConflict = Boolean(canViewConflicts && schedule && showCrossAcademyConflicts
-                && hasCrossAcademyLocationConflict(schedule, crossAcademySchedules));
+                && getScheduleConflicts(schedule, crossAcademySchedules, true).some(conflict =>
+                  conflict.kind === 'location' && !dismissedConflictKeys.has(getConflictPairKey(conflict))));
               const hasConflict = hasInternalConflict || hasLocationConflict;
               const hasHighlightedEvent = Boolean(schedule?.events?.some(event => event.highlighted));
               const hasStudentNotes = Boolean(schedule?.notes?.trim());

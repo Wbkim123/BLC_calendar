@@ -5,19 +5,11 @@ import type { DisplayMode } from '../App';
 import AdMobBanner from './AdMobBanner';
 import { getScheduleConflicts } from '../features/schedule-conflicts/conflicts';
 import type { ScheduleConflict } from '../features/schedule-conflicts/conflicts';
-
-const getDismissedConflictStorageKey = (academy: string | undefined, date: string) =>
-  `blc_dismissed_conflicts_v1:${academy || 'unknown'}:${date}`;
-
-const loadDismissedConflictKeys = (storageKey: string) => {
-  if (typeof window === 'undefined') return new Set<string>();
-  try {
-    const saved = JSON.parse(window.localStorage.getItem(storageKey) || '[]');
-    return Array.isArray(saved) ? new Set(saved.filter((value): value is string => typeof value === 'string')) : new Set<string>();
-  } catch {
-    return new Set<string>();
-  }
-};
+import {
+  getConflictPairKey,
+  getDismissedConflictStorageKey,
+  loadDismissedConflictKeys
+} from '../features/schedule-conflicts/dismissals';
 
 interface Props {
   schedule: DailySchedule;
@@ -231,14 +223,6 @@ export default function DailyView({
   const scheduleConflicts = role === 'STUDENT'
     ? []
     : getScheduleConflicts(schedule, crossAcademySchedules, showCrossAcademyConflicts);
-  const getConflictPairKey = (conflict: ScheduleConflict) =>
-    JSON.stringify([
-      conflict.kind,
-      [conflict.first, conflict.second]
-        .map(event => [event.id, event.time, event.location.trim().toUpperCase()])
-        .sort((first, second) => String(first[0]).localeCompare(String(second[0]))),
-      conflict.otherAcademy || ''
-    ]);
   const dismissConflictPair = (conflict: ScheduleConflict) => {
     const pairKey = getConflictPairKey(conflict);
     setDismissedConflictNoticeKeys(previous => {
