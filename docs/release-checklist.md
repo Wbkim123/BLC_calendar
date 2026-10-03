@@ -21,11 +21,14 @@ No command in this checklist should be run until the release is explicitly appro
 ## 1. Decisions before the release
 
 - Keep the existing application ID and bundle ID: `dev.pages.blccalendar`.
-- Confirm whether the store/display name stays **BLC Schedule Tracker** or changes to an NCOA-wide name.
-- Confirm whether the existing icon remains for this release.
-- Create separate AdMob interstitial units for Android and iOS, then provide them as
-  `REACT_APP_ANDROID_INTERSTITIAL_AD_ID` and `REACT_APP_IOS_INTERSTITIAL_AD_ID`.
-  Until these are present, the production popup-ad flow remains disabled.
+- The requested store/display name is **NCOA Schedule Calendar**. Update the App Store Connect product name and Google Play main store listing title manually; this repository change updates the installed app label only.
+- Use the selected neutral calendar icon in `assets/icon.png`; generated platform assets must be reviewed before submitting the store build. Google Play's 512×512 store listing icon must also be uploaded in Play Console.
+- The app-open ad flow runs on native iOS/Android for all access roles, at most once per
+  hour while opening or returning to the app. It does not run on Web/TV. Create separate
+  AdMob App Open units for Android and iOS and set `REACT_APP_ANDROID_APP_OPEN_AD_ID`
+  and `REACT_APP_IOS_APP_OPEN_AD_ID` in the native build environment. Until these IDs
+  are configured, production app-open ads remain disabled; development uses Google's
+  demo ad units.
 - Download the Android Firebase configuration to `android/app/google-services.json` if Android push notifications are required.
 
 ## 2. Backend prerequisite for KTA
@@ -52,10 +55,9 @@ Manual checks:
 - BLC login sees only BLC schedules and BLC search results.
 - KTA login sees only KTA schedules and KTA search results.
 - Student login sees only its assigned cycle and cannot select **All Cycles**.
-- On a physical native device, the student-only interstitial is eligible only after
-  every third Event-to-Calendar return and respects the 10-minute cooldown.
-- Confirm interstitials never appear on Web or for administrator/SGL accounts, and
-  a failed ad never blocks Calendar navigation.
+- On a physical native device, verify app-open ads can appear for each access role on
+  initial entry and app foreground, with a one-hour cooldown; a failed ad never blocks
+  app use. Verify no ads appear on Web/TV.
 - NCOA manager can switch academies, but search remains limited to the selected academy.
 - Search result opens the correct date and highlights the selected event.
 - KTA PDF import preview is checked before Confirm Import.
@@ -81,8 +83,8 @@ This copies the same tested Web build into both native projects and updates Capa
 
 ## 6. Android release
 
-- Current local version: `4.0.7` (`versionCode 10`).
-- Before the next Play upload, set `versionCode` to at least `11` and choose the approved `versionName`.
+- Current release candidate: `4.0.8` (`versionCode 11`). The prior store build was
+  `4.0.7` (`versionCode 10`).
 - Build an Android App Bundle (`.aab`), not only an APK.
 - Confirm Play App Signing/upload-key configuration in Android Studio.
 - Smoke-test login, Firebase reads, search, KTA/BLC separation, AdMob, and notifications on a physical Android device.
@@ -103,7 +105,10 @@ cd android
 
 ## 8. Store rollout
 
-- Update release notes to mention NCOA/KTA support and Event Search.
+- Update the App Store Connect product name and Google Play main store listing title to
+  **NCOA Schedule Calendar**. Upload the 512×512 store listing icon to Google Play; the
+  platform app icons are already generated from `assets/icon.png` for the new build.
+- Update release notes to mention schedule viewing and search.
 - Use a staged rollout on Google Play when available.
 - Monitor Firebase Functions logs, database permission failures, crashes, AdMob delivery, and user reports after release.
 - Do not delete or overwrite previous cycle data during rollout verification.

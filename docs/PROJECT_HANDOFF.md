@@ -1,5 +1,29 @@
 # NCOA Schedule Calendar — Project Handoff
 
+## Native store update candidate (2026-10-04)
+
+- Prepared the next native app update in an isolated worktree. The installed app label is
+  now **NCOA Schedule Calendar** on iOS and Android; the existing application/bundle ID
+  remains unchanged. Replaced the old app icon with the user-provided calendar art,
+  generated iOS/Android icons, and changed web favicon/PWA icons. Store listing
+  names/icons still need manual updates in App Store Connect and Google Play Console.
+- Added native App Open ads for all access roles, on first entry and app foreground, with
+  a one-hour cooldown. Web/TV does not load ads. Production display is disabled until
+  separate Android/iOS App Open unit IDs are supplied as build environment variables;
+  test/development uses Google's demo units. This needs physical-device validation with
+  the production IDs before release.
+- iOS marketing version remains 2.0 and Codemagic uses its automatic build number. The
+  user reports the current build is now uploaded to App Store Connect; do not overwrite
+  or submit another build without an explicit request. Android is prepared as `4.0.8`
+  (`versionCode 11`), incrementing the existing Play version `4.0.7` (`versionCode 10`).
+- Verification: TypeScript passed, 22 Jest suites / 86 tests passed, production web
+  build passed with known AdMob source-map and Browserslist warnings, and Capacitor sync
+  completed with AdMob 8.0.1. Android debug compilation was attempted but could not
+  complete because this isolated Windows path has non-ASCII characters and its Gradle
+  distribution/Android SDK dependencies are not available in this worktree. User then
+  explicitly requested the GitHub push; this update does not deploy Firebase or submit
+  an app version for review.
+
 ## Test-session role and notification preview (2026-10-04)
 
 - The 318709 staging session now has a Settings control to preview the commander, BLC/KTA chief, BLC/KTA SGL, active BLC student-cycle, and BLC/KTA TV views without entering another access code. The test administrator view restores full staging-only tools. Student previews are limited to currently active BLC cycles.

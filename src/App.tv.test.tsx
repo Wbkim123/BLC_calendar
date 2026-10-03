@@ -37,9 +37,8 @@ jest.mock('./notifications', () => ({
   isPhoneDevice: () => false,
   listenForForegroundNotifications: async () => () => undefined
 }));
-jest.mock('./features/ads/studentInterstitial', () => ({
-  prepareStudentInterstitial: () => undefined,
-  recordStudentCalendarReturnAndMaybeShow: () => undefined
+jest.mock('./features/ads/appOpen', () => ({
+  showAppOpenAdIfEligible: () => undefined
 }));
 jest.mock('./components/GeneralSettings', () => ({ __esModule: true, default: ({ onLogout }: any) => <button onClick={onLogout}>Logout</button> }));
 jest.mock('./components/NotificationPrompt', () => () => null);

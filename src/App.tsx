@@ -21,10 +21,7 @@ import { normalizeAccessCode, resolveAccessCode, restoreSavedAccessProfile } fro
 import { assertTestSessionWriteAllowed } from './features/auth/testModePolicy';
 import { EventSearchResult } from './features/event-search/searchEvents';
 import NcoaChatbot from './features/chatbot/NcoaChatbot';
-import {
-  prepareStudentInterstitial,
-  recordStudentCalendarReturnAndMaybeShow
-} from './features/ads/studentInterstitial';
+import { showAppOpenAdIfEligible } from './features/ads/appOpen';
 import { mockSchedules } from './data/mockData';
 import { auth, db, getDatabaseRestUrl, useFirebaseEmulators } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
@@ -1256,19 +1253,28 @@ function App() {
     if (isTvDisplay) return;
     hasAutoSelectedTodayRef.current = true;
     setSelectedDateId(null);
-    if (role === 'STUDENT') {
-      // Complete navigation first. An unavailable ad must never delay or block it.
-      window.setTimeout(() => {
-        void recordStudentCalendarReturnAndMaybeShow(isTestMode);
-      }, 350);
-    }
   };
 
   useEffect(() => {
-    if (role === 'STUDENT' && selectedDateId) {
-      void prepareStudentInterstitial(isTestMode);
-    }
-  }, [role, selectedDateId, isTestMode]);
+    if (!role || isTvDisplay || !Capacitor.isNativePlatform()) return;
+
+    let wasVisible = document.visibilityState === 'visible';
+    const showIfDue = () => {
+      void showAppOpenAdIfEligible(isTestMode);
+    };
+    const initialOpenTimer = window.setTimeout(showIfDue, 300);
+    const handleVisibilityChange = () => {
+      const isVisible = document.visibilityState === 'visible';
+      if (isVisible && !wasVisible) showIfDue();
+      wasVisible = isVisible;
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.clearTimeout(initialOpenTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [role, isTvDisplay, isTestMode]);
 
   const handleAcademyChange = (nextAcademy: AcademyId) => {
     if (accessProfile?.scope !== 'NCOA' || nextAcademy === academy) return;

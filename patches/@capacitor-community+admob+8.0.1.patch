@@ -2,7 +2,7 @@ diff --git a/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdM
 index 6b20075..ddba487 100644
 --- a/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift
 +++ b/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift
-@@ -60,16 +60,18 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
+@@ -88,16 +88,18 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
       * DEPRECATED: It's now ship with Admob UMP Consent
       */
      @objc func requestTrackingAuthorization(_ call: CAPPluginCall) {

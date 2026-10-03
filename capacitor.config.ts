@@ -4,7 +4,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'dev.pages.blccalendar',
-  appName: 'BLC Schedule Tracker',
+  appName: 'NCOA Schedule Calendar',
   webDir: 'build',
   plugins: {
     FirebaseMessaging: {
