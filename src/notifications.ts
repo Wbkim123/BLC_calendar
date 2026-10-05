@@ -541,6 +541,7 @@ export async function listenForForegroundNotifications() {
         : {};
       const value = (key: string) => typeof payload[key] === 'string' ? payload[key] as string : '';
       return {
+        academy: payload.academy === 'KTA' ? 'KTA' : payload.academy === 'BLC' ? 'BLC' : undefined,
         date: value('date'),
         targetId: value('targetId'),
         changeType: value('changeType'),
@@ -573,6 +574,7 @@ export async function listenForForegroundNotifications() {
   return onMessage(getMessaging(app), payload => {
     if (Notification.permission !== 'granted') return;
     const notificationDetail = {
+      academy: payload.data?.academy === 'KTA' ? 'KTA' : payload.data?.academy === 'BLC' ? 'BLC' : undefined,
       date: payload.data?.date || '',
       targetId: payload.data?.targetId || '',
       changeType: payload.data?.changeType || '',

@@ -55,6 +55,7 @@ type SavedLogin = {
 };
 
 type NotificationFocus = {
+  academy?: AcademyId;
   date: string;
   targetId: string;
   changeType: string;
@@ -345,6 +346,9 @@ function App() {
     const handleForegroundNotification = (event: Event) => {
       const detail = (event as CustomEvent<NotificationFocus>).detail;
       if (!detail?.date || !detail.targetId) return;
+      if (!accessProfile) return;
+      const notificationAcademy = detail.academy || 'BLC';
+      if (accessProfile.accessLevel !== 'NCOA_MANAGER' && notificationAcademy !== accessProfile.academy) return;
 
       hasAutoSelectedTodayRef.current = true;
       setSelectedDateId(detail.date);
@@ -355,7 +359,7 @@ function App() {
 
     window.addEventListener('blc-schedule-notification', handleForegroundNotification);
     return () => window.removeEventListener('blc-schedule-notification', handleForegroundNotification);
-  }, []);
+  }, [accessProfile]);
 
   useEffect(() => {
     if (!foregroundNotification) return;
