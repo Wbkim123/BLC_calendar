@@ -136,6 +136,9 @@ const requestNativeDatabaseWrite = async (
     if (generation !== getSessionGeneration()) throw new Error('Session changed.');
     if (response.ok && staging) window.dispatchEvent(new Event('staging-data-changed'));
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Your session cannot edit this academy. Sign out, then sign in with your academy Chief account and try again.');
+      }
       const responseError = await response.json().catch(() => null) as { error?: string } | null;
       throw new Error(responseError?.error || `Database update failed (${response.status})`);
     }
@@ -1453,6 +1456,11 @@ function App() {
   }
 
   const foregroundNotificationToast = foregroundNotification ? (
+    <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[80] rounded-2xl border-2 border-blue-300 bg-white shadow-2xl ring-4 ring-blue-100 sm:left-auto sm:right-4 sm:w-96">
+    <button type="button" aria-label="Dismiss schedule notification" onClick={() => setForegroundNotification(null)}
+      className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-full text-2xl text-gray-700 hover:bg-gray-100">
+      <span aria-hidden="true">×</span>
+    </button>
     <button
       type="button"
       onClick={() => {
@@ -1470,7 +1478,7 @@ function App() {
         }, 0);
         setForegroundNotification(null);
       }}
-      className="fixed left-3 right-3 top-3 z-[80] rounded-2xl border-2 border-blue-300 bg-white p-4 text-left shadow-2xl ring-4 ring-blue-100 sm:left-auto sm:right-4 sm:w-96"
+      className="w-full rounded-2xl p-4 pr-14 text-left"
     >
       <div className="text-[10px] font-black uppercase tracking-widest text-blue-600">
         Schedule notification received
@@ -1482,6 +1490,7 @@ function App() {
         {foregroundNotification.date} · Tap to view highlighted change
       </div>
     </button>
+    </div>
   ) : null;
   const notificationOnboarding = !useFirebaseEmulators && role && isTrackingAuthorizationResolved && !notificationOnboardingComplete && isPhoneDevice() ? (
     <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[65] mx-auto max-w-md rounded-2xl border border-green-200 bg-white p-3 pr-11 shadow-2xl">
@@ -1509,7 +1518,7 @@ function App() {
         autoPrompt={false}
         testMode={isTestMode}
         hideWhenGranted
-        onStatusChange={(status) => setNotificationOnboardingComplete(status === 'granted')}
+        onStatusChange={(status) => { if (status === 'granted') setNotificationOnboardingComplete(true); }}
       />
     </div>
   ) : null;

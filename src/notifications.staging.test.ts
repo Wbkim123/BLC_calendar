@@ -1,6 +1,8 @@
 import { beforeEach, afterEach, expect, jest, test } from '@jest/globals';
 import { selectStagingSession } from './staging';
 import { createAdminSession, getAdminIdToken, sendScheduleNotification, enableNotifications } from './notifications';
+import { getNotificationAvailability } from './notifications';
+import { Capacitor } from '@capacitor/core';
 
 jest.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true, getPlatform: () => 'android' } }));
 jest.mock('./firebase', () => ({ app: {}, auth: {}, functions: {}, useFirebaseEmulators: false }));
@@ -24,7 +26,7 @@ beforeEach(() => {
   fetchMock.mockReset();
   global.fetch = fetchMock;
 });
-afterEach(() => { global.fetch = originalFetch; selectStagingSession(false); });
+afterEach(() => { global.fetch = originalFetch; selectStagingSession(false); jest.restoreAllMocks(); });
 
 test('test login uses only staging login and token exchange, with separate token storage', async () => {
   localStorage.setItem('blc_admin_id_token', 'production-token-placeholder');
@@ -70,4 +72,56 @@ test('enabling staging notifications never subscribes to a production audience',
   expect(body.data.role).toBeUndefined();
   expect(body.data.topic).toBeUndefined();
   expect(localStorage.getItem('staging_push_ready')).toBe('true');
+});
+
+const fixtureToken = (claims: object) => `fixture.${window.btoa(JSON.stringify(claims))}.signature`;
+test.each(['android', 'ios'])('%s renews a remembered Chief session with obsolete claims before writes', async platform => {
+  jest.spyOn(Capacitor, 'getPlatform').mockReturnValue(platform);
+  selectStagingSession(false);
+  localStorage.setItem('blc_calendar_login', JSON.stringify({ code: 'synthetic-chief-login', profile: { accessLevel: 'SCHEDULE_IMPORTER', academy: 'BLC' } }));
+  localStorage.setItem('blc_admin_id_token', fixtureToken({ admin: true, scope: 'NCOA' }));
+  const renewed = fixtureToken({ admin: true, scope: 'BLC' });
+  fetchMock.mockResolvedValueOnce(reply({ result: { token: 'custom-fixture', scope: 'BLC' } }))
+    .mockResolvedValueOnce(reply({ idToken: renewed, refreshToken: 'refresh-fixture' }));
+  expect(await getAdminIdToken()).toBe(renewed);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+test('a valid native Chief token is not reauthenticated', async () => {
+  selectStagingSession(false);
+  localStorage.setItem('blc_calendar_login', JSON.stringify({ code: 'synthetic-chief-login', profile: { accessLevel: 'SCHEDULE_IMPORTER', academy: 'KTA' } }));
+  const token = fixtureToken({ admin: true, scope: 'KTA' });
+  localStorage.setItem('blc_admin_id_token', token);
+  expect(await getAdminIdToken()).toBe(token);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+test('reauthentication cannot accept a token for a different academy', async () => {
+  selectStagingSession(false);
+  localStorage.setItem('blc_calendar_login', JSON.stringify({ code: 'synthetic-chief-login', profile: { accessLevel: 'SCHEDULE_IMPORTER', academy: 'BLC' } }));
+  fetchMock.mockResolvedValueOnce(reply({ result: { token: 'custom-fixture' } }))
+    .mockResolvedValueOnce(reply({ idToken: fixtureToken({ admin: true, scope: 'KTA' }) }));
+  await expect(getAdminIdToken()).rejects.toThrow('permission-denied');
+});
+
+test('OS permission alone does not report native push registration success', async () => {
+  selectStagingSession(false);
+  expect(await getNotificationAvailability()).toBe('prompt');
+  fetchMock.mockResolvedValueOnce(reply({ error: { message: 'temporarily unavailable', status: 'UNAVAILABLE' } }, false));
+  await expect(enableNotifications('ADMIN', null, false, 'BLC')).rejects.toMatchObject({ code: 'unavailable' });
+  expect(await getNotificationAvailability()).toBe('prompt');
+  fetchMock.mockResolvedValueOnce(reply({ result: { subscribed: true, topic: 'audience-blc-admin' } }));
+  await enableNotifications('ADMIN', null, false, 'BLC');
+  expect(await getNotificationAvailability()).toBe('granted');
+});
+
+test('logout during native login cannot persist late authentication tokens', async () => {
+  fetchMock.mockResolvedValueOnce(reply({ result: { token: 'custom-fixture', testMode: true, scope: 'NCOA' } }));
+  fetchMock.mockImplementationOnce(async () => {
+    selectStagingSession(false);
+    return reply({ idToken: 'stale-fixture', refreshToken: 'stale-refresh' });
+  });
+  await expect(createAdminSession('synthetic-fixture')).rejects.toThrow('Session changed.');
+  expect(localStorage.getItem('blc_admin_id_token')).toBeNull();
+  expect(localStorage.getItem('staging_blc_admin_id_token')).toBeNull();
 });

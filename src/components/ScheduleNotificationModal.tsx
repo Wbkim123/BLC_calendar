@@ -157,18 +157,22 @@ export default function ScheduleNotificationModal({ change, academy, onClose, te
   const disableYes = !testMode && isPublicNotesChange && !change.cycleName;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="soft-modal w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="soft-modal-header bg-blue-900 p-4 text-white">
-          <h2 className="text-lg font-black">Schedule Saved</h2>
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="schedule-notification-title">
+      <div className="soft-modal flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="soft-modal-header relative shrink-0 bg-blue-900 p-4 pr-16 text-white">
+          <h2 id="schedule-notification-title" className="text-lg font-black">Schedule Saved</h2>
+          <button type="button" onClick={onClose} aria-label="Close notification dialog"
+            className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full text-2xl text-white hover:bg-blue-800">
+            <span aria-hidden="true">×</span>
+          </button>
           <p className="mt-1 text-xs text-blue-200">Choose whether to send a notification for {change.date}.</p>
         </div>
 
-        <div className="space-y-3 p-5">
+        <div className="min-h-0 space-y-3 overflow-y-auto p-5">
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-bold text-blue-900">
             {testMode
               ? 'TEST MODE: this notification is isolated to your current device.'
-              : 'Schedule managers (2002) are always notified.'}
+              : 'Schedule managers are included when a notification is sent.'}
             {!testMode && isPublicNotesChange && (
               <div className="mt-1 text-xs text-blue-700">
                 Public notes also notify all SGL users automatically.

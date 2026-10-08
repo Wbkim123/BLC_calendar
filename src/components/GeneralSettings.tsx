@@ -133,7 +133,7 @@ export default function GeneralSettings({
             <div className="space-y-3">
               {testMode && testSessionControl}
 
-              {academyControl && (role === 'ADMIN' || (testMode && allAcademies)) && (
+              {academyControl && allAcademies && (
                 <section className="settings-card flex items-center justify-between gap-4 rounded-2xl border border-gray-200 p-4">
                   <div>
                     <div className="text-sm font-black text-gray-900">Academy</div>

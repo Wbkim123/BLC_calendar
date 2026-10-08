@@ -61,10 +61,12 @@ const callNativeFunction = async <T>(
     );
     const payload = await response.json().catch(() => null) as {
       result?: T;
-      error?: { message?: string };
+      error?: { message?: string; status?: string };
     } | null;
     if (!response.ok || payload?.error || payload?.result === undefined) {
-      throw new Error(payload?.error?.message || `notification-${name}`);
+      throw Object.assign(new Error(payload?.error?.message || `notification-${name}`), {
+        code: payload?.error?.status?.toLowerCase().replace(/_/g, '-') || `http-${response.status}`
+      });
     }
     return payload.result;
   } finally {
@@ -136,6 +138,7 @@ export async function prepareNotificationEnvironment(staging: boolean) {
 
 export async function createAdminSession(code: string) {
   if (useFirebaseEmulators) throw new Error('Local emulator sessions do not use production access codes.');
+  const generation = getSessionGeneration();
   const abortController = new AbortController();
   const timeoutId = window.setTimeout(() => abortController.abort(), 15000);
   let response: Response;
@@ -159,6 +162,7 @@ export async function createAdminSession(code: string) {
     error?: { message?: string };
   } | null;
   if (!response.ok || payload?.error) throw new Error(payload?.error?.message || 'admin-session');
+  if (generation !== getSessionGeneration()) throw new Error('Session changed.');
 
   const data = payload?.result;
   if (!data?.token) throw new Error('admin-session');
@@ -185,6 +189,7 @@ export async function createAdminSession(code: string) {
     if (!authResponse.ok || !authPayload?.idToken) {
       throw new Error(authPayload?.error?.message || 'admin-auth');
     }
+    if (generation !== getSessionGeneration()) throw new Error('Session changed.');
     window.localStorage.setItem(authStorageKey(ADMIN_ID_TOKEN_KEY), authPayload.idToken);
     if (authPayload.refreshToken) {
       window.localStorage.setItem(authStorageKey(ADMIN_REFRESH_TOKEN_KEY), authPayload.refreshToken);
@@ -208,7 +213,29 @@ export const clearAdminSessionToken = () => {
 
 export const getAdminIdToken = async () => {
   if (isNativePlatform()) {
-    return refreshNativeAdminIdToken();
+    const generation = getSessionGeneration();
+    const token = await refreshNativeAdminIdToken();
+    if (isStagingSession()) return token;
+    // A remembered Chief profile can outlive the server's authorization rollout.
+    // Renew that session through the server; never add claims on the client.
+    let saved: { code?: string; testMode?: boolean; profile?: { accessLevel?: string; academy?: string } } | null = null;
+    try { saved = JSON.parse(window.localStorage.getItem('blc_calendar_login') || 'null'); } catch { /* no saved login */ }
+    const scope = saved?.profile?.accessLevel === 'SCHEDULE_IMPORTER' ? saved.profile.academy : null;
+    if (!saved?.code || saved.testMode || (scope !== 'BLC' && scope !== 'KTA')) return token;
+    const hasExpectedClaims = (value: string | null) => {
+      try {
+        const encoded = (value || '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        const claims = JSON.parse(window.atob(encoded));
+        return claims.admin === true && claims.scope === scope;
+      } catch { return false; }
+    };
+    if (hasExpectedClaims(token)) return token;
+    if (generation !== getSessionGeneration()) throw new Error('Session changed.');
+    await createAdminSession(saved.code);
+    if (generation !== getSessionGeneration()) throw new Error('Session changed.');
+    const renewed = window.localStorage.getItem(authStorageKey(ADMIN_ID_TOKEN_KEY));
+    if (!hasExpectedClaims(renewed)) throw new Error('permission-denied');
+    return renewed;
   }
 
   const selectedAuth = isStagingSession() ? stagingAuth : auth;
@@ -316,7 +343,12 @@ export async function getNotificationAvailability(): Promise<NotificationAvailab
 
   if (isNativePlatform()) {
     const permission = await FirebaseMessaging.checkPermissions();
-    if (permission.receive === 'granted') return isStagingSession() && window.localStorage.getItem('staging_push_ready') !== 'true' ? 'prompt' : 'granted';
+    if (permission.receive === 'granted') {
+      const registered = isStagingSession()
+        ? window.localStorage.getItem('staging_push_ready') === 'true'
+        : Boolean(window.localStorage.getItem(PUSH_TOKEN_KEY) && window.localStorage.getItem(PUSH_TOPIC_KEY));
+      return registered ? 'granted' : 'prompt';
+    }
     if (permission.receive === 'denied') return 'denied';
     return 'prompt';
   }

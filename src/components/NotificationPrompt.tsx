@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { UserRole } from '../types/schedule';
 import { AcademyId } from '../types/academy';
+import { Capacitor } from '@capacitor/core';
+import { notificationEnableError } from '../shared/notificationErrors';
 import {
   disableNotifications,
   enableNotifications,
@@ -46,15 +48,9 @@ export default function NotificationPrompt({ role, academy, allAcademies = false
       skipNextSubscriptionSyncRef.current = true;
       setStatus('granted');
     } catch (error: any) {
-      const nextStatus = error?.message === 'denied' ? 'denied' : await getNotificationAvailability();
+      const nextStatus = error?.message === 'denied' ? 'denied' : await getNotificationAvailability().catch(() => 'prompt' as const);
       setStatus(nextStatus === 'granted' ? previousStatus : nextStatus);
-      setError(
-        /^Approve test device: [a-f0-9]{64}$/.test(error?.message || '')
-          ? error.message
-          : error?.message === 'denied'
-          ? 'Permission is blocked. Allow notifications in Android Settings, then tap again.'
-          : 'Could not enable notifications. Check your connection and try again.'
-      );
+      setError(notificationEnableError(error, Capacitor.getPlatform()));
     } finally {
       setBusy(false);
     }
