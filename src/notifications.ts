@@ -516,6 +516,9 @@ async function disableNotificationsInternal(
     } catch (error) {
       unregisterError = error;
     }
+    // A settings toggle must remain retryable when the server did not confirm
+    // unsubscription. Logout can still discard this device's local session.
+    if (unregisterError && !deleteNativeToken) throw unregisterError;
     if (isNativePlatform() && deleteNativeToken) {
       await FirebaseMessaging.deleteToken().catch(error => {
         console.error('Failed to delete the native FCM token:', error);
@@ -553,11 +556,11 @@ export async function disableNotifications(
   try {
     await withNativeNotificationTimeout(operation, 'disable');
   } catch (error) {
-    // Never leave the native toggle stuck ON because APNs/FCM cleanup is slow.
-    // The underlying cleanup promise continues and can finish in the background.
-    window.localStorage.removeItem(PUSH_TOKEN_KEY);
-    window.localStorage.removeItem(PUSH_TOPIC_KEY);
-    window.localStorage.setItem(PUSH_DISABLED_KEY, 'true');
+    if (deleteNativeToken) {
+      window.localStorage.removeItem(PUSH_TOKEN_KEY);
+      window.localStorage.removeItem(PUSH_TOPIC_KEY);
+      window.localStorage.setItem(PUSH_DISABLED_KEY, 'true');
+    }
     throw error;
   }
 }

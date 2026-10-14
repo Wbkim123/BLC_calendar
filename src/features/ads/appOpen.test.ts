@@ -1,15 +1,60 @@
-import { describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { AdMob } from '@capacitor-community/admob';
+import { Capacitor } from '@capacitor/core';
 import {
   APP_OPEN_AD_COOLDOWN_MS,
+  APP_OPEN_AD_LAST_SHOWN_KEY,
   getAppOpenAdId,
-  isAppOpenAdEligible
+  isAppOpenAdEligible,
+  showAppOpenAdIfEligible
 } from './appOpen';
+
+jest.mock('@capacitor/core', () => ({ Capacitor: {
+  isNativePlatform: () => true, isPluginAvailable: () => true, getPlatform: () => 'android'
+} }));
+jest.mock('../../components/AdMobBanner', () => ({ initializeAdMob: async () => undefined }));
+jest.mock('@capacitor-community/admob', () => ({ AdMob: {
+  loadAppOpen: async () => undefined, isAppOpenLoaded: async () => ({ value: true }),
+  showAppOpen: async () => undefined
+} }));
+
+beforeEach(() => { jest.restoreAllMocks(); localStorage.clear(); });
 
 describe('App Open ad policy and cadence', () => {
   const now = 1_700_000_000_000;
 
   it('allows an ad on the first eligible app open', () => {
     expect(isAppOpenAdEligible(0, now)).toBe(true);
+  });
+
+  it('recovers from invalid timestamps and a device clock moved backwards', () => {
+    expect(isAppOpenAdEligible(NaN, now)).toBe(true);
+    expect(isAppOpenAdEligible(now + 1000, now)).toBe(true);
+  });
+
+  it('loads and shows only once for simultaneous requests, then observes cooldown', async () => {
+    const load = jest.spyOn(AdMob, 'loadAppOpen');
+    const show = jest.spyOn(AdMob, 'showAppOpen');
+    expect(await Promise.all([showAppOpenAdIfEligible(), showAppOpenAdIfEligible()])).toEqual([true, true]);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(show).toHaveBeenCalledTimes(1);
+    expect(await showAppOpenAdIfEligible()).toBe(false);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not consume cooldown on load failure and permits a later attempt', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(AdMob, 'loadAppOpen').mockRejectedValueOnce(new Error('no-fill'));
+    expect(await showAppOpenAdIfEligible()).toBe(false);
+    expect(localStorage.getItem(APP_OPEN_AD_LAST_SHOWN_KEY)).toBeNull();
+    expect(await showAppOpenAdIfEligible()).toBe(true);
+  });
+
+  it('never loads native ads on the web', async () => {
+    jest.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(false);
+    const load = jest.spyOn(AdMob, 'loadAppOpen');
+    expect(await showAppOpenAdIfEligible()).toBe(false);
+    expect(load).not.toHaveBeenCalled();
   });
 
   it('waits one hour between App Open ads', () => {

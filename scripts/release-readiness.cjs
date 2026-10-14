@@ -14,7 +14,7 @@ const requiredFiles = [
 const failures = requiredFiles.filter(path => !fs.existsSync(path));
 const warnings = [];
 if (!fs.existsSync('android/app/google-services.json')) {
-  warnings.push('Android Firebase config is missing: android/app/google-services.json (push notifications will not work).');
+  failures.push('Android Firebase config is missing: android/app/google-services.json (push notifications will not work).');
 }
 
 const capacitor = read('capacitor.config.ts');

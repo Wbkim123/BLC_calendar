@@ -17,6 +17,5 @@ test('keeps failed device approval visible and never reports registration succes
   fireEvent.click(await screen.findByRole('switch', { name: 'Notifications' }));
   const alert = await screen.findByRole('alert');
   expect(alert.textContent).toContain(`Approve test device: ${'a'.repeat(64)}`);
-  expect(alert.className).toContain('break-all');
   expect(onStatusChange).not.toHaveBeenCalledWith('granted');
 });

@@ -196,6 +196,17 @@ export default function AdMobBanner({ visible = true, testMode = false }: Props)
     let retryTimer: number | undefined;
     let failedListener: PluginListenerHandle | undefined;
     let loadedListener: PluginListenerHandle | undefined;
+    let sizeListener: PluginListenerHandle | undefined;
+
+    // Native banner events report layout points/dp, matching CSS pixels in
+    // the Capacitor viewport. Both floating controls share this actual height.
+    AdMob.addListener(BannerAdPluginEvents.SizeChanged, ({ height }) => {
+      if (cancelled || !Number.isFinite(height) || height < 0) return;
+      document.documentElement.style.setProperty('--native-banner-height', `${height}px`);
+    }).then(handle => {
+      if (cancelled) handle.remove();
+      else sizeListener = handle;
+    }).catch(error => console.error('Failed to attach AdMob size listener:', error));
 
     AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
       console.info('AdMob banner loaded');
@@ -250,6 +261,7 @@ export default function AdMobBanner({ visible = true, testMode = false }: Props)
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
       failedListener?.remove();
       loadedListener?.remove();
+      sizeListener?.remove();
     };
   }, [isNative, visible, testMode]);
 

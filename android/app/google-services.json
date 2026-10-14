@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "245720895881",
+    "firebase_url": "https://blc-calendar-e302f-default-rtdb.firebaseio.com",
+    "project_id": "blc-calendar-e302f",
+    "storage_bucket": "blc-calendar-e302f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:245720895881:android:b1b3672fdcb2f5e6f15158",
+        "android_client_info": {
+          "package_name": "dev.pages.blccalendar"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "245720895881-rep4oveu7gbu4noqcso9mo6aqephv50q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBW0VlhzZB9Z0nYBQkuuSh55JQ_hTO6YZE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "245720895881-rep4oveu7gbu4noqcso9mo6aqephv50q.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -11,7 +11,7 @@ import AcademyScheduleImportModal from './features/schedule-import/AcademySchedu
 import AcademySwitcher from './shared/components/AcademySwitcher';
 import ScheduleNotificationModal, { PendingScheduleNotification } from './components/ScheduleNotificationModal';
 import GeneralSettings from './components/GeneralSettings';
-import NotificationPrompt from './components/NotificationPrompt';
+import NotificationOnboarding from './components/NotificationOnboarding';
 import TestSessionControls from './features/test-session/TestSessionControls';
 import { activeBLCStudentCycles, createTestAccessProfile, TestViewId } from './features/test-session/testAccessProfiles';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
@@ -536,10 +536,10 @@ function App() {
 
     Promise.all([
       fetchDatabaseValue(schedulesPath),
-      fetchDatabaseValue(locationsPath),
-      fetchDatabaseValue(uniformsPath)
+      fetchDatabaseValue(locationsPath).catch(() => null),
+      fetchDatabaseValue(uniformsPath).catch(() => null)
     ]).then(([scheduleData, locationData, uniformData]) => {
-      if (abortController.signal.aborted) return;
+      if (abortController.signal.aborted || receivedSchedules) return;
       const rawEntries = scheduleData && typeof scheduleData === 'object'
         ? Object.entries(scheduleData as Record<string, DailySchedule>)
         : academy === 'BLC' && useFirebaseEmulators
@@ -577,13 +577,9 @@ function App() {
     }).catch(error => {
       if (abortController.signal.aborted) return;
       console.error('Initial database HTTPS load failed:', error);
-      if (academy === 'KTA') {
-        receivedSchedules = true;
+      if (!receivedSchedules) {
         window.clearTimeout(loadingTimeout);
-        setSchedules([]);
-        setLocations(academyConfig.defaultLocations);
-        setUniforms(academyConfig.defaultUniforms);
-        setApiError(null);
+        setApiError('Unable to load schedules. Check your connection and try again.');
         setIsLoading(false);
       }
     });
@@ -591,13 +587,15 @@ function App() {
     // 사이클 제목 감시
     // 스케줄 감시
     const unsubSchedules = onValue(schedulesRef, (snapshot) => {
+      if (abortController.signal.aborted) return;
       receivedSchedules = true;
       window.clearTimeout(loadingTimeout);
       setApiError(null);
-      console.log("Schedules snapshot received:", snapshot.val());
+
       const data = snapshot.val();
       if (data) {
-        const scheduleEntries = Object.entries(data as Record<string, DailySchedule>);
+        const scheduleEntries = Object.entries(data as Record<string, DailySchedule>)
+          .filter((entry): entry is [string, DailySchedule] => Boolean(entry[1]?.date));
         scheduleDatabaseKeyByDateRef.current = new Map(
           scheduleEntries
             .filter((entry): entry is [string, DailySchedule] => Boolean(entry[1]?.date))
@@ -646,7 +644,7 @@ function App() {
         }
         setIsLoading(false);
       } else {
-        console.log("No schedules data, setting initial...");
+
         if (useFirebaseEmulators && academy === 'BLC') {
           set(schedulesRef, mockSchedules)
             .then(() => setIsLoading(false))
@@ -661,18 +659,12 @@ function App() {
         }
       }
     }, (error) => {
-      receivedSchedules = true;
-      window.clearTimeout(loadingTimeout);
+      if (abortController.signal.aborted) return;
       console.error("Schedules sync error:", error);
-      if (academy === 'KTA') {
-        setSchedules([]);
-        setLocations(academyConfig.defaultLocations);
-        setUniforms(academyConfig.defaultUniforms);
-        setApiError(null);
-      } else {
-        setApiError("Permission denied or database error: " + error.message);
+      if (!receivedSchedules) {
+        setApiError('Unable to sync schedules. Checking the database connection...');
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     // 위치 데이터 감시
@@ -706,7 +698,7 @@ function App() {
       unsubLocations();
       unsubUniforms();
     };
-  }, [isTestMode, academy]);
+  }, [isTestMode, academy, role]);
 
   useEffect(() => {
     if (role || schedules.length === 0 || typeof window === 'undefined') return;
@@ -1080,7 +1072,7 @@ function App() {
     setPendingNotification(null);
     setForegroundNotification(null);
     setNotificationFocus(null);
-    setNotificationOnboardingComplete(false);
+    setNotificationOnboardingComplete(window.localStorage.getItem('blc_notification_onboarding_dismissed') === 'true');
     setRole(null);
     setTvCycle(null);
     setAccessProfile(null);
@@ -1226,7 +1218,7 @@ function App() {
     setAccessProfile(login);
     setAcademy(login.academy);
     setIsTestMode(requestedTestMode);
-    setNotificationOnboardingComplete(false);
+    setNotificationOnboardingComplete(window.localStorage.getItem('blc_notification_onboarding_dismissed') === 'true');
     setPendingNotification(null);
     setNotificationFocus(null);
     setForegroundNotification(null);
@@ -1493,34 +1485,18 @@ function App() {
     </div>
   ) : null;
   const notificationOnboarding = !useFirebaseEmulators && role && isTrackingAuthorizationResolved && !notificationOnboardingComplete && isPhoneDevice() ? (
-    <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[65] mx-auto max-w-md rounded-2xl border border-green-200 bg-white p-3 pr-11 shadow-2xl">
-      <button
-        type="button"
-        onClick={() => {
-          window.localStorage.setItem('blc_notification_onboarding_dismissed', 'true');
-          setNotificationOnboardingComplete(true);
-        }}
-        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full text-lg font-bold leading-none text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-        aria-label="Dismiss notification prompt"
-        title="Not now"
-      >
-        ×
-      </button>
-      <div className="mb-2 text-center">
-        <div className="text-sm font-black text-gray-900">Enable Notifications</div>
-        <div className="text-[11px] font-semibold text-gray-500">Get schedule update alerts on this device.</div>
-      </div>
-      <NotificationPrompt
-        role={role}
-        academy={academy}
-        allAcademies={accessProfile?.accessLevel === 'NCOA_MANAGER'}
-        cycleName={role === 'STUDENT' ? studentCycleName : null}
-        autoPrompt={false}
-        testMode={isTestMode}
-        hideWhenGranted
-        onStatusChange={(status) => { if (status === 'granted') setNotificationOnboardingComplete(true); }}
-      />
-    </div>
+    <NotificationOnboarding
+      role={role}
+      academy={academy}
+      allAcademies={accessProfile?.accessLevel === 'NCOA_MANAGER'}
+      cycleName={role === 'STUDENT' ? studentCycleName : null}
+      testMode={isTestMode}
+      onDismiss={() => {
+        window.localStorage.setItem('blc_notification_onboarding_dismissed', 'true');
+        setNotificationOnboardingComplete(true);
+      }}
+      onEnabled={() => setNotificationOnboardingComplete(true)}
+    />
   ) : null;
   const testModeBadge = isTestMode ? (
     <div className="fixed bottom-3 left-1/2 z-[75] -translate-x-1/2 rounded-full border-2 border-amber-300 bg-amber-100 px-4 py-2 text-xs font-black text-amber-900 shadow-xl">

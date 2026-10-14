@@ -13,7 +13,7 @@ const IOS_APP_OPEN_AD_ID = 'ca-app-pub-1251095758735054/8739044413';
 let showPromise: Promise<boolean> | null = null;
 
 export const isAppOpenAdEligible = (lastShownAt: number, now = Date.now()) =>
-  lastShownAt <= 0 || now - lastShownAt >= APP_OPEN_AD_COOLDOWN_MS;
+  !Number.isFinite(lastShownAt) || lastShownAt <= 0 || lastShownAt > now || now - lastShownAt >= APP_OPEN_AD_COOLDOWN_MS;
 
 export const getAppOpenAdId = (
   testMode: boolean,

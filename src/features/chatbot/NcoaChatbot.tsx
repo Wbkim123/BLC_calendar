@@ -57,7 +57,7 @@ export default function NcoaChatbot({ academy, role, cycleName }: Props) {
   };
 
   const bottom = isNative
-    ? 'calc(4.75rem + env(safe-area-inset-bottom))'
+    ? 'max(calc(var(--native-banner-height, 50px) + 8px), calc(env(safe-area-inset-bottom) + 8px))'
     : 'calc(1rem + env(safe-area-inset-bottom))';
 
   return (

@@ -62,7 +62,10 @@ export default function NotificationPrompt({ role, academy, allAcademies = false
       setStatus('unsupported');
       return;
     }
-    getNotificationAvailability().then(setStatus);
+    getNotificationAvailability().then(setStatus).catch(error => {
+      setStatus('prompt');
+      setError(notificationEnableError(error, Capacitor.getPlatform()));
+    });
   }, [isPhone, role, academy, cycleName]);
 
   useEffect(() => {
@@ -104,7 +107,7 @@ export default function NotificationPrompt({ role, academy, allAcademies = false
       setStatus('disabled');
     } catch (error) {
       console.error('Failed to disable notifications:', error);
-      setStatus(await getNotificationAvailability());
+      setStatus(await getNotificationAvailability().catch(() => status));
       setError('Could not disable notifications. Check your connection and try again.');
     } finally {
       setBusy(false);
@@ -162,7 +165,7 @@ export default function NotificationPrompt({ role, academy, allAcademies = false
             <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
           </button>
         </div>
-        {error && <span role="alert" className="max-w-52 break-all text-right text-[9px] font-bold text-red-600">{error}</span>}
+        {error && <span role="alert" className="max-w-64 break-words text-right text-xs font-bold text-red-600">{error}</span>}
       </div>
     );
   }
@@ -183,7 +186,7 @@ export default function NotificationPrompt({ role, academy, allAcademies = false
     </button>
     {error && (
       <div role="alert" className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-left text-xs font-semibold text-red-700">
-        <p className="break-all">{error}</p>
+        <p className="break-words">{error}</p>
         {/Approve test device: [a-f0-9]{64}/.test(error) && (
           <p className="mt-1 text-[10px] font-medium leading-snug text-amber-900">
             This phone is not approved for test alerts yet. The test notification relay must approve this device fingerprint.

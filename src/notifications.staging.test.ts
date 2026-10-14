@@ -2,6 +2,7 @@ import { beforeEach, afterEach, expect, jest, test } from '@jest/globals';
 import { selectStagingSession } from './staging';
 import { createAdminSession, getAdminIdToken, sendScheduleNotification, enableNotifications } from './notifications';
 import { getNotificationAvailability } from './notifications';
+import { disableNotifications } from './notifications';
 import { Capacitor } from '@capacitor/core';
 
 jest.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true, getPlatform: () => 'android' } }));
@@ -75,6 +76,21 @@ test('enabling staging notifications never subscribes to a production audience',
 });
 
 const fixtureToken = (claims: object) => `fixture.${window.btoa(JSON.stringify(claims))}.signature`;
+
+test('failed native unsubscribe preserves registration and permits retry', async () => {
+  selectStagingSession(false);
+  fetchMock.mockResolvedValueOnce(reply({ result: { subscribed: true, topic: 'audience-blc-admin' } }));
+  await enableNotifications('ADMIN', null, false, 'BLC');
+  fetchMock.mockResolvedValueOnce(reply({ error: { message: 'unavailable', status: 'UNAVAILABLE' } }, false));
+  await expect(disableNotifications('ADMIN', null, true, false, 'BLC')).rejects.toThrow();
+  expect(await getNotificationAvailability()).toBe('granted');
+  fetchMock.mockResolvedValueOnce(reply({ result: { unsubscribed: true } }));
+  await disableNotifications('ADMIN', null, true, false, 'BLC');
+  expect(await getNotificationAvailability()).toBe('disabled');
+  const request = JSON.parse(String(fetchMock.mock.calls[2][1]?.body));
+  expect(request.data.topic).toBe('audience-blc-admin');
+  expect(request.data.academy).toBe('BLC');
+});
 test.each(['android', 'ios'])('%s renews a remembered Chief session with obsolete claims before writes', async platform => {
   jest.spyOn(Capacitor, 'getPlatform').mockReturnValue(platform);
   selectStagingSession(false);

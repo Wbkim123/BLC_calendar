@@ -62,7 +62,7 @@ export default function GeneralSettings({
   const [adPrivacyBusy, setAdPrivacyBusy] = useState(false);
   const [adPrivacyError, setAdPrivacyError] = useState(false);
   const settingsButtonBottom = Capacitor.isNativePlatform()
-    ? 'calc(4.75rem + env(safe-area-inset-bottom))'
+    ? 'max(calc(var(--native-banner-height, 50px) + 8px), calc(env(safe-area-inset-bottom) + 8px))'
     : 'calc(1rem + env(safe-area-inset-bottom))';
   const uniqueCycles = useMemo(() => Array.from(new Set(
     schedules.map(schedule => schedule.cycleName?.trim()).filter((value): value is string => Boolean(value))
@@ -143,7 +143,7 @@ export default function GeneralSettings({
                 </section>
               )}
 
-              <section className="settings-card flex items-center justify-between rounded-2xl border border-gray-200 p-4">
+              <section className="settings-card flex flex-col gap-3 rounded-2xl border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="text-sm font-black text-gray-900">Notifications</div>
                   <div className="text-[11px] font-semibold text-gray-500">Schedule update alerts</div>

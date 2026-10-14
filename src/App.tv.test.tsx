@@ -7,6 +7,8 @@ import { TV_ACCESS_CODES } from './features/auth/tvAccessCodes';
 
 const mockDay = (cycleName: string, date: string) => ({ cycleName, date, dayLabel: 'Training', events: [] });
 let mockDatabase: Record<string, unknown> = {};
+let mockRealtimeEnabled = true;
+let mockScheduleError: ((error: Error) => void) | undefined;
 const mockOwnerClaims: Record<string, unknown> = { admin: true };
 
 jest.mock('./firebase', () => ({
@@ -20,8 +22,9 @@ jest.mock('firebase/auth', () => ({ getAuth: () => ({}), signOut: async () => un
 jest.mock('firebase/functions', () => ({ getFunctions: () => ({}) }));
 jest.mock('firebase/database', () => ({
   ref: (_db: unknown, path: string) => path,
-  onValue: (path: string, callback: (snapshot: unknown) => void) => {
-    callback({ val: () => mockDatabase[path] || null });
+  onValue: (path: string, callback: (snapshot: unknown) => void, onError?: (error: Error) => void) => {
+    if (path.endsWith('schedules')) mockScheduleError = onError;
+    if (mockRealtimeEnabled) callback({ val: () => mockDatabase[path] || null });
     return () => undefined;
   },
   set: require('@jest/globals').jest.fn(async () => undefined),
@@ -52,6 +55,8 @@ jest.mock('./components/DailyView', () => ({ __esModule: true, default: ({ sched
 beforeEach(() => {
   window.localStorage.clear();
   jest.clearAllMocks();
+  mockRealtimeEnabled = true;
+  mockScheduleError = undefined;
   mockDatabase = { schedules: [mockDay('BLC cycle', '2099-01-01')], 'academies/kta/schedules': [mockDay('KTA cycle', '2099-01-02')] };
   global.fetch = jest.fn(async (input: unknown) => ({
     ok: true,
@@ -65,6 +70,40 @@ const loginTv = async (academy: 'BLC' | 'KTA') => {
 };
 
 describe('website TV integration', () => {
+  it('keeps HTTPS schedules when realtime transport fails and metadata is unavailable', async () => {
+    mockRealtimeEnabled = false;
+    global.fetch = jest.fn(async (input: unknown) => {
+      const path = new URL(String(input)).pathname.slice(1).replace(/\.json$/, '');
+      return { ok: path.endsWith('schedules'), status: 503, json: async () => mockDatabase[path] || null };
+    }) as unknown as typeof fetch;
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      render(<App />);
+      await loginTv('KTA');
+      await screen.findByText('Events KTA cycle');
+      act(() => mockScheduleError?.(new Error('transport unavailable')));
+      expect(screen.getByText('Events KTA cycle')).toBeTruthy();
+      expect(screen.queryByText('No schedules available for KTA.')).toBeNull();
+    } finally { consoleError.mockRestore(); }
+  });
+
+  it('does not overwrite a realtime schedule with a late empty HTTPS response', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => null })) as unknown as typeof fetch;
+    render(<App />);
+    await loginTv('KTA');
+    await screen.findByText('Events KTA cycle');
+    await act(async () => undefined);
+    expect(screen.getByText('Events KTA cycle')).toBeTruthy();
+  });
+  it('reloads the same academy after logout clears the displayed schedules', async () => {
+    render(<App />);
+    await loginTv('BLC');
+    await screen.findByText('Events BLC cycle');
+    fireEvent.click(screen.getByRole('button', { name: /logout/i }));
+    await loginTv('BLC');
+    await screen.findByText('Events BLC cycle');
+    expect(screen.queryByText('Events KTA cycle')).toBeNull();
+  });
   it('opens a TV event screen without calendar access and does not write defaults', async () => {
     render(<App />);
     await loginTv('BLC');
