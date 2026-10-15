@@ -8,7 +8,7 @@ import type { ScheduleConflict } from '../features/schedule-conflicts/conflicts'
 import {
   getConflictPairKey,
   getDismissedConflictStorageKey,
-  loadDismissedConflictKeys
+  getDismissedConflictKeys
 } from '../features/schedule-conflicts/dismissals';
 
 interface Props {
@@ -26,6 +26,8 @@ interface Props {
   onToggleSglNotesHighlight: (dateStr: string) => void;
   onCreateEvent: (dateStr: string, newEvent: TrainingEvent) => void;
   onDeleteEvent: (dateStr: string, eventId: string) => void;
+  canDismissKtaConflicts?: boolean;
+  onDismissKtaConflict?: (dateStr: string, conflictKey: string) => void;
   locations: string[];
   uniforms: string[];
   onAddLocation: (loc: string) => void;
@@ -54,6 +56,8 @@ export default function DailyView({
   onToggleSglNotesHighlight,
   onCreateEvent,
   onDeleteEvent,
+  canDismissKtaConflicts = false,
+  onDismissKtaConflict,
   locations, 
   uniforms, 
   onAddLocation, 
@@ -72,8 +76,12 @@ export default function DailyView({
   const [dayLabelDraft, setDayLabelDraft] = useState(schedule.dayLabel);
   const [editingNotes, setEditingNotes] = useState<'public' | 'sgl' | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [dismissedConflictNoticeKeys, setDismissedConflictNoticeKeys] = useState<Set<string>>(
-    () => loadDismissedConflictKeys(dismissedConflictStorageKey)
+  const [localDismissedConflictNoticeKeys, setLocalDismissedConflictNoticeKeys] = useState<Set<string>>(
+    () => getDismissedConflictKeys({
+      academy: schedule.academy,
+      date: schedule.date,
+      dismissedConflictKeys: schedule.dismissedConflictKeys
+    })
   );
   const highlightedTargetRef = useRef<HTMLDivElement>(null);
   // KTA staff use one shared NOTES field. The public/SGL split remains BLC-only.
@@ -90,8 +98,12 @@ export default function DailyView({
   useEffect(() => {
     setDayLabelDraft(schedule.dayLabel);
     setEditingDayLabel(false);
-    setDismissedConflictNoticeKeys(loadDismissedConflictKeys(dismissedConflictStorageKey));
-  }, [schedule.date, schedule.dayLabel, dismissedConflictStorageKey]);
+    setLocalDismissedConflictNoticeKeys(getDismissedConflictKeys({
+      academy: schedule.academy,
+      date: schedule.date,
+      dismissedConflictKeys: schedule.dismissedConflictKeys
+    }));
+  }, [schedule.academy, schedule.date, schedule.dayLabel, schedule.dismissedConflictKeys]);
 
   useEffect(() => {
     if (!notificationHighlightTarget) return;
@@ -223,9 +235,16 @@ export default function DailyView({
   const scheduleConflicts = role === 'STUDENT'
     ? []
     : getScheduleConflicts(schedule, crossAcademySchedules, showCrossAcademyConflicts);
+  const dismissedConflictNoticeKeys = isKtaSchedule
+    ? getDismissedConflictKeys(schedule)
+    : localDismissedConflictNoticeKeys;
   const dismissConflictPair = (conflict: ScheduleConflict) => {
     const pairKey = getConflictPairKey(conflict);
-    setDismissedConflictNoticeKeys(previous => {
+    if (isKtaSchedule) {
+      if (canDismissKtaConflicts) onDismissKtaConflict?.(schedule.date, pairKey);
+      return;
+    }
+    setLocalDismissedConflictNoticeKeys(previous => {
       const next = new Set(previous).add(pairKey);
       try {
         window.localStorage.setItem(dismissedConflictStorageKey, JSON.stringify(Array.from(next)));
@@ -347,14 +366,16 @@ export default function DailyView({
                 </p>
                 <p className="mt-1 break-words">{conflict.first.eventName} <span className="font-black text-blue-500">+</span> {conflict.second.eventName}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => dismissConflictPair(conflict)}
-                className="shrink-0 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-[10px] font-black text-blue-800 hover:bg-blue-100"
-                aria-label={`Dismiss shared conflict for ${conflict.first.eventName} and ${conflict.second.eventName}`}
-              >
-                DISMISS
-              </button>
+              {(!isKtaSchedule || canDismissKtaConflicts) && (
+                <button
+                  type="button"
+                  onClick={() => dismissConflictPair(conflict)}
+                  className="shrink-0 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-[10px] font-black text-blue-800 hover:bg-blue-100"
+                  aria-label={`Dismiss shared conflict for ${conflict.first.eventName} and ${conflict.second.eventName}`}
+                >
+                  DISMISS
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -464,14 +485,16 @@ export default function DailyView({
                                   <span> · {otherEvent.eventName} · {otherEvent.location}</span>
                                 </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => dismissConflictPair(conflict)}
-                                className="shrink-0 rounded-md border border-red-200 bg-white px-2 py-1 text-[9px] font-black text-red-800 hover:bg-red-100"
-                                aria-label={`Dismiss conflict with ${otherEvent.eventName}`}
-                              >
-                                DISMISS
-                              </button>
+                              {(!isKtaSchedule || canDismissKtaConflicts) && (
+                                <button
+                                  type="button"
+                                  onClick={() => dismissConflictPair(conflict)}
+                                  className="shrink-0 rounded-md border border-red-200 bg-white px-2 py-1 text-[9px] font-black text-red-800 hover:bg-red-100"
+                                  aria-label={`Dismiss conflict with ${otherEvent.eventName}`}
+                                >
+                                  DISMISS
+                                </button>
+                              )}
                             </div>
                           </div>
                         );

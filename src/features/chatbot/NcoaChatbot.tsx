@@ -57,7 +57,9 @@ export default function NcoaChatbot({ academy, role, cycleName }: Props) {
   };
 
   const bottom = isNative
-    ? 'max(calc(var(--native-banner-height, 50px) + 8px), calc(env(safe-area-inset-bottom) + 8px))'
+    ? Capacitor.getPlatform() === 'android'
+      ? 'calc(var(--native-banner-height, 50px) + env(safe-area-inset-bottom, 0px) + 8px)'
+      : 'calc(var(--native-banner-height, 50px) + 8px)'
     : 'calc(1rem + env(safe-area-inset-bottom))';
 
   return (
@@ -102,11 +104,11 @@ export default function NcoaChatbot({ academy, role, cycleName }: Props) {
         </section>
       )}
 
-      <button type="button" onClick={() => setOpen(current => !current)} className="chatbot-launcher ml-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-900 text-white shadow-xl ring-2 ring-white/70" aria-label={open ? 'Close NCOA Help' : 'Open NCOA Help'} aria-expanded={open}>
+      <button type="button" onClick={() => setOpen(current => !current)} className="chatbot-launcher ml-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-900 text-white shadow-xl ring-2 ring-white/70" aria-label={open ? 'Close NCOA Help' : 'Open NCOA Help'} aria-expanded={open}>
         {open ? (
-          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
         ) : (
-          <svg className="h-10 w-10" viewBox="0 0 48 48" role="img" aria-label="Cute NCOA helper bot">
+          <svg className="h-9 w-9" viewBox="0 0 48 48" role="img" aria-label="Cute NCOA helper bot">
             <path d="M24 6v5" stroke="#FFE7A3" strokeWidth="3" strokeLinecap="round" />
             <circle cx="24" cy="5" r="3" fill="#FB7185" />
             <rect x="8" y="13" width="32" height="27" rx="11" fill="#FFF4CC" stroke="#F6C85F" strokeWidth="2" />

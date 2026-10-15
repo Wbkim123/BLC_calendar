@@ -9,8 +9,7 @@ import { EventSearchResult } from '../features/event-search/searchEvents';
 import { getScheduleConflicts } from '../features/schedule-conflicts/conflicts';
 import {
   getConflictPairKey,
-  getDismissedConflictStorageKey,
-  loadDismissedConflictKeys
+  getDismissedConflictKeys
 } from '../features/schedule-conflicts/dismissals';
 
 export { hasCrossAcademyLocationConflict, hasScheduleConflict } from '../features/schedule-conflicts/conflicts';
@@ -223,7 +222,7 @@ export default function Calendar({
               const isPastScheduledDate = Boolean(schedule) && cellDate.getTime() < today.getTime();
               const canViewConflicts = role !== 'STUDENT';
               const dismissedConflictKeys = schedule
-                ? loadDismissedConflictKeys(getDismissedConflictStorageKey(schedule.academy, schedule.date))
+                ? getDismissedConflictKeys(schedule)
                 : new Set<string>();
               const hasInternalConflict = Boolean(canViewConflicts && schedule
                 && getScheduleConflicts(schedule).some(conflict => !dismissedConflictKeys.has(getConflictPairKey(conflict))));

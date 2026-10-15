@@ -1,4 +1,5 @@
 import type { ScheduleConflict } from './conflicts';
+import type { DailySchedule } from '../../types/schedule';
 
 export const getDismissedConflictStorageKey = (academy: string | undefined, date: string) =>
   `blc_dismissed_conflicts_v1:${academy || 'unknown'}:${date}`;
@@ -20,4 +21,11 @@ export const loadDismissedConflictKeys = (storageKey: string) => {
   } catch {
     return new Set<string>();
   }
+};
+
+export const getDismissedConflictKeys = (schedule: Pick<DailySchedule, 'academy' | 'date' | 'dismissedConflictKeys'>) => {
+  if (schedule.academy === 'KTA') {
+    return new Set((schedule.dismissedConflictKeys || []).filter((value): value is string => typeof value === 'string'));
+  }
+  return loadDismissedConflictKeys(getDismissedConflictStorageKey(schedule.academy, schedule.date));
 };

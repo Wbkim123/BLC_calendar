@@ -85,6 +85,29 @@ describe('calendar conflict navigation', () => {
     expect(calendarDay?.className).toContain('bg-blue-50');
   });
 
+  it('uses shared KTA dismissal data for the calendar conflict color', () => {
+    const ktaSchedule: DailySchedule = {
+      ...schedule,
+      academy: 'KTA',
+      dismissedConflictKeys: [getConflictPairKey(getScheduleConflicts(schedule)[0])]
+    };
+
+    render(
+      <Calendar
+        schedules={[ktaSchedule]}
+        academy="KTA"
+        role="VIEWER"
+        onSelectDate={() => undefined}
+        onSelectSearchResult={() => undefined}
+        settingsControl={null}
+        displayMode="auto"
+      />
+    );
+
+    const calendarDay = screen.getByRole('button', { name: `${date}, ${schedule.dayLabel}` }).closest('.calendar-day');
+    expect(calendarDay?.className).not.toContain('calendar-day-conflict');
+  });
+
   it('restores the normal blue date color when an edit removes the time overlap', () => {
     const resolvedSchedule = {
       ...schedule,

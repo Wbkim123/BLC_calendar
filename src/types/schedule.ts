@@ -20,6 +20,8 @@ export interface DailySchedule {
   notesHighlighted?: boolean;
   sglNotes?: string;
   sglNotesHighlighted?: boolean;
+  /** KTA Chief-managed conflict dismissals shared through the schedule database. */
+  dismissedConflictKeys?: string[];
   events: TrainingEvent[];
 }
 

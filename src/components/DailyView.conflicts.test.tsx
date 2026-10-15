@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen } from '@testing-library/react';
 import DailyView from './DailyView';
 import { DailySchedule } from '../types/schedule';
+import { getScheduleConflicts } from '../features/schedule-conflicts/conflicts';
+import { getConflictPairKey } from '../features/schedule-conflicts/dismissals';
 
 jest.mock('./AdMobBanner', () => () => null);
 
@@ -64,7 +66,7 @@ describe('Event View conflict details', () => {
 
   it('lets a viewer dismiss a conflict pair and normalizes both event cards without changing schedule data', () => {
     const schedule: DailySchedule = {
-      academy: 'KTA', date: '2099-10-02', dayLabel: 'DAY 1', cycleName: 'cycle',
+      academy: 'BLC', date: '2099-10-02', dayLabel: 'DAY 1', cycleName: 'cycle',
       events: [event('a', '0900-1100', 'Class A', 'Room 1'), event('b', '1000-1200', 'Class B', 'Room 2')]
     };
 
@@ -83,7 +85,7 @@ describe('Event View conflict details', () => {
 
   it('keeps a dismissed conflict pair hidden after leaving and reopening Event View', () => {
     const schedule: DailySchedule = {
-      academy: 'KTA', date: '2099-10-03', dayLabel: 'DAY 2', cycleName: 'cycle',
+      academy: 'BLC', date: '2099-10-03', dayLabel: 'DAY 2', cycleName: 'cycle',
       events: [event('a', '0900-1100', 'Class A', 'Room 1'), event('b', '1000-1200', 'Class B', 'Room 2')]
     };
 
@@ -106,7 +108,8 @@ describe('Event View conflict details', () => {
       events: [event('a', '0800-1030', 'Class A', 'RM 1165'), event('b', '0800-1030', 'Class B', 'RM 1157')]
     };
 
-    const { container } = render(<DailyView {...baseProps} schedule={schedule} />);
+    const onDismissKtaConflict = jest.fn();
+    const { container } = render(<DailyView {...baseProps} schedule={schedule} canDismissKtaConflicts onDismissKtaConflict={onDismissKtaConflict} />);
     const group = container.querySelector('.daily-simultaneous-events');
     const header = group?.firstElementChild;
 
@@ -118,8 +121,9 @@ describe('Event View conflict details', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss conflict with Class B' }));
 
+    expect(onDismissKtaConflict).toHaveBeenCalledWith(schedule.date, getConflictPairKey(getScheduleConflicts(schedule)[0]));
     expect(group?.className).toContain('border-yellow-500');
-    expect(group?.querySelectorAll('.schedule-conflict-event')).toHaveLength(0);
+    expect(group?.querySelectorAll('.schedule-conflict-event')).toHaveLength(2);
     expect(group?.querySelectorAll('.daily-event-card')).toHaveLength(2);
     expect(schedule.events).toHaveLength(2);
   });
@@ -156,7 +160,8 @@ describe('Event View conflict details', () => {
       events: [event('a', '0900-1000', 'Class A', 'Room 1'), event('b', '0900-1000', 'Class B', 'room 1')]
     };
 
-    const { container } = render(<DailyView {...baseProps} schedule={schedule} />);
+    const onDismissKtaConflict = jest.fn();
+    const { container } = render(<DailyView {...baseProps} schedule={schedule} canDismissKtaConflicts onDismissKtaConflict={onDismissKtaConflict} />);
 
     expect(screen.getByText('Same time & place · listed together')).toBeTruthy();
     expect(container.querySelectorAll('[aria-label^="Conflicts for Class"]')).toHaveLength(0);
@@ -164,10 +169,38 @@ describe('Event View conflict details', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss shared conflict for Class A and Class B' }));
 
-    expect(screen.queryByText('Same time & place · listed together')).toBeNull();
-    expect(container.querySelectorAll('.schedule-conflict-event')).toHaveLength(0);
-    expect(screen.queryByText('Schedule conflicts are listed on the affected events below.')).toBeNull();
+    expect(onDismissKtaConflict).toHaveBeenCalledWith(schedule.date, getConflictPairKey(getScheduleConflicts(schedule)[0]));
+    expect(screen.getByText('Same time & place · listed together')).toBeTruthy();
+    expect(container.querySelectorAll('.schedule-conflict-event').length).toBeGreaterThan(0);
+    expect(screen.getByText('Schedule conflicts are listed on the affected events below.')).toBeTruthy();
     expect(schedule.events).toHaveLength(2);
+  });
+
+  it('shows KTA conflicts to viewers without allowing them to dismiss', () => {
+    const schedule: DailySchedule = {
+      academy: 'KTA', date: '2099-10-04', dayLabel: 'DAY 3', cycleName: 'cycle',
+      events: [event('a', '0900-1100', 'Class A', 'Room 1'), event('b', '1000-1200', 'Class B', 'Room 2')]
+    };
+
+    const { container } = render(<DailyView {...baseProps} schedule={schedule} />);
+
+    expect(container.querySelectorAll('.schedule-conflict-event')).toHaveLength(2);
+    expect(screen.getAllByText('Time conflict')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: /dismiss/i })).toBeNull();
+  });
+
+  it('reads dismissed KTA conflicts from the shared schedule data', () => {
+    const schedule: DailySchedule = {
+      academy: 'KTA', date: '2099-10-05', dayLabel: 'DAY 4', cycleName: 'cycle',
+      events: [event('a', '0900-1100', 'Class A', 'Room 1'), event('b', '1000-1200', 'Class B', 'Room 2')]
+    };
+    schedule.dismissedConflictKeys = [getConflictPairKey(getScheduleConflicts(schedule)[0])];
+
+    const { container } = render(<DailyView {...baseProps} schedule={schedule} />);
+
+    expect(screen.queryByText('Schedule conflicts are listed on the affected events below.')).toBeNull();
+    expect(screen.queryByLabelText(/Conflicts for/)).toBeNull();
+    expect(container.querySelector('.schedule-conflict-event')).toBeNull();
   });
 
   it('hides conflict warnings and counterpart details from students', () => {

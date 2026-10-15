@@ -15,7 +15,7 @@ import NotificationOnboarding from './components/NotificationOnboarding';
 import TestSessionControls from './features/test-session/TestSessionControls';
 import { activeBLCStudentCycles, createTestAccessProfile, TestViewId } from './features/test-session/testAccessProfiles';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
-import { AccessProfile, AcademyId } from './types/academy';
+import { AccessProfile, AcademyId, hasPermission } from './types/academy';
 import { getAcademyConfig } from './config/academies';
 import { normalizeAccessCode, resolveAccessCode, restoreSavedAccessProfile } from './features/auth/accessCodes';
 import { assertTestSessionWriteAllowed } from './features/auth/testModePolicy';
@@ -801,6 +801,29 @@ function App() {
   };
 
   // 관리자가 이벤트를 수정했을 때 호출되는 함수 (Firebase 업데이트)
+  const handleDismissKtaConflict = (dateStr: string, conflictKey: string) => {
+    const profile = accessProfile;
+    if (
+      profile?.academy !== 'KTA'
+      || profile.scope !== 'KTA'
+      || profile.accessLevel !== 'SCHEDULE_IMPORTER'
+      || !hasPermission(profile, 'schedule.write')
+    ) return;
+
+    const dayIndex = schedules.findIndex(day => day.date === dateStr);
+    const dayKey = getScheduleDatabaseKey(dateStr);
+    if (dayIndex < 0 || !dayKey) return;
+
+    const existing = schedules[dayIndex].dismissedConflictKeys || [];
+    if (existing.includes(conflictKey)) return;
+    const dismissedConflictKeys = [...existing, conflictKey];
+    const updates: Record<string, string[]> = {};
+    updates[getScheduleUpdatePath(`schedules/${dayKey}/dismissedConflictKeys`)] = dismissedConflictKeys;
+    updateDatabaseValues(updates, isTestMode)
+      .then(() => updateScheduleLocally(dateStr, schedule => ({ ...schedule, dismissedConflictKeys })))
+      .catch(error => alert(`Failed to dismiss KTA schedule conflict: ${error.message}`));
+  };
+
   const handleSaveEvent = (dateStr: string, updatedEvent: TrainingEvent) => {
     const dayIndex = schedules.findIndex(day => day.date === dateStr);
     const dayKey = getScheduleDatabaseKey(dateStr);
@@ -1580,6 +1603,13 @@ function App() {
         onToggleSglNotesHighlight={handleToggleSglNotesHighlight}
         onCreateEvent={handleCreateEvent}
         onDeleteEvent={handleDeleteEvent}
+        canDismissKtaConflicts={Boolean(
+          accessProfile?.academy === 'KTA'
+          && accessProfile.scope === 'KTA'
+          && accessProfile.accessLevel === 'SCHEDULE_IMPORTER'
+          && hasPermission(accessProfile, 'schedule.write')
+        )}
+        onDismissKtaConflict={handleDismissKtaConflict}
         locations={locations}
         uniforms={uniforms}
         onAddLocation={addLocation}
