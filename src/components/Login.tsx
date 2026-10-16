@@ -1,5 +1,5 @@
 // src/components/Login.tsx
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 
 interface Props {
   onLogin: (code: string, rememberLogin: boolean) => Promise<boolean>;
@@ -9,21 +9,29 @@ interface Props {
 
 export default function Login({ onLogin, webOnly = false, emulatorMode = false }: Props) {
   const [code, setCode] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState('');
   const [rememberLogin, setRememberLogin] = useState(true);
   const [showCode, setShowCode] = useState(false);
 
   const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
 
   const handleEnter = async () => {
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true);
-    if (await onLogin(code, rememberLogin)) {
-      setError(false);
-    } else {
-      setError(true);
-      setCode('');
+    setError('');
+    try {
+      if (!(await onLogin(code, rememberLogin))) {
+        setError('Invalid code or inactive cycle.');
+        setCode('');
+      }
+    } catch {
+      setError('Unable to finish signing in. Please try again shortly.');
+    } finally {
+      submitting.current = false;
+      setBusy(false);
     }
-    setBusy(false);
   };
 
   return (
@@ -82,7 +90,7 @@ export default function Login({ onLogin, webOnly = false, emulatorMode = false }
           Keep Login
         </label>
         
-        {error && <p className="text-red-500 text-sm mb-4 font-bold">Invalid code or inactive cycle.</p>}
+        {error && <p role="alert" className="text-red-500 text-sm mb-4 font-bold">{error}</p>}
 
         <button 
           onClick={handleEnter}

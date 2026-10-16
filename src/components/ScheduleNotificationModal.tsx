@@ -27,6 +27,8 @@ const getSendErrorMessage = (sendError: any) => {
 };
 
 export type PendingScheduleNotification = {
+  notificationId?: string;
+  eventName?: string;
   date: string;
   cycleName?: string | null;
   changeType: string;

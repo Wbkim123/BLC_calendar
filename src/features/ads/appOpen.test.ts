@@ -3,9 +3,9 @@ import { AdMob } from '@capacitor-community/admob';
 import { Capacitor } from '@capacitor/core';
 import {
   APP_OPEN_AD_COOLDOWN_MS,
-  APP_OPEN_AD_LAST_SHOWN_KEY,
   getAppOpenAdId,
   isAppOpenAdEligible,
+  resetAppOpenAdCooldown,
   showAppOpenAdIfEligible
 } from './appOpen';
 
@@ -18,7 +18,7 @@ jest.mock('@capacitor-community/admob', () => ({ AdMob: {
   showAppOpen: async () => undefined
 } }));
 
-beforeEach(() => { jest.restoreAllMocks(); localStorage.clear(); });
+beforeEach(() => { jest.restoreAllMocks(); localStorage.clear(); resetAppOpenAdCooldown(); });
 
 describe('App Open ad policy and cadence', () => {
   const now = 1_700_000_000_000;
@@ -32,7 +32,7 @@ describe('App Open ad policy and cadence', () => {
     expect(isAppOpenAdEligible(now + 1000, now)).toBe(true);
   });
 
-  it('loads and shows only once for simultaneous requests, then observes cooldown', async () => {
+  it('loads and shows only once for simultaneous requests, then observes the in-memory cooldown', async () => {
     const load = jest.spyOn(AdMob, 'loadAppOpen');
     const show = jest.spyOn(AdMob, 'showAppOpen');
     expect(await Promise.all([showAppOpenAdIfEligible(), showAppOpenAdIfEligible()])).toEqual([true, true]);
@@ -46,7 +46,6 @@ describe('App Open ad policy and cadence', () => {
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     jest.spyOn(AdMob, 'loadAppOpen').mockRejectedValueOnce(new Error('no-fill'));
     expect(await showAppOpenAdIfEligible()).toBe(false);
-    expect(localStorage.getItem(APP_OPEN_AD_LAST_SHOWN_KEY)).toBeNull();
     expect(await showAppOpenAdIfEligible()).toBe(true);
   });
 
@@ -57,7 +56,35 @@ describe('App Open ad policy and cadence', () => {
     expect(load).not.toHaveBeenCalled();
   });
 
-  it('waits one hour between App Open ads', () => {
+  it('waits 30 minutes after an ad is closed while the app remains open', async () => {
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(now);
+    expect(await showAppOpenAdIfEligible()).toBe(true);
+    expect(await showAppOpenAdIfEligible()).toBe(false);
+
+    clock.mockReturnValue(now + APP_OPEN_AD_COOLDOWN_MS - 1);
+    expect(isAppOpenAdEligible(now, Date.now())).toBe(false);
+    expect(await showAppOpenAdIfEligible()).toBe(false);
+
+    clock.mockReturnValue(now + APP_OPEN_AD_COOLDOWN_MS);
+    expect(isAppOpenAdEligible(now, Date.now())).toBe(true);
+    expect(await showAppOpenAdIfEligible()).toBe(true);
+  });
+
+  it('clears the foreground cooldown when the app is backgrounded so resume can show immediately', async () => {
+    expect(await showAppOpenAdIfEligible()).toBe(true);
+    expect(await showAppOpenAdIfEligible()).toBe(false);
+
+    resetAppOpenAdCooldown();
+
+    expect(await showAppOpenAdIfEligible()).toBe(true);
+  });
+
+  it('does not persist App Open cooldown across app launches', async () => {
+    expect(await showAppOpenAdIfEligible()).toBe(true);
+    expect(localStorage.length).toBe(0);
+  });
+
+  it('waits 30 minutes between App Open ads', () => {
     expect(isAppOpenAdEligible(now - APP_OPEN_AD_COOLDOWN_MS + 1, now)).toBe(false);
     expect(isAppOpenAdEligible(now - APP_OPEN_AD_COOLDOWN_MS, now)).toBe(true);
   });

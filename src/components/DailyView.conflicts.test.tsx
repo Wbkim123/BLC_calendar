@@ -47,9 +47,9 @@ describe('Event View conflict details', () => {
     expect(screen.getAllByLabelText(/Conflicts for/)).toHaveLength(2);
   });
 
-  it('shows the commander cross-academy AUD/MPR counterpart in Event View', () => {
+  it('shows the commander cross-academy counterpart as a distinct location conflict in Event View', () => {
     const schedule: DailySchedule = {
-      academy: 'BLC', date: '2026-10-02', dayLabel: 'DAY 1', cycleName: 'cycle',
+      academy: 'BLC', date: '2099-10-02', dayLabel: 'DAY 1', cycleName: 'cycle',
       events: [event('blc', '0900-1100', 'BLC Formation', 'AUD')]
     };
     const other: DailySchedule = {
@@ -59,9 +59,11 @@ describe('Event View conflict details', () => {
 
     const { container } = render(<DailyView {...baseProps} schedule={schedule} crossAcademySchedules={[other]} showCrossAcademyConflicts />);
 
-    expect(screen.getByText('Location conflict · AUD · KTA')).toBeTruthy();
-    expect(container.querySelector('[aria-label="Conflicts for BLC Formation"]')?.textContent).toContain('KTA Lecture');
-    expect(container.querySelector('[aria-label="Conflicts for BLC Formation"]')?.textContent).toContain('KTA');
+    const crossConflict = container.querySelector('[aria-label="Cross-academy location conflict with KTA"]');
+    expect(crossConflict?.textContent).toContain('BLC ↔ KTA shared-location conflict · AUD');
+    expect(crossConflict?.textContent).toContain('1000-1200 · KTA · KTA Lecture · AUD');
+    expect(container.querySelector('.daily-event-card')?.className).toContain('cross-academy-location-conflict');
+    expect(screen.queryByRole('button', { name: /dismiss conflict with KTA Lecture/i })).toBeNull();
   });
 
   it('lets a viewer dismiss a conflict pair and normalizes both event cards without changing schedule data', () => {
@@ -174,6 +176,41 @@ describe('Event View conflict details', () => {
     expect(container.querySelectorAll('.schedule-conflict-event').length).toBeGreaterThan(0);
     expect(screen.getByText('Schedule conflicts are listed on the affected events below.')).toBeTruthy();
     expect(schedule.events).toHaveLength(2);
+  });
+
+  it('shows a minimal cross-academy notice on the affected Chief event without revealing the other event', () => {
+    const schedule: DailySchedule = {
+      academy: 'BLC', date: '2099-10-02', dayLabel: 'DAY 1', cycleName: 'cycle',
+      events: [event('blc-own', '0900-1100', 'BLC Formation', 'MPR')]
+    };
+    const { container } = render(<DailyView
+      {...baseProps}
+      role="ADMIN"
+      schedule={schedule}
+      crossAcademyConflictCheckStatus="ready"
+      crossAcademyConflictNotices={[{ date: schedule.date, eventId: 'blc-own', location: 'MPR', otherAcademy: 'KTA' }]}
+    />);
+
+    expect(screen.getByText('A KTA event overlaps this event at MPR.')).toBeTruthy();
+    expect(container.querySelector('.cross-academy-location-conflict')).not.toBeNull();
+    expect(screen.queryByText(/SECRET|KTA Lecture|other-secret-id/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /dismiss/i })).toBeNull();
+  });
+
+  it('does not show Chief cross-academy notices to a student profile', () => {
+    const schedule: DailySchedule = {
+      academy: 'BLC', date: '2099-10-02', dayLabel: 'DAY 1', cycleName: 'cycle',
+      events: [event('blc-own', '0900-1100', 'BLC Formation', 'MPR')]
+    };
+    render(<DailyView
+      {...baseProps}
+      role="STUDENT"
+      schedule={schedule}
+      crossAcademyConflictCheckStatus="ready"
+      crossAcademyConflictNotices={[{ date: schedule.date, eventId: 'blc-own', location: 'MPR', otherAcademy: 'KTA' }]}
+    />);
+
+    expect(screen.queryByText('A KTA event overlaps this event at MPR.')).toBeNull();
   });
 
   it('shows KTA conflicts to viewers without allowing them to dismiss', () => {

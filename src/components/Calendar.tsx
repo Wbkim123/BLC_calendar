@@ -7,6 +7,7 @@ import { AcademyId } from '../types/academy';
 import EventSearchModal from '../features/event-search/EventSearchModal';
 import { EventSearchResult } from '../features/event-search/searchEvents';
 import { getScheduleConflicts } from '../features/schedule-conflicts/conflicts';
+import type { CrossAcademyConflictCheckStatus, CrossAcademyConflictNotice } from '../features/schedule-conflicts/notices';
 import {
   getConflictPairKey,
   getDismissedConflictKeys
@@ -17,6 +18,8 @@ export { hasCrossAcademyLocationConflict, hasScheduleConflict } from '../feature
 interface Props {
   schedules: DailySchedule[];
   crossAcademySchedules?: DailySchedule[];
+  crossAcademyConflictNotices?: CrossAcademyConflictNotice[];
+  crossAcademyConflictCheckStatus?: CrossAcademyConflictCheckStatus;
   showCrossAcademyConflicts?: boolean;
   academy: AcademyId;
   currentCycleName?: string | null;
@@ -27,6 +30,7 @@ interface Props {
   onUpdateCycleTitle?: (title: string) => void;
   onOpenImport?: () => void;
   settingsControl: ReactNode;
+  notificationControl?: ReactNode;
   showAdBanner?: boolean;
   testMode?: boolean;
   displayMode: DisplayMode;
@@ -40,6 +44,8 @@ const getCalendarDayLabel = (dayLabel: string) =>
 export default function Calendar({ 
   schedules, 
   crossAcademySchedules = [],
+  crossAcademyConflictNotices = [],
+  crossAcademyConflictCheckStatus = 'idle',
   showCrossAcademyConflicts = false,
   academy,
   currentCycleName,
@@ -50,6 +56,7 @@ export default function Calendar({
   onUpdateCycleTitle,
   onOpenImport,
   settingsControl,
+  notificationControl,
   showAdBanner = true,
   testMode = false,
   displayMode
@@ -124,8 +131,8 @@ export default function Calendar({
       <div className="calendar-container w-full h-auto lg:max-w-5xl flex flex-col lg:h-[800px] relative">
         
         {/* 상단 헤더 - 높이 축소 */}
-        <div className="calendar-header bg-blue-900 text-white rounded-xl py-2 px-4 lg:py-4 lg:px-8 mb-2 lg:mb-4 shadow-lg text-center flex flex-col items-center shrink-0">
-          <div className="flex items-center justify-center gap-3 lg:gap-5 w-full relative">
+        <div className="calendar-header relative bg-blue-900 text-white rounded-xl py-2 px-4 lg:py-4 lg:px-8 mb-2 lg:mb-4 shadow-lg text-center flex flex-col items-center shrink-0">
+          <div className={`flex items-center justify-center gap-3 lg:gap-5 w-full relative ${notificationControl ? 'pr-10' : ''}`}>
             <img src="/NCOA_Logo.png" alt="NCOA Logo" className="w-8 h-8 lg:w-12 lg:h-12 object-contain" />
             {isEditingTitle ? (
               <div className="flex gap-2">
@@ -159,6 +166,7 @@ export default function Calendar({
             {/* 관리자 전용 버튼들 (좌측 상단) */}
           </div>
           <p className="text-blue-200 text-[10px] lg:text-sm font-medium uppercase tracking-widest">Cycle Calendar</p>
+          {notificationControl && <div className="absolute right-2 top-1/2 -translate-y-1/2 lg:right-5">{notificationControl}</div>}
         </div>
 
         {/* 데이터 관리 패널 (ADMIN 전용) */}
@@ -226,10 +234,18 @@ export default function Calendar({
                 : new Set<string>();
               const hasInternalConflict = Boolean(canViewConflicts && schedule
                 && getScheduleConflicts(schedule).some(conflict => !dismissedConflictKeys.has(getConflictPairKey(conflict))));
-              const hasLocationConflict = Boolean(canViewConflicts && schedule && showCrossAcademyConflicts
+              const hasCommanderLocationConflict = Boolean(canViewConflicts && schedule && showCrossAcademyConflicts
                 && getScheduleConflicts(schedule, crossAcademySchedules, true).some(conflict =>
                   conflict.kind === 'location' && !dismissedConflictKeys.has(getConflictPairKey(conflict))));
+              const hasLocationConflict = Boolean(canViewConflicts && schedule && (
+                hasCommanderLocationConflict
+                || (crossAcademyConflictCheckStatus === 'ready' && crossAcademyConflictNotices.some(notice => notice.date === schedule.date))
+              ));
               const hasConflict = hasInternalConflict || hasLocationConflict;
+              const conflictLabel = [
+                hasInternalConflict ? 'Internal schedule conflict' : '',
+                hasLocationConflict ? 'Cross-academy shared-location conflict' : ''
+              ].filter(Boolean).join('; ');
               const hasHighlightedEvent = Boolean(schedule?.events?.some(event => event.highlighted));
               const hasStudentNotes = Boolean(schedule?.notes?.trim());
               const hasSglNotes = role !== 'STUDENT' && Boolean(schedule?.sglNotes?.trim());
@@ -242,10 +258,12 @@ export default function Calendar({
               return (
                 <div
                   key={day}
-                  title={hasConflict ? 'Conflict detected: Overlapping schedule.' : undefined}
+                  title={conflictLabel || undefined}
                   className={`calendar-day ${!schedule ? 'calendar-day-disabled' : ''} ${hasConflict ? 'calendar-day-conflict' : ''} ${isToday ? 'calendar-day-today' : ''} ${isPastScheduledDate ? 'calendar-day-past' : ''} aspect-square lg:aspect-auto lg:h-full rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all border-2 ${
-                    hasConflict
+                    hasInternalConflict
                       ? 'bg-red-50 text-red-900 font-bold border-red-400 active:scale-95 hover:bg-red-100 shadow-sm'
+                      : hasLocationConflict
+                      ? 'bg-orange-50 text-orange-950 font-bold border-orange-500 active:scale-95 hover:bg-orange-100 shadow-sm'
                       : schedule 
                       ? 'bg-blue-50 text-blue-900 font-bold border-blue-100 active:scale-95 hover:bg-blue-100 shadow-sm'
                       : 'text-gray-300 pointer-events-none border-transparent'
@@ -255,7 +273,7 @@ export default function Calendar({
                     type="button"
                     onClick={() => schedule && onSelectDate(schedule.date)}
                     disabled={!schedule}
-                    aria-label={schedule ? `${schedule.date}, ${schedule.dayLabel}` : undefined}
+                    aria-label={schedule ? `${schedule.date}, ${schedule.dayLabel}${conflictLabel ? `, ${conflictLabel}` : ''}` : undefined}
                     className="absolute inset-0 h-full w-full rounded-lg lg:rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 active:scale-95"
                   >
                     <span className={`absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-sm lg:text-2xl ${isPastScheduledDate ? 'calendar-past-text' : ''}`}>
@@ -279,6 +297,13 @@ export default function Calendar({
                         )}
                       </div>
                     )}
+                    {hasLocationConflict && (
+                      <span className="pointer-events-none absolute right-1 top-1 z-20 rounded-sm bg-orange-600 p-0.5 text-white shadow-sm lg:right-2 lg:top-2" aria-hidden="true">
+                        <svg className="h-2.5 w-2.5 lg:h-4 lg:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01M15 13v.01M15 16v.01M15 19v.01" />
+                        </svg>
+                      </span>
+                    )}
                   </button>
                 </div>
               );
@@ -290,7 +315,11 @@ export default function Calendar({
         <div className="calendar-info mt-2 lg:mt-4 p-2 lg:p-4 bg-blue-50 rounded-lg lg:rounded-2xl flex items-start gap-2 lg:gap-4 border border-blue-100 shrink-0">
           <svg className="w-5 h-5 lg:w-7 lg:h-7 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           <p className="text-[10px] lg:text-lg text-blue-700 font-medium leading-tight">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600 mx-0.5 lg:h-3 lg:w-3" /> Highlighted content · <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mx-0.5 lg:h-3 lg:w-3" /> Student notes{role !== 'STUDENT' && <><span> · </span><span className="inline-block h-1.5 w-1.5 rounded-full bg-purple-500 mx-0.5 lg:h-3 lg:w-3" /> SGL notes</>}. Red calendar dates indicate overlapping events. Tap a scheduled date to view details.
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600 mx-0.5 lg:h-3 lg:w-3" /> Highlighted content · <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mx-0.5 lg:h-3 lg:w-3" /> Student notes{role !== 'STUDENT' && <><span> · </span><span className="inline-block h-1.5 w-1.5 rounded-full bg-purple-500 mx-0.5 lg:h-3 lg:w-3" /> SGL notes</>}. Red dates mark conflicts within your section.
+            {(showCrossAcademyConflicts || crossAcademyConflictCheckStatus !== 'idle') && <span className="ml-1 inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-600 lg:h-3 lg:w-3" />Orange building marks a BLC–KTA location conflict.</span>}
+            {crossAcademyConflictCheckStatus === 'checking' && <span className="ml-1">Checking cross-academy locations…</span>}
+            {crossAcademyConflictCheckStatus === 'unavailable' && <span className="ml-1 font-black text-red-800">Cross-academy location check unavailable. Conflicts could not be verified.</span>}
+            {' '}Tap a scheduled date to view details.
           </p>
         </div>
         <AdMobBanner visible={showAdBanner} testMode={testMode} />

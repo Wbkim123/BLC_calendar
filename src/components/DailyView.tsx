@@ -5,6 +5,7 @@ import type { DisplayMode } from '../App';
 import AdMobBanner from './AdMobBanner';
 import { getScheduleConflicts } from '../features/schedule-conflicts/conflicts';
 import type { ScheduleConflict } from '../features/schedule-conflicts/conflicts';
+import type { CrossAcademyConflictCheckStatus, CrossAcademyConflictNotice } from '../features/schedule-conflicts/notices';
 import {
   getConflictPairKey,
   getDismissedConflictStorageKey,
@@ -14,6 +15,8 @@ import {
 interface Props {
   schedule: DailySchedule;
   crossAcademySchedules?: DailySchedule[];
+  crossAcademyConflictNotices?: CrossAcademyConflictNotice[];
+  crossAcademyConflictCheckStatus?: CrossAcademyConflictCheckStatus;
   showCrossAcademyConflicts?: boolean;
   role: UserRole;
   onBack?: () => void;
@@ -44,6 +47,8 @@ interface Props {
 export default function DailyView({ 
   schedule, 
   crossAcademySchedules = [],
+  crossAcademyConflictNotices = [],
+  crossAcademyConflictCheckStatus = 'idle',
   showCrossAcademyConflicts = false,
   role, 
   onBack,
@@ -334,6 +339,16 @@ export default function DailyView({
       <div className={`daily-content flex-1 p-3 sm:p-4 space-y-3 overflow-y-auto ${
         role === 'ADMIN' ? 'daily-content-admin' : ''
       }`}>
+        {crossAcademyConflictCheckStatus === 'unavailable' && (
+          <div role="status" className="rounded-xl border-2 border-orange-500 bg-orange-50 px-4 py-3 text-sm font-black text-orange-950">
+            Cross-academy location check unavailable. Location conflicts could not be verified.
+          </div>
+        )}
+        {crossAcademyConflictCheckStatus === 'checking' && (
+          <div role="status" className="rounded-xl border border-orange-300 bg-orange-50 px-4 py-2 text-xs font-bold text-orange-950">
+            Checking BLC–KTA shared locations…
+          </div>
+        )}
         {notificationChangeType && (
           <div
             ref={notificationHighlightTarget === 'day' ? highlightedTargetRef : undefined}
@@ -423,6 +438,12 @@ export default function DailyView({
             && !mergedConflictPairs.has(getConflictPairKey(conflict))
             && !dismissedConflictNoticeKeys.has(getConflictPairKey(conflict))
           );
+          const hasCommanderCrossAcademyConflict = eventConflicts.some(conflict => conflict.kind === 'location');
+          const locationConflictNotices = role === 'STUDENT' ? [] : crossAcademyConflictNotices.filter(notice =>
+            notice.date === schedule.date && notice.eventId === ev.id
+          );
+          const hasCrossAcademyLocationConflict = crossAcademyConflictCheckStatus === 'ready'
+            && locationConflictNotices.length > 0;
           // ----------------------------
 
           return (
@@ -437,7 +458,10 @@ export default function DailyView({
                   : isOngoing 
                     ? 'bg-white border-green-500 ring-2 ring-green-100' 
                     : isConflicting
+                      && !hasCommanderCrossAcademyConflict
                       ? 'schedule-conflict-event bg-yellow-50 border-yellow-500 ring-2 ring-yellow-100'
+                      : hasCrossAcademyLocationConflict || hasCommanderCrossAcademyConflict
+                        ? 'cross-academy-location-conflict bg-orange-50 border-orange-600 ring-2 ring-orange-100'
                       : 'bg-white border-yellow-500'
               }`}
             >
@@ -472,12 +496,19 @@ export default function DailyView({
                       {eventConflicts.map((conflict: ScheduleConflict, index: number) => {
                         const otherEvent = conflict.first.id === ev.id ? conflict.second : conflict.first;
                         const otherAcademy = conflict.kind === 'location' ? conflict.otherAcademy : schedule.academy;
+                        const isCrossAcademyLocationConflict = conflict.kind === 'location';
                         return (
-                          <div key={`${otherAcademy || ''}-${otherEvent.id}-${index}`} className="rounded-lg border border-red-300 bg-red-50 px-2.5 py-2 text-[11px] leading-snug text-red-950">
+                          <div
+                            key={`${otherAcademy || ''}-${otherEvent.id}-${index}`}
+                            aria-label={isCrossAcademyLocationConflict ? `Cross-academy location conflict with ${otherAcademy}` : undefined}
+                            className={`rounded-lg border-2 px-2.5 py-2 text-[11px] leading-snug ${isCrossAcademyLocationConflict ? 'border-orange-400 bg-orange-50 text-orange-950' : 'border-red-300 bg-red-50 text-red-950'}`}
+                          >
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
-                                <div className="font-black uppercase tracking-wide text-red-800">
-                                  {conflict.kind === 'location' ? `Location conflict · ${conflict.first.location} · ${otherAcademy}` : 'Time conflict'}
+                                <div className={`font-black uppercase tracking-wide ${isCrossAcademyLocationConflict ? 'text-orange-900' : 'text-red-800'}`}>
+                                  {isCrossAcademyLocationConflict
+                                    ? `${schedule.academy} ↔ ${otherAcademy} shared-location conflict · ${conflict.first.location}`
+                                    : 'Time conflict'}
                                 </div>
                                 <div className="mt-0.5">
                                   <span className="font-bold">{otherEvent.displayTime || otherEvent.time}</span>
@@ -485,7 +516,7 @@ export default function DailyView({
                                   <span> · {otherEvent.eventName} · {otherEvent.location}</span>
                                 </div>
                               </div>
-                              {(!isKtaSchedule || canDismissKtaConflicts) && (
+                              {!isCrossAcademyLocationConflict && (!isKtaSchedule || canDismissKtaConflicts) && (
                                 <button
                                   type="button"
                                   onClick={() => dismissConflictPair(conflict)}
@@ -499,6 +530,26 @@ export default function DailyView({
                           </div>
                         );
                       })}
+                    </div>
+                  )}
+                  {hasCrossAcademyLocationConflict && (
+                    <div className="mt-2 space-y-1.5" aria-label={`Cross-academy location conflicts for ${ev.eventName}`}>
+                      {Array.from(new Map(locationConflictNotices.map(notice => [
+                        `${notice.otherAcademy}:${notice.location}`,
+                        notice
+                      ])).values()).map(notice => (
+                        <div
+                          key={`${notice.otherAcademy}-${notice.location}`}
+                          className="rounded-lg border-2 border-orange-400 bg-orange-50 px-2.5 py-2 text-[11px] leading-snug text-orange-950"
+                        >
+                          <div className="font-black uppercase tracking-wide text-orange-900">
+                            Cross-academy location conflict
+                          </div>
+                          <div className="mt-0.5">
+                            A {notice.otherAcademy} event overlaps this event at {notice.location}.
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                   <div className="flex items-start gap-2 min-w-0">

@@ -39,7 +39,7 @@ describe('calendar conflict navigation', () => {
     );
 
     expect(screen.queryByRole('button', { name: /conflict details/i })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: `${date}, ${schedule.dayLabel}` }));
+    fireEvent.click(screen.getByRole('button', { name: `${date}, ${schedule.dayLabel}, Internal schedule conflict` }));
 
     expect(onSelectDate).toHaveBeenCalledWith(date);
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -83,6 +83,29 @@ describe('calendar conflict navigation', () => {
     const calendarDay = screen.getByRole('button', { name: `${date}, ${schedule.dayLabel}` }).closest('.calendar-day');
     expect(calendarDay?.className).not.toContain('calendar-day-conflict');
     expect(calendarDay?.className).toContain('bg-blue-50');
+  });
+
+  it('marks a cross-academy location conflict orange with its own building symbol, distinct from an internal conflict', () => {
+    render(
+      <Calendar
+        schedules={[{ ...schedule, events: [schedule.events[0]] }]}
+        academy="BLC"
+        role="ADMIN"
+        crossAcademyConflictCheckStatus="ready"
+        crossAcademyConflictNotices={[{ date, eventId: 'first', location: 'MPR', otherAcademy: 'KTA' }]}
+        onSelectDate={() => undefined}
+        onSelectSearchResult={() => undefined}
+        settingsControl={null}
+        displayMode="auto"
+      />
+    );
+
+    const calendarButton = screen.getByRole('button', { name: `${date}, ${schedule.dayLabel}, Cross-academy shared-location conflict` });
+    const calendarDay = calendarButton.closest('.calendar-day');
+    expect(calendarDay?.className).toContain('bg-orange-50');
+    expect(calendarDay?.className).not.toContain('bg-red-50');
+    expect(calendarDay?.querySelector('svg')).not.toBeNull();
+    expect(screen.getByText(/Orange building marks a BLC–KTA location conflict/)).toBeTruthy();
   });
 
   it('uses shared KTA dismissal data for the calendar conflict color', () => {

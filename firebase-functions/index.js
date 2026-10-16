@@ -6,7 +6,16 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
+const { getDatabase } = require('firebase-admin/database');
 const { getMessaging } = require('firebase-admin/messaging');
+const { getFirestore, FieldPath } = require('firebase-admin/firestore');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { resolveHistoryReader, saveHistory, readHistory, pruneHistory } = require('./notificationHistory');
+const { seniorCode } = require('./notificationReaderConfig.json');
+const {
+  getCrossAcademyConflictNotices,
+  isAuthorizedForCrossAcademyConflicts
+} = require('./crossAcademyConflicts');
 
 initializeApp();
 
@@ -108,6 +117,58 @@ exports.createAdminSession = onCall(
   }
 );
 
+exports.getCrossAcademyConflictNotices = onCall({ region: 'us-central1' }, async request => {
+  const academy = sanitizeAcademy(request.data?.academy);
+  if (!request.auth || !isAuthorizedForCrossAcademyConflicts(request.auth.token, academy)) {
+    throw new HttpsError('permission-denied', 'Academy-scoped administrator authentication is required.');
+  }
+
+  const dates = request.data?.dates;
+  if (!Array.isArray(dates) || dates.length > 500 || dates.some(date =>
+    typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)
+  )) {
+    throw new HttpsError('invalid-argument', 'A valid list of schedule dates is required.');
+  }
+
+  const otherAcademy = academy === 'BLC' ? 'KTA' : 'BLC';
+  const ownPath = academy === 'BLC' ? 'schedules' : 'academies/kta/schedules';
+  const otherPath = otherAcademy === 'BLC' ? 'schedules' : 'academies/kta/schedules';
+  const database = getDatabase();
+  const [ownSnapshot, otherSnapshot] = await Promise.all([
+    database.ref(ownPath).once('value'),
+    database.ref(otherPath).once('value')
+  ]);
+  return {
+    notices: getCrossAcademyConflictNotices(academy, ownSnapshot.val(), otherSnapshot.val(), dates)
+  };
+});
+
+exports.getNotificationHistory = onCall({ region: 'us-central1' }, async request => {
+  if (isDemoFunctionEmulator) return { items: [], nextCursor: null };
+  const academy = sanitizeAcademy(request.data?.academy);
+  const code = request.data?.code;
+  if (code !== undefined && (typeof code !== 'string' || code.length > 64)) {
+    throw new HttpsError('permission-denied', 'Please sign in again to view notifications.');
+  }
+  // Only student credentials need current cycle dates; staff never fetch another academy here.
+  const normalized = typeof code === 'string' ? code.replace(/\s+/g, '').toUpperCase() : '';
+  const isStudent = academy === 'BLC' && /^(?:BLC)?\d{4}$/.test(normalized)
+    && normalized !== seniorCode && normalized !== `BLC${seniorCode}`;
+  const schedules = isStudent ? (await getDatabase().ref('schedules').once('value')).val() : null;
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const reader = resolveHistoryReader({ token: request.auth?.token, code, academy, seniorCode, schedules, today });
+  if (!reader) throw new HttpsError('permission-denied', 'Please sign in again to view notifications.');
+  const cursor = request.data?.cursor;
+  if (cursor && (!Number.isSafeInteger(cursor.createdAt) || typeof cursor.id !== 'string' || !/^[a-f0-9]{64}$/.test(cursor.id))) {
+    throw new HttpsError('invalid-argument', 'Invalid notification page.');
+  }
+  return readHistory(getFirestore(), FieldPath.documentId(), academy, reader.audience, cursor);
+});
+
+exports.pruneNotificationHistory = onSchedule({ schedule: 'every day 03:00', timeZone: 'Asia/Seoul', region: 'us-central1' }, async () => {
+  if (!isDemoFunctionEmulator) await pruneHistory(getFirestore());
+});
+
 exports.registerPushToken = onCall({ region: 'us-central1' }, async request => {
   if (isDemoFunctionEmulator) return { subscribed: false, topic: null, emulatorOnly: true };
   const token = requireToken(request);
@@ -181,6 +242,11 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
         .slice(0, 10)
     : [];
   const recipients = request.data?.recipients || {};
+  if (targetId === 'sglNotes' && recipients.students === true) {
+    throw new HttpsError('invalid-argument', 'Staff notes cannot be sent to students.');
+  }
+  const notificationId = optionalText(request.data?.notificationId, 100);
+  const eventName = optionalText(request.data?.eventName, 160);
   const academyTopic = academy.toLowerCase();
   const topics = [`audience-${academyTopic}-admin`];
   topics.push('audience-ncoa-commander');
@@ -224,6 +290,14 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
 
   const clickUrl = `/?${linkParams.toString()}`;
 
+  // Persist before push delivery so offline users and failed push deliveries still have an inbox.
+  // Only notifications explicitly submitted through this handler are recorded.
+  const historyEntryId = await saveHistory(getFirestore(), {
+    notificationId, academy, date, cycleName, changeType, previewText, targetId,
+    changedFields, eventName, createdAt: Date.now()
+  }, recipients);
+  data.notificationId = historyEntryId;
+
   const messageIds = await Promise.all(topics.map(topic => getMessaging().send({
     topic,
     notification,
@@ -244,7 +318,7 @@ exports.sendScheduleNotification = onCall({ region: 'us-central1' }, async reque
     android: { priority: 'high' }
   })));
 
-  return { sent: true, topics, messageIds };
+  return { sent: true, topics, messageIds, notificationId: historyEntryId };
 });
 
 exports.sendTestScheduleNotification = onCall({ region: 'us-central1' }, async request => {

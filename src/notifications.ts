@@ -7,6 +7,7 @@ import { FirebaseMessaging } from '@capacitor-firebase/messaging';
 import { app, auth, functions, useFirebaseEmulators } from './firebase';
 import { UserRole } from './types/schedule';
 import { AcademyId } from './types/academy';
+import type { CrossAcademyConflictNotice } from './features/schedule-conflicts/notices';
 
 const PUSH_TOKEN_KEY = 'blc_push_token';
 const PUSH_TOPIC_KEY = 'blc_push_topic';
@@ -205,6 +206,23 @@ export async function createAdminSession(code: string) {
   }
 }
 
+export async function getCrossAcademyConflictNotices(academy: AcademyId, dates: string[]) {
+  if (isNativePlatform()) {
+    const idToken = await getAdminIdToken();
+    if (!idToken) throw new Error('Administrator authentication is required.');
+    const result = await callNativeFunction<{ notices: CrossAcademyConflictNotice[] }>(
+      'getCrossAcademyConflictNotices', { academy, dates }, idToken
+    );
+    return result.notices;
+  }
+
+  const result = await httpsCallable<
+    { academy: AcademyId; dates: string[] },
+    { notices: CrossAcademyConflictNotice[] }
+  >(activeFunctions(), 'getCrossAcademyConflictNotices')({ academy, dates });
+  return result.data.notices;
+}
+
 export const clearAdminSessionToken = () => {
   window.localStorage.removeItem(authStorageKey(ADMIN_ID_TOKEN_KEY));
   window.localStorage.removeItem(authStorageKey(ADMIN_REFRESH_TOKEN_KEY));
@@ -249,6 +267,8 @@ export const getAdminIdToken = async () => {
 };
 
 export async function sendScheduleNotification(details: {
+  notificationId?: string;
+  eventName?: string;
   academy: AcademyId;
   date: string;
   cycleName?: string | null;

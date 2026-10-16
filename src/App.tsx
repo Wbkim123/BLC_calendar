@@ -12,6 +12,8 @@ import AcademySwitcher from './shared/components/AcademySwitcher';
 import ScheduleNotificationModal, { PendingScheduleNotification } from './components/ScheduleNotificationModal';
 import GeneralSettings from './components/GeneralSettings';
 import NotificationOnboarding from './components/NotificationOnboarding';
+import NotificationCenter from './features/notification-center/NotificationCenter';
+import { setHistoryCredential } from './features/notification-center/api';
 import TestSessionControls from './features/test-session/TestSessionControls';
 import { activeBLCStudentCycles, createTestAccessProfile, TestViewId } from './features/test-session/testAccessProfiles';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
@@ -20,12 +22,18 @@ import { getAcademyConfig } from './config/academies';
 import { normalizeAccessCode, resolveAccessCode, restoreSavedAccessProfile } from './features/auth/accessCodes';
 import { assertTestSessionWriteAllowed } from './features/auth/testModePolicy';
 import { EventSearchResult } from './features/event-search/searchEvents';
+import type { CrossAcademyConflictCheckStatus, CrossAcademyConflictNotice } from './features/schedule-conflicts/notices';
 import NcoaChatbot from './features/chatbot/NcoaChatbot';
-import { showAppOpenAdIfEligible } from './features/ads/appOpen';
+import {
+  isAppOpenAdShowing,
+  resetAppOpenAdCooldown,
+  showAppOpenAdIfEligible
+} from './features/ads/appOpen';
 import { mockSchedules } from './data/mockData';
 import { auth, db, getDatabaseRestUrl, useFirebaseEmulators } from './firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 import { signInAnonymously, signOut } from 'firebase/auth';
+import { waitForLogoutCleanup } from './features/auth/logoutCleanup';
 import { Capacitor } from '@capacitor/core';
 import {
   clearAdminSessionToken,
@@ -34,7 +42,8 @@ import {
   disableNotifications,
   getAdminIdToken,
   isPhoneDevice,
-  listenForForegroundNotifications
+  listenForForegroundNotifications,
+  getCrossAcademyConflictNotices
 } from './notifications';
 
 const LEGACY_06_26_START = '2026-04-20';
@@ -253,12 +262,21 @@ function App() {
   const [testStudentCycles, setTestStudentCycles] = useState<string[]>([]);
   const [schedules, setSchedules] = useState<DailySchedule[]>([]);
   const [crossAcademySchedules, setCrossAcademySchedules] = useState<DailySchedule[]>([]);
+  const [crossAcademyConflictNotices, setCrossAcademyConflictNotices] = useState<CrossAcademyConflictNotice[]>([]);
+  const [crossAcademyConflictCheckStatus, setCrossAcademyConflictCheckStatus] = useState<CrossAcademyConflictCheckStatus>('idle');
   const [locations, setLocations] = useState<string[]>([]);
   const [uniforms, setUniforms] = useState<string[]>([]);
   const [selectedDateId, setSelectedDateId] = useState<string | null>(null);
   const [tvCycle, setTvCycle] = useState<string | null>(null);
   const [tvNow, setTvNow] = useState(Date.now);
   const isTvDisplay = accessProfile?.accessLevel === 'TV_DISPLAY';
+  const scheduleConflictRequestSignature = useMemo(
+    () => JSON.stringify(schedules.map(schedule => ({
+      date: schedule.date,
+      events: (schedule.events || []).map(event => [event.id, event.time, event.location])
+    }))),
+    [schedules]
+  );
 
   useEffect(() => {
     if (!isTvDisplay) return;
@@ -407,6 +425,50 @@ function App() {
     const timer = window.setInterval(() => void loadOtherAcademy(), 30000);
     return () => { disposed = true; window.clearInterval(timer); };
   }, [accessProfile?.accessLevel, academy, isTestMode]);
+
+  useEffect(() => {
+    const isScopedAcademyChief = role === 'ADMIN'
+      && accessProfile?.accessLevel === 'SCHEDULE_IMPORTER'
+      && accessProfile.scope === academy;
+    if (!isScopedAcademyChief || isTestMode) {
+      setCrossAcademyConflictNotices([]);
+      setCrossAcademyConflictCheckStatus('idle');
+      return;
+    }
+
+    let disposed = false;
+    const scheduleConflictInputs = JSON.parse(scheduleConflictRequestSignature) as Array<{ date: string }>;
+    const dates = Array.from(new Set(scheduleConflictInputs.map(schedule => schedule.date).filter(Boolean))).sort();
+    if (dates.length === 0) {
+      setCrossAcademyConflictNotices([]);
+      setCrossAcademyConflictCheckStatus('ready');
+      return;
+    }
+
+    let isChecking = false;
+    const checkConflicts = async () => {
+      if (isChecking || disposed) return;
+      isChecking = true;
+      try {
+        const notices = await getCrossAcademyConflictNotices(academy, dates);
+        if (disposed) return;
+        setCrossAcademyConflictNotices(notices);
+        setCrossAcademyConflictCheckStatus('ready');
+      } catch (error) {
+        if (disposed) return;
+        console.error('Cross-academy location conflict check failed:', error);
+        setCrossAcademyConflictNotices([]);
+        setCrossAcademyConflictCheckStatus('unavailable');
+      } finally {
+        isChecking = false;
+      }
+    };
+
+    setCrossAcademyConflictCheckStatus('checking');
+    void checkConflicts();
+    const timer = window.setInterval(() => void checkConflicts(), 30000);
+    return () => { disposed = true; window.clearInterval(timer); };
+  }, [accessProfile?.accessLevel, accessProfile?.scope, academy, isTestMode, role, scheduleConflictRequestSignature]);
 
   useEffect(() => {
     if (!isTestMode) {
@@ -778,10 +840,13 @@ function App() {
     changeType: string,
     targetId: string,
     changedFields: string[] = [],
-    previewText?: string
+    previewText?: string,
+    eventName?: string
   ) => {
     const changedDay = schedules.find(day => day.date === dateStr);
     setPendingNotification({
+      notificationId: `${Date.now()}-${Array.from(window.crypto.getRandomValues(new Uint32Array(4)), value => value.toString(16)).join('')}`,
+      eventName,
       date: dateStr,
       cycleName: changedDay?.cycleName || null,
       changeType,
@@ -843,7 +908,8 @@ function App() {
               'Event updated',
               `event:${updatedEvent.id}`,
               changedFields,
-              buildEventPreview(updatedEvent, changedFields)
+              buildEventPreview(updatedEvent, changedFields),
+              updatedEvent.eventName
             );
           })
           .catch(err => {
@@ -978,7 +1044,8 @@ function App() {
             'Event added',
             `event:${newEvent.id}`,
             ['eventName', 'time', 'location', 'uniform'],
-            buildEventPreview(newEvent, ['time', 'eventName', 'location', 'uniform'])
+            buildEventPreview(newEvent, ['time', 'eventName', 'location', 'uniform']),
+            newEvent.eventName
           );
         })
         .catch(err => {
@@ -1004,7 +1071,8 @@ function App() {
             'Event deleted',
             'day',
             [],
-            deletedEvent ? `DELETED: ${truncateNotificationPreview(deletedEvent.eventName)}` : 'Event deleted'
+            deletedEvent ? `DELETED: ${truncateNotificationPreview(deletedEvent.eventName)}` : 'Event deleted',
+            deletedEvent?.eventName
           );
         })
         .catch(err => {
@@ -1078,6 +1146,7 @@ function App() {
     }
   };
   const handleLogout = () => {
+    setHistoryCredential(null);
     const cleanup = disableNotifications(role, studentCycleName, false, !isTestMode, academy, accessProfile?.accessLevel === 'NCOA_MANAGER');
 
     // Clear the local session first so slow notification/auth requests cannot
@@ -1104,22 +1173,26 @@ function App() {
     setStudentCycleName(null);
     hasAutoSelectedTodayRef.current = false;
 
+    // Native sessions use REST tokens cleared above, not Firebase JS Auth.
+    // Signing out an unused SDK instance can wait indefinitely for persistence.
+    const sdkSessions = (!Capacitor.isNativePlatform() || useFirebaseEmulators)
+      ? [auth, stagingAuth].filter(session => session.currentUser)
+      : [];
     logoutCleanupRef.current = Promise.allSettled([
       cleanup,
-      signOut(auth),
-      signOut(stagingAuth)
+      ...sdkSessions.map(session => signOut(session))
     ]).then(results => {
-      const [notificationResult, authResult] = results;
+      const [notificationResult, ...authResults] = results;
       if (notificationResult.status === 'rejected') {
         console.error('Failed to unsubscribe from schedule notifications:', notificationResult.reason);
       }
-      if (authResult.status === 'rejected') {
-        console.error('Failed to end administrator session:', authResult.reason);
+      if (authResults.some(result => result.status === 'rejected')) {
+        console.error('Failed to end administrator session');
       }
     });
   };
   const handleLogin = async (code: string, rememberLogin: boolean) => {
-    await logoutCleanupRef.current;
+    await waitForLogoutCleanup(logoutCleanupRef.current);
     if (useFirebaseEmulators) {
       await signInAnonymously(auth);
       const emulatorProfile: AccessProfile = {
@@ -1161,6 +1234,7 @@ function App() {
       hasAutoSelectedTodayRef.current = false;
       setRole('VIEWER');
       setAccessProfile(legacyProfile);
+      setHistoryCredential(normalizedCode);
       setAcademy('BLC');
       setStudentCycleName(null);
       if (typeof window !== 'undefined') {
@@ -1240,6 +1314,7 @@ function App() {
     setRole(login.role);
     setAccessProfile(login);
     setAcademy(login.academy);
+    setHistoryCredential(requestedTestMode ? null : normalizedCode);
     setIsTestMode(requestedTestMode);
     setNotificationOnboardingComplete(window.localStorage.getItem('blc_notification_onboarding_dismissed') === 'true');
     setPendingNotification(null);
@@ -1281,13 +1356,14 @@ function App() {
     if (!role || isTvDisplay || !Capacitor.isNativePlatform()) return;
 
     let wasVisible = document.visibilityState === 'visible';
-    const showIfDue = () => {
-      void showAppOpenAdIfEligible(isTestMode);
+    const showIfDue = (isResume = false) => {
+      void showAppOpenAdIfEligible(isTestMode, isResume);
     };
     const initialOpenTimer = window.setTimeout(showIfDue, 300);
     const handleVisibilityChange = () => {
       const isVisible = document.visibilityState === 'visible';
-      if (isVisible && !wasVisible) showIfDue();
+      if (!isVisible) resetAppOpenAdCooldown();
+      if (isVisible && !wasVisible && !isAppOpenAdShowing()) showIfDue(true);
       wasVisible = isVisible;
     };
 
@@ -1591,6 +1667,8 @@ function App() {
       <DailyView 
         schedule={selectedSchedule} 
         crossAcademySchedules={crossAcademySchedules}
+        crossAcademyConflictNotices={crossAcademyConflictNotices}
+        crossAcademyConflictCheckStatus={crossAcademyConflictCheckStatus}
         showCrossAcademyConflicts={accessProfile?.accessLevel === 'NCOA_MANAGER'}
         role={role}
         onBack={isTvDisplay ? undefined : handleBackToCalendar}
@@ -1657,6 +1735,8 @@ function App() {
       <Calendar 
         schedules={filteredSchedules} 
         crossAcademySchedules={crossAcademySchedules}
+        crossAcademyConflictNotices={crossAcademyConflictNotices}
+        crossAcademyConflictCheckStatus={crossAcademyConflictCheckStatus}
         showCrossAcademyConflicts={accessProfile?.accessLevel === 'NCOA_MANAGER'}
         academy={academy}
         currentCycleName={role === 'STUDENT' ? studentCycleName : activeCycleName}
@@ -1675,6 +1755,22 @@ function App() {
         }}
         role={role}
         cycleTitle={cycleTitle}
+        notificationControl={accessProfile && accessProfile.accessLevel !== 'TV_DISPLAY' ? (
+          <NotificationCenter profile={accessProfile} testMode={isTestMode || useFirebaseEmulators} onSelect={entry => {
+            if (entry.academy !== academy || (role === 'STUDENT' && entry.cycleName !== studentCycleName)) {
+              return 'This notification is not available for your current school or cycle.';
+            }
+            const day = filteredSchedules.find(schedule => schedule.date === entry.date && (!entry.cycleName || schedule.cycleName === entry.cycleName));
+            if (!day) return 'This schedule is no longer available. The notification remains here for reference.';
+            if (/deleted/i.test(entry.changeType) || (entry.targetId.startsWith('event:') && !day.events.some(event => `event:${event.id}` === entry.targetId))) {
+              return 'This event has been deleted or replaced. The notification remains here for reference.';
+            }
+            hasAutoSelectedTodayRef.current = true;
+            setNotificationFocus(entry);
+            setSelectedDateId(entry.date);
+            return null;
+          }} />
+        ) : undefined}
         onOpenImport={() => setIsImportModalOpen(true)}
         settingsControl={(
           renderGeneralSettings()

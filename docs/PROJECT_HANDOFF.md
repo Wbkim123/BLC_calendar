@@ -1,3 +1,77 @@
+## GitHub push authorized (2026-10-17)
+
+- User requested pushing the verified changes to GitHub. Prepared the current `fix/android-audit-20261013` branch for push, containing notification center/grouping/bulk clear, login recovery, auth cancellation, conflict/ad/UI updates and their tests/docs. Exclude native generated/IDE-only local changes.
+- Keep master unchanged because its push trigger builds/uploads iOS automatically. No Firebase/Cloudflare deploy or store release is authorized by this push request. Backend rollout and physical-device verification remain outstanding; earlier local-only notes describe historical status.
+
+## Full local verification follow-up (2026-10-17)
+
+- User requested a comprehensive double-check of current changes. Reviewed login cleanup, notification history request/lifecycle/grouping/scoping, Settings toggle layout and App Open changes alongside automated checks.
+- Found and fixed a history loading edge case: AbortController cancellation did not interrupt an awaited administrator token restoration. History auth now observes cancellation; late token completion cannot issue a cancelled HTTP request. Added stalled-auth/cancel/retry and pre-cancelled request regressions.
+- Final verification: all 30 frontend suites / 146 tests passed via `npm.cmd run test:emulator`; local demo-project RTDB write/read/delete smoke passed; Functions exports loaded. All 19 backend tests passed (history handlers/storage/scope, cross-academy conflicts, staging push policy); backend index syntax, TypeScript, production build and diff whitespace checks passed. Sample DOM preview smoke passed bell, 8 alerts / 6 groups, expansion, Clear, Clear all, Undo and DailyView highlight.
+- Build warnings remain: known AdMob missing source maps, stale Browserslist database and Node deprecation. Emulator warns of older firebase-functions and host Node 24 versus declared runtime 22; it used host Node 24. Scheduled pruning was not exercised (no Pub/Sub emulator); real Firestore persistence/rules, production push and physical iOS/Android runtime remain unverified. No native compilation performed. Passing local checks does not establish all-device or cloud behavior.
+- Local-only changes; no dependency upgrade, push, deploy, cloud data changes or release. No user decision needed for this cancellation fix. Preserve all unrelated dirty changes.
+
+## Logout / login loading repair (2026-10-17)
+
+- Found re-login unconditionally awaiting notification cleanup plus production and staging Firebase JS Auth sign-out. Native REST-token sessions do not use those SDK auth sessions; an unused instance's persistence initialization could block that wait. Native logout now skips JS Auth sign-out (except emulator sessions); web only signs out SDK instances with a current user. Existing REST token/local session cleanup remains.
+- Added a 20-second login wait limit with an actionable retry message; retain the underlying cleanup barrier across retries to prevent late sign-out racing a fresh session. A genuinely stuck active web SDK cleanup still requires recovery before login can succeed, but no longer leaves the button spinning forever. Login catches rejected callbacks, resets busy state in finally, retains entered input for retry, and blocks duplicate submission.
+- Verification: 30 Jest suites / 144 tests passed; TypeScript and diff whitespace check passed. Added native iOS/Android and web logout/login regressions with never-resolving unused SDK sign-out, Login error/retry/duplicate coverage, and cleanup timeout barrier coverage. Production build result follows below.
+- Production build passed with the known AdMob source-map and stale Browserslist warnings. An initial concurrent build observed a test callback typing issue; fixed the callback, reran its test and TypeScript, and completed a fresh successful build.
+- Local source changes only in mobile-audit-20261013. Physical-device verification and native release remain outstanding. No push, deployment, native build or store submission; no user decision needed for this code fix.
+
+## Notification center implementation (2026-10-16)
+
+- Follow-up request (2026-10-17): added **Clear all** for all currently visible history, including collapsed groups. Bulk/single Clear both support six-second Undo snapshots. New arrivals remain unaffected by a prior Clear all.
+- Group same-event changes only within academy, cycle, schedule date and a maximum five-minute window. The newest entry is the summary; “View all changes” expands individual originals. Selecting a summary marks its group read and opens its schedule; selecting a detail marks only that entry read. Deleted-event records without stable event identity are not grouped. No history records are combined or overwritten on the server.
+- Added frontend regressions for bulk clear/undo with late arrivals, group boundaries, original-detail expansion, selective/group read status and persistence. Latest results: 29 frontend suites / 138 tests, TypeScript, production build and 11 history backend + 4 cross-academy tests passed. Build emits known AdMob source-map/Browserslist warnings.
+- Refreshed the local sample preview at `http://127.0.0.1:4178`; its DOM smoke check passes 8 alerts in 6 rows, three-change expansion, Clear, Clear all, Undo and highlighted event navigation. It uses a network-blocked in-memory data adapter, not production data or live Firestore. Full behavior and security rollout requirements remain in `docs/NOTIFICATION_CENTER.md`.
+
+- Follow-up local viewing request: prepared a separate sample-only preview under the original workspace's `release-assets/notification-center-preview`. `node preview.cjs` serves `http://127.0.0.1:4178` on this PC. Uses actual Calendar/NotificationCenter/DailyView with an in-memory API, excludes Firebase modules and blocks network connections through CSP. Includes role/academy controls, dark mode, simulated offline errors, sample addition/reset. HTTP 200 and DOM smoke checks for bell/list/Clear/Undo/event highlight passed. No product code or external state changed for this preview.
+
+- User approved the first notification-center release; consecutive-change grouping is explicitly deferred. Added Calendar header bell/red unread dot, recent 30-day history grouped by day, event navigation/highlighting, deleted/unavailable-event explanation, explicit read/all-read, left-swipe Clear, keyboard/mouse alternative and six-second Undo. Includes dark-mode and safe-area/native-banner styling.
+- Added server-owned Firestore history to the existing explicit notification send flow, with selected audiences, stable retry IDs, scoped/paginated callable reads and daily retention cleanup. Students are server-restricted to their active BLC cycle; Chief/Commander scopes and SGL credentials are validated server-side. Staff notes never enter student history. Read/Clear state remains local to this device/profile; no production history is queried in test mode.
+- Worktree remains `release-assets/mobile-audit-20261013`; original dirty worktree and unrelated changes preserved. No push, deployment, cloud provisioning, live schedule write, live push, native sync/build or store release performed. Cloud Functions dependencies installed locally from the existing lockfile; runtime exports load successfully.
+- See `docs/NOTIFICATION_CENTER.md` for behavior and release prerequisites. Firestore existence/rules/IAM/scheduler readiness still require review before an explicitly authorized deployment. The new Firestore rules deny all direct client access and must not overwrite unrelated cloud rules without review. Real Firestore and native-device verification are not claimed. No old push history is backfilled.
+- Final verification: frontend tests passed (29 suites / 131 tests), TypeScript passed, backend history tests passed (11) plus existing cross-academy tests (4), runtime Functions exports loaded successfully, scoped diff whitespace check passed, production build passed with existing AdMob source-map/Browserslist warnings. Tests used mocked/in-memory services; no native device, Firestore emulator or live cloud verification performed.
+
+## Settings notification toggle alignment (2026-10-16)
+
+- Removed the mobile-only vertical layout from the Notifications settings card. The label and toggle now share a horizontal row on mobile as on desktop, with a constrained right-hand area for wrapping error/help text.
+- Change is local in `release-assets/mobile-audit-20261013/src/components/GeneralSettings.tsx`. No push, deployment, native release, or device installation performed. No user decision needed; visual device verification remains outstanding.
+- Verification: scoped diff whitespace check passed; full Jest passed (26 suites / 118 tests); production build passed with existing AdMob source-map and stale Browserslist warnings.
+
+## NCOA Manager conflict display refinement (2026-10-16)
+
+- Improved Commander/NCOA 6120 Event View so cross-academy shared-location conflicts are visually separate from internal section time conflicts. BLC ↔ KTA location conflicts now use orange cards and explicitly show the counterpart academy, overlapping event time, event name, and shared location; same-section conflicts remain red. Cross-academy notices have no local Dismiss control, so a visual dismissal cannot be mistaken for resolution.
+- Added a regression test for the Commander counterpart details and distinct styling. Full Jest: 26 suites / 118 tests passed; TypeScript passed; production build passed with the known AdMob source-map and stale Browserslist warnings; scoped `git diff --check` passed.
+- This is a local source change in `release-assets/mobile-audit-20261013`; no push or deployment was performed. NCOA Manager still receives both schedules in the client as before. Chief summary notices remain separate and do not reveal counterpart event details.
+
+## Chief cross-academy location conflict notices (2026-10-16)
+
+- BLC/KTA Chiefs now request cross-academy conflict notices from a callable Cloud Function. The server validates the signed Chief academy scope, compares only same-date overlapping event times at the established shared locations (MPR and AUD/AUDITORIUM), and returns only the Chief's own event ID, shared location, and counterpart academy. Other event IDs, names, times, and full schedule records are not returned to the Chief client. The existing NCOA Manager comparison remains separate.
+- Calendar uses red for within-section overlaps and an orange building marker/border for BLC–KTA shared-location conflicts. Event View adds a separate orange notice to each affected own event, e.g. “A KTA event overlaps this event at MPR.” If the remote check fails, the UI explicitly says the conflict could not be verified. Chief checks run on own schedule edits and poll every 30 seconds. Cross-academy notices are not dismissible; the underlying schedule must be corrected.
+- Tests: all 26 Jest suites / 118 tests passed; `npx.cmd tsc --noEmit` passed; Cloud Functions pure logic/auth tests passed (4); production build passed with known AdMob source-map and stale Browserslist warnings. No live production data was read or written for feature testing; no device end-to-end test was performed.
+- Security limitation: production RTDB still has root `.read: true` for compatibility with code-only viewer/student access and TV clients. This change prevents the Chief app from downloading/displaying the counterpart schedule and the callable returns only notice metadata, but it does not stop a person from directly querying the already-public RTDB. Making that a hard access-control boundary needs a separate authentication/query migration for all viewer, student-cycle, and TV clients; do not tighten rules without that compatibility work.
+- Changes are local/uncommitted in `release-assets/mobile-audit-20261013`. The callable has not been deployed and the client has not been pushed or released. Both are required before Chief devices can use the feature. Preserve other unrelated dirty changes.
+
+## App Open ad cadence (2026-10-16)
+
+- Native App Open ads now attempt on app launch and each genuine background-to-foreground resume for every authenticated role. The existing web and TV exclusions remain.
+- Removed the persistent one-hour localStorage throttle. After the ad closes, a 30-minute in-memory cooldown applies only while the app stays foregrounded. Backgrounding clears the cooldown; a process restart also starts fresh. The ad's own presentation/resume transition is ignored to prevent an immediate duplicate.
+- Verification: 26 Jest suites / 115 tests passed; `npx.cmd tsc --noEmit` passed; `npm.cmd run build` passed with existing AdMob source-map and stale Browserslist warnings; `git diff --check` passed.
+- Source and docs are local and uncommitted in `release-assets/mobile-audit-20261013`; not pushed or released. Users need an updated native app build to receive this behavior. Preserve other dirty files in this worktree.
+
+## Mobile release push and CI started (2026-10-14)
+
+- User explicitly authorized GitHub push to start Codemagic iOS build/upload after reviewing the prepared changes.
+- Pushed 7311dce8f66b1d28646bfc3a93a503eaa33c9f74 to origin/master (fast-forward from 1323178). Includes all audited mobile repairs, Android Firebase client configuration, banner-adjacent controls, Android 4.0.9/13 and iOS 2.0.1 (local build43; CI overrides).
+- Authenticated GitHub check-runs confirmed BLC iOS TestFlight in_progress: https://codemagic.io/app/6a56c494e524187334ee6463/build/6acf4d4ea90f016d29d11857 . GitHub build and connected Cloudflare Pages also in_progress from the same push. No separate Cloudflare deploy command issued.
+- Build completion, App Store Connect processing, and store review are not yet verified. Codemagic publishing is configured to upload; this does not itself establish public App Store release or review submission.
+- Android assembleDebug metadata already verified 4.0.9/13; current web assets are synced. User should open release-assets/mobile-audit-20261013/android, generate a signed AAB with the existing upload key, and upload to Play internal testing before production. No signed Android AAB or Play upload performed by agent.
+- No production schedule writes, live push sends, or new Firebase Functions/Rules deployments performed. Original dirty worktree preserved. Latest worktree has untracked NEXT_SESSION.md and local documentation checkpoints; do not push another CI-triggering commit just for status notes.
+
+---
+
 ## Banner controls and app versions (2026-10-14)
 
 - Active worktree remains release-assets/mobile-audit-20261013. User requested lowering Settings/chatbot circles above the native banner and updating both app versions.
@@ -410,3 +484,18 @@ This is one existing Capacitor/React application being extended from a BLC-only 
 - `src/components/AdMobBanner.tsx` — native banner, UMP, ATT, privacy options
 - `database.rules.json` and `firebase-functions/index.js` — pending backend authorization changes
 - `docs/release-checklist.md` — release procedure and manual checks
+# Android floating controls alignment follow-up (2026-10-15)
+
+- Adjusted the Settings and chatbot floating buttons in the active repair worktree so Android positioning includes both the native banner height and the system bottom safe-area inset, plus an 8px gap. The previous `max()` calculation could overlap/underestimate the reserved native area across devices.
+- iOS retains banner height + 8px; web layout is unchanged.
+- Source edits are local and uncommitted. `npm.cmd run build` passed with the existing AdMob source-map and stale Browserslist warnings. No tests, native build, push, or release was performed. The current pushed Android 4.0.9/versionCode 13 does not contain this follow-up; a future Android update is required for device confirmation.
+- No decision needed for the code adjustment. Before any push or release, follow explicit authorization rule in AGENTS.md.
+# Floating controls size adjustment (2026-10-15)
+
+- Reduced Settings and chatbot circles from 56px to 48px for iOS and Android, with corresponding icon reductions. Positioning logic remains unchanged, including the Android banner plus system safe-area calculation.
+- Source changes are local and uncommitted. Production web build passed with the existing AdMob source-map and stale Browserslist warnings; native build/device verification and push/release have not been performed for this size adjustment.
+# Shared KTA conflict dismissals (2026-10-15)
+
+- Replaced KTA's per-device conflict dismissal state with `dismissedConflictKeys` stored on each shared schedule day. KTA calendar and Event View now read the same Firebase schedule value, so a successful Chief dismissal appears across subscribed devices.
+- Only a KTA-scoped `SCHEDULE_IMPORTER` profile with `schedule.write` is passed dismissal capability. KTA viewers (SGL) continue seeing conflict details and red warnings without a DISMISS button. BLC's prior local dismissal behavior and student visibility restrictions remain unchanged.
+- Verification: TypeScript passed; all 26 Jest suites / 112 tests passed; production build passed with known AdMob source-map and stale Browserslist warnings; scoped diff check passed. No production schedule mutation, Firebase deployment, GitHub push, native build, or store release was performed. A client update is required to distribute this UI.

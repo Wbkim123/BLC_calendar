@@ -2,6 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
+.notification-history-bell { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: white; background: #ffffff15; }
+.notification-history-bell:hover { background: #ffffff30; }
+.notification-history-badge { position: absolute; top: 5px; right: 6px; width: 10px; height: 10px; border: 2px solid #1e3a8a; border-radius: 50%; background: #ef4444; }
+.notification-history-unavailable { position: absolute; top: 2px; right: 3px; background: #fbbf24; color: #422006; border-radius: 50%; font-size: 10px; font-weight: 900; width: 14px; height: 14px; }
+.notification-history-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-end; justify-content: center; background: #0f172a80; backdrop-filter: blur(8px); padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: calc(var(--native-banner-height, 0px) + env(safe-area-inset-bottom)); }
+.notification-history-panel { --history-surface: #fff; --history-muted: #64748b; --history-border: #e2e8f0; width: 100%; max-width: 520px; max-height: 100%; height: min(760px, 88dvh); display: flex; flex-direction: column; border-radius: 24px 24px 0 0; background: #f1f5f9; color: #0f172a; text-align: left; box-shadow: 0 18px 60px #0004; overflow: hidden; }
+.notification-history-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 20px 12px; }
+.notification-history-header h2 { font-size: 23px; font-weight: 900; }
+.notification-history-header p { color: var(--history-muted); font-size: 12px; font-weight: 600; margin-top: 3px; }
+.notification-history-close { font-size: 28px; line-height: 1; border-radius: 50%; background: var(--history-surface); width: 44px; height: 44px; }
+.notification-history-toolbar { display: flex; justify-content: space-between; gap: 12px; padding: 0 20px 12px; border-bottom: 1px solid var(--history-border); }
+.notification-history-toolbar button { min-height: 36px; font-size: 12px; font-weight: 800; color: #1d4ed8; }
+.notification-history-toolbar button:disabled { opacity: .45; }
+.notification-history-toolbar .notification-history-clear-all { color: #dc2626; }
+.notification-history-change-count { color: #1d4ed8; font-size: 11px; font-weight: 800; }
+.notification-history-expand { display: block; padding: 8px 14px 12px; min-height: 40px; font-size: 12px; font-weight: 800; color: #1d4ed8; text-align: left; }
+.notification-history-details { list-style: none; margin: 0 12px 12px; padding: 0; border-top: 1px solid var(--history-border); }
+.notification-history-details li + li { border-top: 1px solid var(--history-border); }
+.notification-history-details button { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 12px 2px; text-align: left; overflow-wrap: anywhere; }
+.notification-history-details .notification-history-title { font-size: 12px; }
+.notification-history-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px 24px; flex: 1; }
+.notification-history-hint { font-size: 11px; line-height: 1.5; color: var(--history-muted); }
+.notification-history-group { font-size: 14px; font-weight: 800; margin: 18px 4px 8px; }
+.notification-history-row { display: flex; gap: 6px; margin-bottom: 8px; border-radius: 16px; overflow: hidden; }
+.notification-history-card { position: relative; flex: 1; min-width: 0; border: 1px solid var(--history-border); background: var(--history-surface); border-radius: 16px; }
+.notification-history-unread { border-color: #93c5fd; background: #eff6ff; }
+.notification-history-open { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 14px 42px 14px 14px; text-align: left; overflow-wrap: anywhere; }
+.notification-history-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px; font-size: 10px; font-weight: 700; color: var(--history-muted); width: 100%; }
+.notification-history-title { font-size: 14px; font-weight: 800; line-height: 1.4; }
+.notification-history-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #2563eb; vertical-align: middle; }
+.notification-history-kind, .notification-history-date { font-size: 11px; color: var(--history-muted); }
+.notification-history-preview { font-size: 13px; line-height: 1.5; }
+.notification-history-more { position: absolute; top: 3px; right: 0; width: 40px; height: 44px; font-size: 12px; color: var(--history-muted); border-radius: 12px; }
+.notification-history-clear { flex-shrink: 0; width: 72px; background: #dc2626; color: white; font-size: 13px; font-weight: 800; border-radius: 14px; }
+.notification-history-empty { text-align: center; padding: 64px 12px; font-size: 17px; font-weight: 700; }
+.notification-history-empty p { color: var(--history-muted); font-size: 12px; font-weight: 500; margin-top: 8px; }
+.notification-history-error, .notification-history-notice { font-size: 13px; line-height: 1.5; padding: 12px; margin: 12px 0; border-radius: 12px; background: #fef3c7; color: #78350f; }
+.notification-history-notice { background: #dbeafe; color: #1e3a8a; }
+.notification-history-undo { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: #1e293b; color: white; font-size: 13px; }
+.notification-history-undo button { min-height: 44px; font-weight: 800; color: #93c5fd; }
+.notification-history-panel button:focus-visible, .notification-history-bell:focus-visible { outline: 3px solid #60a5fa; outline-offset: -3px; }
+.theme-dark .notification-history-panel { --history-surface: #1e293b; --history-muted: #a4b2c5; --history-border: #334155; background: #0f172a; color: #f1f5f9; }
+.theme-dark .notification-history-unread { background: #172b49; border-color: #3b82f6; }
+.theme-dark .notification-history-toolbar button { color: #93c5fd; }
+.theme-dark .notification-history-toolbar .notification-history-clear-all { color: #fca5a5; }
+.theme-dark .notification-history-change-count, .theme-dark .notification-history-expand { color: #93c5fd; }
+.theme-dark .notification-history-error { color: #fde68a; background: #422f14; }
+.theme-dark .notification-history-notice { color: #bfdbfe; background: #172b49; }
+@media (min-width: 640px) {
+  .notification-history-overlay { align-items: center; padding: max(24px, env(safe-area-inset-top)) 16px calc(24px + var(--native-banner-height, 0px) + env(safe-area-inset-bottom)); }
+  .notification-history-panel { border-radius: 24px; }
+}
+
 html,
 body,
 #root {

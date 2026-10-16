@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Notification history is served only by scoped callable Functions.
+    // Read/clear state is device-local; clients never write these records.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

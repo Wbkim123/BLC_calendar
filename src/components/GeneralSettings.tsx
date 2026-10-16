@@ -145,12 +145,14 @@ export default function GeneralSettings({
                 </section>
               )}
 
-              <section className="settings-card flex flex-col gap-3 rounded-2xl border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+              <section className="settings-card flex items-center justify-between gap-3 rounded-2xl border border-gray-200 p-4">
+                <div className="shrink-0">
                   <div className="text-sm font-black text-gray-900">Notifications</div>
                   <div className="text-[11px] font-semibold text-gray-500">Schedule update alerts</div>
                 </div>
-                {notificationsDisabled ? <span className="text-xs font-bold text-gray-500">Disabled in local emulator</span> : <NotificationPrompt role={role} academy={academy} allAcademies={allAcademies} cycleName={cycleName} variant="toggle" autoPrompt={false} testMode={testMode} />}
+                <div className="min-w-0 flex-1 text-right">
+                  {notificationsDisabled ? <span className="text-xs font-bold text-gray-500">Disabled in local emulator</span> : <NotificationPrompt role={role} academy={academy} allAcademies={allAcademies} cycleName={cycleName} variant="toggle" autoPrompt={false} testMode={testMode} />}
+                </div>
               </section>
 
               <section className="settings-card flex items-center justify-between rounded-2xl border border-gray-200 p-4">

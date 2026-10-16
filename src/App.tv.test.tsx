@@ -2,12 +2,15 @@ import React from 'react';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { set } from 'firebase/database';
+import { signOut } from 'firebase/auth';
+import { auth } from './firebase';
 import App from './App';
 import { TV_ACCESS_CODES } from './features/auth/tvAccessCodes';
 
 const mockDay = (cycleName: string, date: string) => ({ cycleName, date, dayLabel: 'Training', events: [] });
 let mockDatabase: Record<string, unknown> = {};
 let mockRealtimeEnabled = true;
+let mockPlatform = 'web';
 let mockScheduleError: ((error: Error) => void) | undefined;
 const mockOwnerClaims: Record<string, unknown> = { admin: true };
 
@@ -17,8 +20,8 @@ jest.mock('./firebase', () => ({
   auth: { currentUser: { getIdTokenResult: async () => ({ claims: mockOwnerClaims }) } }
 }));
 jest.mock('firebase/app', () => ({ getApps: () => [], initializeApp: () => ({}) }));
-jest.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false, getPlatform: () => 'web' } }));
-jest.mock('firebase/auth', () => ({ getAuth: () => ({}), signOut: async () => undefined }));
+jest.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => mockPlatform !== 'web', getPlatform: () => mockPlatform } }));
+jest.mock('firebase/auth', () => ({ getAuth: () => ({}), signOut: require('@jest/globals').jest.fn(async () => undefined) }));
 jest.mock('firebase/functions', () => ({ getFunctions: () => ({}) }));
 jest.mock('firebase/database', () => ({
   ref: (_db: unknown, path: string) => path,
@@ -55,6 +58,8 @@ jest.mock('./components/DailyView', () => ({ __esModule: true, default: ({ sched
 beforeEach(() => {
   window.localStorage.clear();
   jest.clearAllMocks();
+  mockPlatform = 'web';
+  jest.mocked(signOut).mockReset().mockResolvedValue(undefined);
   mockRealtimeEnabled = true;
   mockScheduleError = undefined;
   mockDatabase = { schedules: [mockDay('BLC cycle', '2099-01-01')], 'academies/kta/schedules': [mockDay('KTA cycle', '2099-01-02')] };
@@ -70,6 +75,29 @@ const loginTv = async (academy: 'BLC' | 'KTA') => {
 };
 
 describe('website TV integration', () => {
+  it.each(['ios', 'android'])('logs in again on %s without waiting on unused JS Auth', async platform => {
+    mockPlatform = platform;
+    jest.mocked(signOut).mockImplementation(() => new Promise(() => undefined));
+    render(<App />);
+    await loginTv('BLC');
+    await screen.findByText('Events BLC cycle');
+    fireEvent.click(screen.getByRole('button', { name: /logout/i }));
+    await loginTv('BLC');
+    await screen.findByText('Events BLC cycle');
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it('signs out only the active web SDK session before logging in again', async () => {
+    jest.mocked(signOut).mockImplementation(session => session === auth ? Promise.resolve() : new Promise(() => undefined));
+    render(<App />);
+    await loginTv('BLC');
+    await screen.findByText('Events BLC cycle');
+    fireEvent.click(screen.getByRole('button', { name: /logout/i }));
+    await loginTv('BLC');
+    await screen.findByText('Events BLC cycle');
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(signOut).toHaveBeenCalledWith(auth);
+  });
   it('keeps HTTPS schedules when realtime transport fails and metadata is unavailable', async () => {
     mockRealtimeEnabled = false;
     global.fetch = jest.fn(async (input: unknown) => {
