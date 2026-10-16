@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { activeBLCStudentCycles, createTestAccessProfile, getTestNotificationTargets } from './testAccessProfiles';
+import { activeBLCStudentCycles, canReadCrossAcademySchedules, canShowCrossAcademyConflicts, createTestAccessProfile, getTestNotificationTargets } from './testAccessProfiles';
 import { DailySchedule } from '../../types/schedule';
 
 const schedules: DailySchedule[] = [
@@ -10,6 +10,19 @@ const schedules: DailySchedule[] = [
 ];
 
 describe('test access profile simulator', () => {
+  it.each(['SCHEDULE_IMPORTER', 'SENIOR'] as const)('allows %s to compare shared locations only in test mode', accessLevel => {
+    expect(canReadCrossAcademySchedules(accessLevel, true)).toBe(true);
+    expect(canShowCrossAcademyConflicts(accessLevel, true)).toBe(true);
+    expect(canReadCrossAcademySchedules(accessLevel, false)).toBe(false);
+    expect(canShowCrossAcademyConflicts(accessLevel, false)).toBe(false);
+  });
+
+  it('keeps student and TV test views out of cross-academy schedule reads', () => {
+    for (const accessLevel of ['STUDENT', 'TV_DISPLAY'] as const) {
+      expect(canReadCrossAcademySchedules(accessLevel, true)).toBe(false);
+      expect(canShowCrossAcademyConflicts(accessLevel, true)).toBe(false);
+    }
+  });
   it('offers only currently active BLC student cycles', () => {
     expect(activeBLCStudentCycles(schedules, '2026-10-04')).toEqual(['10-26']);
   });

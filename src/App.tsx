@@ -15,7 +15,7 @@ import NotificationOnboarding from './components/NotificationOnboarding';
 import NotificationCenter from './features/notification-center/NotificationCenter';
 import { getHistoryCredential, setHistoryCredential } from './features/notification-center/api';
 import TestSessionControls from './features/test-session/TestSessionControls';
-import { activeBLCStudentCycles, createTestAccessProfile, TestViewId } from './features/test-session/testAccessProfiles';
+import { activeBLCStudentCycles, canReadCrossAcademySchedules, canShowCrossAcademyConflicts, createTestAccessProfile, TestViewId } from './features/test-session/testAccessProfiles';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
 import { AccessProfile, AcademyId, hasPermission } from './types/academy';
 import { getAcademyConfig } from './config/academies';
@@ -389,7 +389,8 @@ function App() {
   }, [foregroundNotification]);
 
   useEffect(() => {
-    if (accessProfile?.accessLevel !== 'NCOA_MANAGER') {
+    const canReadOtherAcademy = canReadCrossAcademySchedules(accessProfile?.accessLevel, isTestMode);
+    if (!canReadOtherAcademy) {
       setCrossAcademySchedules([]);
       return;
     }
@@ -1675,7 +1676,7 @@ function App() {
         crossAcademySchedules={crossAcademySchedules}
         crossAcademyConflictNotices={crossAcademyConflictNotices}
         crossAcademyConflictCheckStatus={crossAcademyConflictCheckStatus}
-        showCrossAcademyConflicts={accessProfile?.accessLevel === 'NCOA_MANAGER'}
+        showCrossAcademyConflicts={canShowCrossAcademyConflicts(accessProfile?.accessLevel, isTestMode)}
         role={role}
         onBack={isTvDisplay ? undefined : handleBackToCalendar}
         viewControls={tvControls}
@@ -1743,7 +1744,7 @@ function App() {
         crossAcademySchedules={crossAcademySchedules}
         crossAcademyConflictNotices={crossAcademyConflictNotices}
         crossAcademyConflictCheckStatus={crossAcademyConflictCheckStatus}
-        showCrossAcademyConflicts={accessProfile?.accessLevel === 'NCOA_MANAGER'}
+        showCrossAcademyConflicts={canShowCrossAcademyConflicts(accessProfile?.accessLevel, isTestMode)}
         academy={academy}
         currentCycleName={role === 'STUDENT' ? studentCycleName : activeCycleName}
         onSelectDate={(date) => setSelectedDateId(date)} 

@@ -18,6 +18,14 @@ export interface TestNotificationTarget {
   audienceLabel: string;
 }
 
+export const canReadCrossAcademySchedules = (accessLevel: AccessProfile['accessLevel'] | undefined, isTestMode: boolean) =>
+  accessLevel === 'NCOA_MANAGER'
+  || (isTestMode && ['SCHEDULE_IMPORTER', 'SENIOR'].includes(accessLevel || ''));
+
+export const canShowCrossAcademyConflicts = (accessLevel: AccessProfile['accessLevel'] | undefined, isTestMode: boolean) =>
+  accessLevel === 'NCOA_MANAGER'
+  || (isTestMode && !['STUDENT', 'TV_DISPLAY'].includes(accessLevel || ''));
+
 export const getTestNotificationTargets = (view: TestViewId): TestNotificationTarget[] => {
   if (view === 'commander' || view === 'test-manager') {
     return [

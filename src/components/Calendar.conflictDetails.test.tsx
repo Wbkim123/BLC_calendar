@@ -103,9 +103,11 @@ describe('calendar conflict navigation', () => {
     const calendarButton = screen.getByRole('button', { name: `${date}, ${schedule.dayLabel}, Cross-academy shared-location conflict` });
     const calendarDay = calendarButton.closest('.calendar-day');
     expect(calendarDay?.className).toContain('bg-orange-50');
+    expect(calendarDay?.className).toContain('calendar-day-location-only');
     expect(calendarDay?.className).not.toContain('bg-red-50');
-    expect(calendarDay?.querySelector('svg')).not.toBeNull();
-    expect(screen.getByText(/Orange building marks a BLC–KTA location conflict/)).toBeTruthy();
+    expect(calendarDay?.querySelector('.calendar-location-conflict-badge svg')).not.toBeNull();
+    expect(calendarDay?.querySelector('.calendar-location-conflict-badge')?.className).toContain('rounded-full');
+    expect(screen.getByText('Orange building marks a cross-academy location conflict.')).toBeTruthy();
   });
 
   it('uses shared KTA dismissal data for the calendar conflict color', () => {

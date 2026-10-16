@@ -40,6 +40,7 @@ jest.mock('./notifications', () => ({
   prepareNotificationEnvironment: async () => undefined,
   disableNotifications: async () => undefined,
   getAdminIdToken: async () => null,
+  getCrossAcademyConflictNotices: async () => [],
   isPhoneDevice: () => false,
   listenForForegroundNotifications: async () => () => undefined
 }));

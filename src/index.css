@@ -308,6 +308,12 @@ button:active:not(:disabled) {
   color: #7f1d1d !important;
 }
 
+.calendar-day.calendar-day-location-only:not(.calendar-day-disabled) {
+  background: #fff7ed !important;
+  border-color: #fdba74 !important;
+  color: #7c2d12 !important;
+}
+
 .calendar-info {
   border: 0 !important;
   border-radius: 1.15rem !important;
@@ -566,6 +572,12 @@ button:active:not(:disabled) {
   background: rgb(69 10 10) !important;
   border-color: rgb(185 28 28) !important;
   color: rgb(254 226 226) !important;
+}
+
+.theme-dark .calendar-day.calendar-day-location-only:not(.calendar-day-disabled) {
+  background: rgb(67 35 14) !important;
+  border-color: rgb(194 65 12) !important;
+  color: rgb(255 237 213) !important;
 }
 
 .calendar-day-past {

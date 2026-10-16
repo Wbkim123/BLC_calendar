@@ -1,3 +1,11 @@
+## Test-mode conflict visibility and calendar marker polish (2026-10-17)
+
+- Investigated the report that BLC/KTA Chief and SGL profiles in the `318709` iPhone web test session show no shared-location markers. Found that test-mode role switching cleared counterpart schedules and disabled client conflict display for every profile except NCOA Manager. Chiefs (`SCHEDULE_IMPORTER`) and SGLs (`SENIOR`) now load the counterpart academy schedule from staging and show its computed conflict markers. Students and TV views remain excluded; production Chief/SGL reads remain on the scoped server callable.
+- Added focused role-policy tests: Chief/SGL test-only access and the student/TV restriction are covered. Full frontend suite passes 30 suites / 149 tests, TypeScript passes, and the production build emits `main.a13d376b.js`; only the known AdMob source-map, stale Browserslist and Node deprecation warnings remain. Scoped `git diff --check` passed. TV integration test now mocks the scoped conflict callable to avoid a false console error.
+- Refined the calendar marker into a small white circular badge with an orange outline and building icon. Location-only conflict dates use an orange-tinted cell and border; internal time-conflict dates remain red, including dates that have both kinds. Dark mode preserves the same distinction. Updated the legend to use the matching icon. Added a focused visual regression assertion.
+- The public Cloudflare site was previously checked serving `/static/js/main.fd13f7e3.js`; this corrected app must be pushed to `master` to trigger Cloudflare Pages production deployment. The user explicitly requested the `master` push. Confirm the production artifact and refresh the iPhone PWA after the push completes.
+- No access codes, schedule data, or personal data were added to this handoff. Preserve unrelated dirty files.
+
 ## Production notification backend deployment (2026-10-17)
 
 - User explicitly authorized master push (`c965280` successfully fast-forwarded origin/master), then notification backend deployment. These instructions supersede earlier branch-only/no-deploy notes.

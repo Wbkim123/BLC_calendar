@@ -259,7 +259,7 @@ export default function Calendar({
                 <div
                   key={day}
                   title={conflictLabel || undefined}
-                  className={`calendar-day ${!schedule ? 'calendar-day-disabled' : ''} ${hasConflict ? 'calendar-day-conflict' : ''} ${isToday ? 'calendar-day-today' : ''} ${isPastScheduledDate ? 'calendar-day-past' : ''} aspect-square lg:aspect-auto lg:h-full rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all border-2 ${
+                  className={`calendar-day ${!schedule ? 'calendar-day-disabled' : ''} ${hasConflict ? 'calendar-day-conflict' : ''} ${hasLocationConflict && !hasInternalConflict ? 'calendar-day-location-only' : ''} ${isToday ? 'calendar-day-today' : ''} ${isPastScheduledDate ? 'calendar-day-past' : ''} aspect-square lg:aspect-auto lg:h-full rounded-lg lg:rounded-2xl flex flex-col items-center justify-center relative transition-all border-2 ${
                     hasInternalConflict
                       ? 'bg-red-50 text-red-900 font-bold border-red-400 active:scale-95 hover:bg-red-100 shadow-sm'
                       : hasLocationConflict
@@ -298,9 +298,9 @@ export default function Calendar({
                       </div>
                     )}
                     {hasLocationConflict && (
-                      <span className="pointer-events-none absolute right-1 top-1 z-20 rounded-sm bg-orange-600 p-0.5 text-white shadow-sm lg:right-2 lg:top-2" aria-hidden="true">
-                        <svg className="h-2.5 w-2.5 lg:h-4 lg:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01M15 13v.01M15 16v.01M15 19v.01" />
+                      <span className="calendar-location-conflict-badge pointer-events-none absolute right-1 top-1 z-20 flex h-5 w-5 items-center justify-center rounded-full border border-orange-300 bg-white text-orange-600 shadow-[0_1px_4px_rgba(124,45,18,0.22)] ring-1 ring-white/80 lg:right-2 lg:top-2 lg:h-7 lg:w-7" aria-hidden="true">
+                        <svg className="h-3.5 w-3.5 lg:h-[18px] lg:w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M4 21h16M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M9 7h.01M15 7h.01M9 11h.01M15 11h.01M9 15h.01M15 15h.01M11 21v-3h2v3" />
                         </svg>
                       </span>
                     )}
@@ -316,7 +316,7 @@ export default function Calendar({
           <svg className="w-5 h-5 lg:w-7 lg:h-7 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           <p className="text-[10px] lg:text-lg text-blue-700 font-medium leading-tight">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600 mx-0.5 lg:h-3 lg:w-3" /> Highlighted content · <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mx-0.5 lg:h-3 lg:w-3" /> Student notes{role !== 'STUDENT' && <><span> · </span><span className="inline-block h-1.5 w-1.5 rounded-full bg-purple-500 mx-0.5 lg:h-3 lg:w-3" /> SGL notes</>}. Red dates mark conflicts within your section.
-            {(showCrossAcademyConflicts || crossAcademyConflictCheckStatus !== 'idle') && <span className="ml-1 inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-600 lg:h-3 lg:w-3" />Orange building marks a BLC–KTA location conflict.</span>}
+            {(showCrossAcademyConflicts || crossAcademyConflictCheckStatus !== 'idle') && <span className="ml-1 inline-flex items-center gap-1.5"><span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full border border-orange-300 bg-white text-orange-600 shadow-sm lg:h-6 lg:w-6"><svg className="h-3 w-3 lg:h-4 lg:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 21h16M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M9 7h.01M15 7h.01M9 11h.01M15 11h.01M9 15h.01M15 15h.01M11 21v-3h2v3" /></svg></span>Orange building marks a cross-academy location conflict.</span>}
             {crossAcademyConflictCheckStatus === 'checking' && <span className="ml-1">Checking cross-academy locations…</span>}
             {crossAcademyConflictCheckStatus === 'unavailable' && <span className="ml-1 font-black text-red-800">Cross-academy location check unavailable. Conflicts could not be verified.</span>}
             {' '}Tap a scheduled date to view details.
