@@ -1,3 +1,13 @@
+## Notification backend deployed / master pushed (2026-10-17)
+
+- Cross-academy follow-up deployed: `getCrossAcademyConflictNotices` is now ACTIVE in production. BLC/KTA 0209 read-only SGL and NCOA6120/Chief scopes supported. SGL gets conflict fact summaries without edit access or counterpart event details. Live BLC/KTA SGL auth checks passed; no populated schedule query/device visual test yet. App changes TypeScript/build/diff-check passed and remain to be committed/pushed.
+
+- Supersedes earlier branch-only/local-only notes: user explicitly authorized master push, completed `030b43d` -> `c965280`, then explicitly authorized notification-center backend deployment.
+- Production `blc-calendar-e302f`: enabled Firestore API, confirmed no existing databases or Firestore rules, created `(default)` Standard database in `us-central1` with delete protection enabled, deployed deny-direct-access Firestore rules and `getNotificationHistory`, `pruneNotificationHistory`, then updated `sendScheduleNotification`. All three ACTIVE on Node.js 22.
+- Live checks passed for BLC/KTA scoped SGL history (empty), missing-credential rejection, unauthenticated Firestore denial, and enabled retention scheduler (`every day 03:00`, Asia/Seoul). All 11 notification backend tests passed. No test push or schedule mutation; actual device receipt/new-send persistence and scheduled pruning execution remain unverified. No old history backfill.
+- CLI required the existing staging-device parameter for source analysis; copied it without logging values into a temporary dotenv file and removed the file after deployment. Deployment helper/docs remain local/uncommitted. No further mobile release triggered for docs.
+- Separate cross-academy conflict callable was not deployed in this notification-only operation. Preserve native generated/IDE working changes. Mobile CI completion remains unverified.
+
 ## GitHub push preparation (2026-10-17)
 
 - User explicitly requested a GitHub push after verification. Commit the reviewed source/backend/tests/docs on `fix/android-audit-20261013` and push that branch. Do not update master: its Codemagic push trigger builds and uploads to App Store Connect; that release action was not requested. Native generated/IDE-only working changes are excluded.

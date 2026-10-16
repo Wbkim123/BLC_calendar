@@ -14,7 +14,8 @@ const { resolveHistoryReader, saveHistory, readHistory, pruneHistory } = require
 const { seniorCode } = require('./notificationReaderConfig.json');
 const {
   getCrossAcademyConflictNotices,
-  isAuthorizedForCrossAcademyConflicts
+  isAuthorizedForCrossAcademyConflicts,
+  isAuthorizedSglCode
 } = require('./crossAcademyConflicts');
 
 initializeApp();
@@ -119,7 +120,9 @@ exports.createAdminSession = onCall(
 
 exports.getCrossAcademyConflictNotices = onCall({ region: 'us-central1' }, async request => {
   const academy = sanitizeAcademy(request.data?.academy);
-  if (!request.auth || !isAuthorizedForCrossAcademyConflicts(request.auth.token, academy)) {
+  const isAuthenticatedStaff = request.auth && isAuthorizedForCrossAcademyConflicts(request.auth.token, academy);
+  const isScopedSgl = isAuthorizedSglCode(request.data?.code, academy, seniorCode);
+  if (!isAuthenticatedStaff && !isScopedSgl) {
     throw new HttpsError('permission-denied', 'Academy-scoped administrator authentication is required.');
   }
 
@@ -129,6 +132,7 @@ exports.getCrossAcademyConflictNotices = onCall({ region: 'us-central1' }, async
   )) {
     throw new HttpsError('invalid-argument', 'A valid list of schedule dates is required.');
   }
+  if (dates.length === 0) return { notices: [] };
 
   const otherAcademy = academy === 'BLC' ? 'KTA' : 'BLC';
   const ownPath = academy === 'BLC' ? 'schedules' : 'academies/kta/schedules';

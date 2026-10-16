@@ -206,7 +206,21 @@ export async function createAdminSession(code: string) {
   }
 }
 
-export async function getCrossAcademyConflictNotices(academy: AcademyId, dates: string[]) {
+export async function getCrossAcademyConflictNotices(academy: AcademyId, dates: string[], readOnlyCode?: string | null) {
+  if (readOnlyCode) {
+    if (isNativePlatform()) {
+      const result = await callNativeFunction<{ notices: CrossAcademyConflictNotice[] }>(
+        'getCrossAcademyConflictNotices', { academy, dates, code: readOnlyCode }
+      );
+      return result.notices;
+    }
+    const result = await httpsCallable<
+      { academy: AcademyId; dates: string[]; code: string },
+      { notices: CrossAcademyConflictNotice[] }
+    >(activeFunctions(), 'getCrossAcademyConflictNotices')({ academy, dates, code: readOnlyCode });
+    return result.data.notices;
+  }
+
   if (isNativePlatform()) {
     const idToken = await getAdminIdToken();
     if (!idToken) throw new Error('Administrator authentication is required.');

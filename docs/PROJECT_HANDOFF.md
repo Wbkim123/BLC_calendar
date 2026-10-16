@@ -1,3 +1,20 @@
+## Production notification backend deployment (2026-10-17)
+
+- User explicitly authorized master push (`c965280` successfully fast-forwarded origin/master), then notification backend deployment. These instructions supersede earlier branch-only/no-deploy notes.
+- Confirmed `blc-calendar-e302f` had no Firestore database or rules release. Enabled Firestore API; created `(default)` Standard / Firestore Native database in `us-central1` with delete protection. Deployed closed Firestore rules and new `getNotificationHistory` + `pruneNotificationHistory`, verified reads/rules/scheduler, then updated existing `sendScheduleNotification`. No unrelated functions or RTDB rules deployed.
+- All three functions ACTIVE on Node.js 22. Live BLC/KTA scoped SGL reads succeeded with zero records; missing credentials and direct unauthenticated Firestore reads return 403. Scheduler enabled for every day 03:00 Asia/Seoul. History starts on future explicit sends; retention is 30 days.
+- Verification: all 11 notification backend tests passed before rollout; rules compiled; both deployment commands succeeded; final live checks passed. Verification helper initially expected only numeric cron; Cloud Scheduler retained the equivalent English schedule, which is now accepted and verified. First deploy stopped on a missing source-analysis parameter; copied the existing staging-device setting silently into a temporary dotenv file, completed deployment, and removed the file. No credential values logged.
+- Limits: no actual test notification sent, no production schedule edited, no new-send/device end-to-end test, live retention execution or student/admin signed-session smoke. Separate cross-academy conflict callable remains pending. Previous full 146 frontend/19 backend tests apply to unchanged app source. Mobile build/upload status is not independently verified.
+- `scripts/notification-deploy-ops.cjs` and deployment docs are local/uncommitted; no further GitHub push performed. Preserve unrelated native generated/IDE changes.
+
+## Cross-academy conflict follow-up (2026-10-17)
+
+- Root cause confirmed: Firestore notification backend rollout did not include the separate `getCrossAcademyConflictNotices` callable; production Functions list has no such endpoint although Chief client calls it. Therefore BLC/KTA Chief checks cannot complete. It must be deployed before those notices can appear.
+- Commander client conflict comparison also requires `schedule.academy`, but RTDB day records omit that field. Calendar and Event View now attach the currently selected academy at render time, fixing symmetric BLC/KTA comparison. NCOA Manager now uses the scoped server summary callable along with Chiefs.
+- Added scoped SGL access for BLC/KTA 0209 via the existing server-side read-only code configuration. The callable returns only the caller's event ID, location and counterpart academy; it does not grant schedule writes or return the other event's details. NCOA6120 now uses the same callable as the academy Chiefs.
+- Deployed `getCrossAcademyConflictNotices` to `blc-calendar-e302f` (Node.js 22, us-central1). Live checks accepted BLC/KTA read-only SGL requests and rejected unauthenticated requests. Checks used an empty date list, so they verified authentication/handler response, not real overlapping live schedule output. No production schedules were read through a populated query or modified.
+- TypeScript and production build passed (known AdMob source-map/Browserslist warnings); `git diff --check` passed. Automated tests were not run for this follow-up. Client code/doc changes are pending GitHub push. The temporary deployment parameter file was removed.
+
 ## GitHub push authorized (2026-10-17)
 
 - User requested pushing the verified changes to GitHub. Prepared the current `fix/android-audit-20261013` branch for push, containing notification center/grouping/bulk clear, login recovery, auth cancellation, conflict/ad/UI updates and their tests/docs. Exclude native generated/IDE-only local changes.

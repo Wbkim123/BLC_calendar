@@ -7,7 +7,7 @@ import { HistoryPage } from './history';
 // Keep non-remembered credentials only for the lifetime of this login.
 let sessionCredential: string | null = null;
 export const setHistoryCredential = (code: string | null) => { sessionCredential = code; };
-function getHistoryCredential() {
+export function getHistoryCredential() {
   if (sessionCredential) return sessionCredential;
   try {
     const login = JSON.parse(window.localStorage.getItem('blc_calendar_login') || 'null');

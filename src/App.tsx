@@ -13,7 +13,7 @@ import ScheduleNotificationModal, { PendingScheduleNotification } from './compon
 import GeneralSettings from './components/GeneralSettings';
 import NotificationOnboarding from './components/NotificationOnboarding';
 import NotificationCenter from './features/notification-center/NotificationCenter';
-import { setHistoryCredential } from './features/notification-center/api';
+import { getHistoryCredential, setHistoryCredential } from './features/notification-center/api';
 import TestSessionControls from './features/test-session/TestSessionControls';
 import { activeBLCStudentCycles, createTestAccessProfile, TestViewId } from './features/test-session/testAccessProfiles';
 import { DailySchedule, UserRole, TrainingEvent } from './types/schedule';
@@ -430,7 +430,11 @@ function App() {
     const isScopedAcademyChief = role === 'ADMIN'
       && accessProfile?.accessLevel === 'SCHEDULE_IMPORTER'
       && accessProfile.scope === academy;
-    if (!isScopedAcademyChief || isTestMode) {
+    const isNcoaManager = accessProfile?.accessLevel === 'NCOA_MANAGER'
+      && accessProfile.scope === 'NCOA';
+    const isScopedSgl = accessProfile?.accessLevel === 'SENIOR'
+      && accessProfile.scope === academy;
+    if ((!isScopedAcademyChief && !isNcoaManager && !isScopedSgl) || isTestMode) {
       setCrossAcademyConflictNotices([]);
       setCrossAcademyConflictCheckStatus('idle');
       return;
@@ -450,7 +454,9 @@ function App() {
       if (isChecking || disposed) return;
       isChecking = true;
       try {
-        const notices = await getCrossAcademyConflictNotices(academy, dates);
+        const readerCode = isScopedSgl ? getHistoryCredential() : null;
+        if (isScopedSgl && !readerCode) throw new Error('Sign in again to verify shared-location conflicts.');
+        const notices = await getCrossAcademyConflictNotices(academy, dates, readerCode);
         if (disposed) return;
         setCrossAcademyConflictNotices(notices);
         setCrossAcademyConflictCheckStatus('ready');
@@ -1665,7 +1671,7 @@ function App() {
       {testModeBadge}
       {emulatorBadge}
       <DailyView 
-        schedule={selectedSchedule} 
+        schedule={{ ...selectedSchedule, academy }}
         crossAcademySchedules={crossAcademySchedules}
         crossAcademyConflictNotices={crossAcademyConflictNotices}
         crossAcademyConflictCheckStatus={crossAcademyConflictCheckStatus}
@@ -1733,7 +1739,7 @@ function App() {
       {testModeBadge}
       {emulatorBadge}
       <Calendar 
-        schedules={filteredSchedules} 
+        schedules={filteredSchedules.map(schedule => ({ ...schedule, academy }))}
         crossAcademySchedules={crossAcademySchedules}
         crossAcademyConflictNotices={crossAcademyConflictNotices}
         crossAcademyConflictCheckStatus={crossAcademyConflictCheckStatus}
