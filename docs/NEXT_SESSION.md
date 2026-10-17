@@ -1,5 +1,24 @@
+## Mobile version push authorized (2026-10-17)
+
+- User explicitly approved master push/rebuild for iOS 2.0.2 and requested Android versionCode 14 / versionName 4.1.0. Both native settings are prepared; application/bundle ID unchanged. Preparing scoped commit and master push with existing Codemagic CI enabled.
+- Version settings and whitespace checked; runtime source unchanged. No new native compilation or store acceptance verified locally. Android store upload is not part of the existing iOS-only Codemagic workflow. Remote Config announcements remain disabled/unpublished by this work until public store availability.
+
+## iOS version correction prepared (2026-10-17)
+
+- User supplied Codemagic build 81 / commit 1c683a5 publishing failure: Apple 90062 and 90186, approved version 2.0.1 and closed 2.0.1 release train. IPA compilation succeeded; upload failed.
+- Changed iOS MARKETING_VERSION in both Debug and Release from 2.0.1 to 2.0.2. Info.plist reads this setting; Codemagic overrides only CURRENT_PROJECT_VERSION with BUILD_NUMBER. Bundle ID stays dev.pages.blccalendar.
+- Local setting checks and diff whitespace check passed. No macOS archive/upload verification, new push or build trigger performed. Needs explicit master push authorization for the corrected native build. Do not announce 2.0.2 through Remote Config until publicly available in the store.
+
+## Production SGL reader repair deployed (2026-10-17)
+
+- Live boundary checks also passed: all 8 unauthenticated/other-academy SGL requests across both endpoints and academies were denied with HTTP 403.
+- User explicitly authorized Firebase deployment after master push 1c683a5. Successfully deployed ONLY getCrossAcademyConflictNotices and getNotificationHistory to blc-calendar-e302f (Node.js 22, us-central1).
+- Live verification now returns HTTP 200 for both endpoints for BLC/KTA scoped SGL, Chief and NCOA Manager (12 successful queries). Former scoped-SGL 403 is resolved server-side. Reported date returns zero notices because the stored rooms differ; history is currently empty. Physical iPhone confirmation still pending; no new app build required for this server repair.
+- Temporary deployment parameter file was removed after successful deployment. No schedule writes, push notifications, other function/rule deployments or additional GitHub push. Earlier pending-deployment notes below are historical.
+
 ## Production SGL reader repair prepared, not deployed (2026-10-17)
 
+- Push completed: `1c683a5` fast-forwarded origin/master from `6ec443d`. Firebase reader deployment is still pending; automatic CI completion is unverified. This post-push status is local to avoid another docs-only CI trigger.
 - User confirmed BLC's location had changed, resolving the reported date's missing-marker concern, and explicitly requested pushing the repair. Preparing a scoped master push. Firebase deployment remains separate and pending; push alone does not fix the live SGL reader endpoints.
 - Active worktree remains mobile-audit-20261013, HEAD 6ec443d. Confirmed real academy-prefixed SGL logins receive 403 from BOTH production conflict/history endpoints: backend config only represented the legacy BLC credential. Previous diagnostic incorrectly tested legacy-derived prefixed credentials instead of released scoped SGL credentials.
 - Local fix adds separate scoped reader configuration, shares the authorization predicate between both functions, preserves bare legacy BLC access and academy boundaries. All 20 backend tests pass, including handler-level reciprocal AUD overlap and configuration parity. No frontend change; prior frontend/build verification applies.

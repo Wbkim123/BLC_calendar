@@ -1,5 +1,24 @@
+## Android and iOS version update authorized for master (2026-10-17)
+
+- User requested Android versionCode 14 and versionName 4.1.0 and explicitly approved pushing both native version changes to master. Android changed from 13 / 4.0.9; iOS Debug/Release already changed from 2.0.1 to 2.0.2 to address Apple's closed release train.
+- Verified native version settings, existing app/bundle ID, Info.plist wiring and Codemagic build-number override; whitespace check passed. No runtime source changes or new native archive verification. Existing master CI builds/uploads iOS; no Android AAB upload or Remote Config announcement performed.
+
+## iOS closed release train correction (2026-10-17)
+
+- Codemagic build 81 from master 1c683a5 generated the signed IPA but failed App Store Connect publishing. User-supplied Apple errors 90062/90186 identify 2.0.1 as previously approved and closed to further build submissions. Incrementing the CI build number alone cannot resolve this.
+- Updated both Debug/Release MARKETING_VERSION entries to 2.0.2. Confirmed Info.plist uses MARKETING_VERSION for CFBundleShortVersionString and CURRENT_PROJECT_VERSION for CFBundleVersion; Codemagic overrides only the latter with BUILD_NUMBER. Existing bundle ID and Android version retained.
+- Verified the two settings, plist wiring, CI override and whitespace locally. No runtime code changed, so no redundant frontend suite/build. Native archive and Apple acceptance require the next authorized macOS CI run. No push/upload/Remote Config publication performed. Firebase SGL repair already deployed remains effective independently of this failed app upload.
+
+## SGL reader production deployment completed (2026-10-17)
+
+- Live access-boundary verification passed: both endpoints deny unauthenticated and counterpart-academy SGL requests for both academies (8 expected HTTP 403 responses).
+- At explicit user request, deployed only getCrossAcademyConflictNotices and getNotificationHistory from pushed commit 1c683a5 to production blc-calendar-e302f, Node.js 22 / us-central1. Both update operations and CLI deployment completed successfully.
+- Post-deployment live verification: real scoped BLC/KTA SGL credentials now receive HTTP 200 on both endpoints (previously 403); fresh signed Chief and NCOA Manager sessions also succeed for both academies. All 12 reads pass. The reported date correctly returns no conflict for different stored locations; current history responses are empty. No phone UI/device receipt claim is made.
+- Used the existing deployment helper to prepare the current staging-device analysis parameter without printing its value, then removed the temporary dotenv file. No schedule mutation, notification send, database/rules deployment, unrelated function update or additional master push. Existing SDK-version upgrade warning remains; deployment itself succeeded. This is a server-only repair, applicable to the existing TestFlight app.
+
 ## Confirmed production scoped-SGL authentication mismatch (2026-10-17)
 
+- Push completed: `1c683a5` on origin/master, fast-forward from `6ec443d`. No Firebase deployment performed. The live SGL fix remains pending deployment of the two reader functions. Automatic CI completion is unverified; this post-push status note remains local.
 - Follow-up: user confirmed the BLC location change and requested pushing the prepared repair to master. Preparing scoped commit/push with existing CI enabled. No Firebase deployment requested in this follow-up; the live SGL fix still requires deploying both reader functions. The reported date discrepancy is resolved without a schedule mutation.
 - User clarified normal native logins fail while staging test-role views work. Reproduced HTTP 403/PERMISSION_DENIED on both production conflict and history endpoints using the actual scoped SGL credentials accepted by the client, for both academies. Root cause: notificationReaderConfig had only the legacy bare BLC credential; backend incorrectly treated that legacy suffix as the academy-scoped SGL suffix. Earlier zero-date/production checks tested the wrong derived credentials.
 - Prepared separate scopedSeniorCode configuration matching the released client without printing values. Both conflict and history now share isAuthorizedSglCode; bare legacy access remains BLC-only, scoped access requires the matching academy prefix, student cycle and signed administrator permissions remain unchanged. Removed acceptance of legacy-prefixed forms that are not staff logins in the client.
