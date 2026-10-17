@@ -106,7 +106,11 @@ describe('calendar conflict navigation', () => {
     expect(calendarDay?.className).toContain('calendar-day-location-only');
     expect(calendarDay?.className).not.toContain('bg-red-50');
     expect(calendarDay?.querySelector('.calendar-location-conflict-badge svg')).not.toBeNull();
-    expect(calendarDay?.querySelector('.calendar-location-conflict-badge')?.className).toContain('rounded-full');
+    const locationBadge = calendarDay?.querySelector('.calendar-location-conflict-badge');
+    expect(locationBadge?.className).toContain('rounded-full');
+    expect(locationBadge?.className).toContain('left-0.5');
+    expect(locationBadge?.className).toContain('top-0.5');
+    expect(locationBadge?.className).toContain('-translate-x-1/2');
     expect(screen.getByText('Orange building marks a cross-academy location conflict.')).toBeTruthy();
   });
 

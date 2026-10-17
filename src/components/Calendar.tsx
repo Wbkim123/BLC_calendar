@@ -298,7 +298,7 @@ export default function Calendar({
                       </div>
                     )}
                     {hasLocationConflict && (
-                      <span className="calendar-location-conflict-badge pointer-events-none absolute right-1 top-1 z-20 flex h-5 w-5 items-center justify-center rounded-full border border-orange-300 bg-white text-orange-600 shadow-[0_1px_4px_rgba(124,45,18,0.22)] ring-1 ring-white/80 lg:right-2 lg:top-2 lg:h-7 lg:w-7" aria-hidden="true">
+                      <span className="calendar-location-conflict-badge pointer-events-none absolute left-0.5 top-0.5 z-20 flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-orange-300 bg-white text-orange-600 shadow-[0_1px_4px_rgba(124,45,18,0.22)] ring-1 ring-white/80 lg:left-2 lg:top-2 lg:h-7 lg:w-7" aria-hidden="true">
                         <svg className="h-3.5 w-3.5 lg:h-[18px] lg:w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M4 21h16M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M9 7h.01M15 7h.01M9 11h.01M15 11h.01M9 15h.01M15 15h.01M11 21v-3h2v3" />
                         </svg>
