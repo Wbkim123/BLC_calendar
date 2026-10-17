@@ -1,16 +1,16 @@
 const { createHash, randomUUID } = require('node:crypto');
+const { isAuthorizedSglCode } = require('./crossAcademyConflicts');
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const PAGE_SIZE = 100;
 const normalize = value => typeof value === 'string' ? value.replace(/\s+/g, '').toUpperCase() : '';
 
 // Credentials are supplied by the existing read-only login configuration, never by the caller.
-function resolveHistoryReader({ token, code, academy, seniorCode, schedules, today }) {
+function resolveHistoryReader({ token, code, academy, seniorCode, scopedSeniorCode, schedules, today }) {
   if (!['BLC', 'KTA'].includes(academy) || token?.testMode) return null;
   if (code) {
     const normalized = normalize(code);
-    if (normalized === seniorCode && academy === 'BLC') return { audience: 'sgl' };
-    if (normalized === `${academy}${seniorCode}`) return { audience: 'sgl' };
+    if (isAuthorizedSglCode(normalized, academy, seniorCode, scopedSeniorCode)) return { audience: 'sgl' };
     if (academy !== 'BLC') return null;
     const student = /^(?:BLC)?(\d{2})(\d{2})$/.exec(normalized);
     if (!student) return null;

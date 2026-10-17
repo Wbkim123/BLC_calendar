@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const fs = require('node:fs');
 const path = require('node:path');
 
-function handlers({ failSave = false, failPush = false } = {}) {
+function handlers({ failSave = false, failPush = false, schedules = {} } = {}) {
   const calls = [];
   const exported = {};
   class HttpsError extends Error { constructor(code, message) { super(message); this.code = code; } }
@@ -14,10 +14,10 @@ function handlers({ failSave = false, failPush = false } = {}) {
     'firebase-functions/params': { defineSecret: () => ({ value: () => 'fixture-secret' }) },
     'firebase-admin/app': { initializeApp: () => {} },
     'firebase-admin/auth': { getAuth: () => ({}) },
-    'firebase-admin/database': { getDatabase: () => ({ ref: () => ({ once: async () => ({ val: () => null }) }) }) },
+    'firebase-admin/database': { getDatabase: () => ({ ref: path => ({ once: async () => ({ val: () => schedules[path] || null }) }) }) },
     'firebase-admin/firestore': { getFirestore: () => ({}), FieldPath: { documentId: () => '__name__' } },
     'firebase-admin/messaging': { getMessaging: () => ({ send: async message => { calls.push({ type: 'push', message }); if (failPush) throw new Error('Push failed'); return 'fixture-message'; } }) },
-    './notificationReaderConfig.json': { seniorCode: 'STAFF-EXAMPLE' },
+    './notificationReaderConfig.json': { seniorCode: 'LEGACY-EXAMPLE', scopedSeniorCode: 'STAFF-EXAMPLE' },
     './notificationHistory': { ...require('./notificationHistory'),
       saveHistory: async (_store, entry, recipients) => { calls.push({ type: 'save', entry, recipients }); if (failSave) throw new Error('Storage unavailable'); return 'a'.repeat(64); },
       readHistory: async (_store, _documentId, academy, audience, cursor) => { calls.push({ type: 'read', academy, audience, cursor }); return { items: [], nextCursor: null }; },
@@ -65,4 +65,33 @@ test('history callable validates credentials and ignores forged audience/cycle r
   await assert.rejects(api.getNotificationHistory({ auth: { token: { admin: true, scope: 'BLC' } }, data: { academy: 'KTA' } }), error => error.code === 'permission-denied');
   await assert.rejects(api.getNotificationHistory({ auth: { token: { admin: true, scope: 'BLC' } }, data: { academy: 'BLC', cursor: { createdAt: 'wrong', id: 'invalid' } } }), error => error.code === 'invalid-argument');
   assert.equal(calls.length, 1);
+});
+
+test('scoped SGL, Chief and manager handlers return reciprocal conflicts only for the same shared room', async () => {
+  const date = '2030-10-20';
+  const schedules = {
+    schedules: [{ date, events: [{ id: 'blc-fixture', time: '1300-1430', location: 'AUD' }] }],
+    'academies/kta/schedules': [{ date, events: [{ id: 'kta-fixture', time: '1400-1500', location: 'AUD' }] }]
+  };
+  const { api } = handlers({ schedules });
+  for (const academy of ['BLC', 'KTA']) {
+    for (const identity of [
+      { code: `${academy}STAFF-EXAMPLE` },
+      { token: { admin: true, scope: academy } },
+      { token: { ncoaManager: true, scope: 'NCOA' } }
+    ]) {
+      const response = await api.getCrossAcademyConflictNotices({ auth: identity.token ? { token: identity.token } : undefined,
+        data: { academy, dates: [date], ...(identity.code ? { code: identity.code } : {}) } });
+      assert.equal(response.notices.length, 1);
+      assert.equal(response.notices[0].otherAcademy, academy === 'BLC' ? 'KTA' : 'BLC');
+    }
+    await assert.rejects(api.getCrossAcademyConflictNotices({ data: { academy, dates: [date],
+      code: `${academy === 'BLC' ? 'KTA' : 'BLC'}STAFF-EXAMPLE` } }), error => error.code === 'permission-denied');
+  }
+  await assert.rejects(api.getCrossAcademyConflictNotices({ data: { academy: 'KTA', dates: [date], code: 'LEGACY-EXAMPLE' } }), error => error.code === 'permission-denied');
+  const legacy = await api.getCrossAcademyConflictNotices({ data: { academy: 'BLC', dates: [date], code: 'LEGACY-EXAMPLE' } });
+  assert.equal(legacy.notices.length, 1);
+  schedules.schedules[0].events[0].location = 'MPR';
+  const differentRoom = await api.getCrossAcademyConflictNotices({ data: { academy: 'BLC', dates: [date], code: 'BLCSTAFF-EXAMPLE' } });
+  assert.equal(differentRoom.notices.length, 0);
 });

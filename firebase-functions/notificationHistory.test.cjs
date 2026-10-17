@@ -4,7 +4,7 @@ const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const { resolveHistoryReader, historyAudiences, historyId, saveHistory, readHistory, pruneHistory, RETENTION_MS } = require('./notificationHistory');
 
-const reader = overrides => resolveHistoryReader({ academy: 'BLC', seniorCode: 'STAFF-EXAMPLE', today: '2030-10-16', ...overrides });
+const reader = overrides => resolveHistoryReader({ academy: 'BLC', seniorCode: 'LEGACY-EXAMPLE', scopedSeniorCode: 'STAFF-EXAMPLE', today: '2030-10-16', ...overrides });
 test('history reader accepts only signed academy Chief / NCOA Manager scopes', () => {
   assert.equal(reader({ token: { admin: true, scope: 'KTA' } }), null);
   assert.equal(reader({ token: { admin: true } }), null);
@@ -16,9 +16,12 @@ test('history reader accepts only signed academy Chief / NCOA Manager scopes', (
 });
 
 test('read-only credentials are independently scoped and cannot inherit stale admin authentication', () => {
-  assert.deepEqual(reader({ code: 'STAFF-EXAMPLE' }), { audience: 'sgl' });
+  assert.deepEqual(reader({ code: 'LEGACY-EXAMPLE' }), { audience: 'sgl' });
+  assert.deepEqual(reader({ code: 'BLCSTAFF-EXAMPLE' }), { audience: 'sgl' });
   assert.deepEqual(reader({ academy: 'KTA', code: 'KTAstaff-example' }), { audience: 'sgl' });
   assert.equal(reader({ academy: 'KTA', code: 'STAFF-EXAMPLE' }), null);
+  assert.equal(reader({ academy: 'KTA', code: 'LEGACY-EXAMPLE' }), null);
+  assert.equal(reader({ academy: 'KTA', code: 'KTALEGACY-EXAMPLE' }), null);
   assert.equal(reader({ academy: 'KTA', code: 'BLCSTAFF-EXAMPLE' }), null);
   assert.equal(reader({ code: 'invalid', token: { admin: true, scope: 'BLC' } }), null);
 });
@@ -35,8 +38,21 @@ test('student history derives the cycle from credential, requires active BLC cyc
 test('server read-only configuration matches released login without printing credentials', () => {
   const source = readFileSync(path.join(__dirname, '../src/features/auth/accessCodes.ts'), 'utf8');
   const matched = /if \(normalized === '(\d+)'\)/.exec(source);
-  const { seniorCode } = require('./notificationReaderConfig.json');
+  const { seniorCode, scopedSeniorCode } = require('./notificationReaderConfig.json');
   assert.ok(Boolean(matched) && matched[1] === seniorCode, 'Read-only login configuration must remain synchronized.');
+  const importer = source.match(/const importer = staffMatch\[2\] === '(\d+)'/);
+  const staff = source.match(/const staffMatch = (.+)/);
+  const scoped = staff?.[1].match(/\d{4}/g)?.find(value => value !== importer?.[1]);
+  assert.ok(Boolean(scoped) && scoped === scopedSeniorCode, 'Academy-scoped SGL configuration must match the client.');
+  const { isAuthorizedSglCode } = require('./crossAcademyConflicts');
+  for (const academy of ['BLC', 'KTA']) {
+    const code = `${academy}${scoped}`;
+    assert.ok(isAuthorizedSglCode(code, academy, seniorCode, scopedSeniorCode), 'Released SGL must pass conflict authorization.');
+    assert.ok(resolveHistoryReader({ code, academy, seniorCode, scopedSeniorCode })?.audience === 'sgl', 'Released SGL must pass history authorization.');
+    const otherAcademy = academy === 'BLC' ? 'KTA' : 'BLC';
+    assert.ok(!isAuthorizedSglCode(code, otherAcademy, seniorCode, scopedSeniorCode), 'Other academy must remain inaccessible.');
+    assert.ok(!resolveHistoryReader({ code, academy: otherAcademy, seniorCode, scopedSeniorCode }), 'Other academy history must remain inaccessible.');
+  }
 });
 
 test('audiences match explicit send choices; staff notes never enter student history', () => {

@@ -11,7 +11,7 @@ const { getMessaging } = require('firebase-admin/messaging');
 const { getFirestore, FieldPath } = require('firebase-admin/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { resolveHistoryReader, saveHistory, readHistory, pruneHistory } = require('./notificationHistory');
-const { seniorCode } = require('./notificationReaderConfig.json');
+const { seniorCode, scopedSeniorCode } = require('./notificationReaderConfig.json');
 const {
   getCrossAcademyConflictNotices,
   isAuthorizedForCrossAcademyConflicts,
@@ -121,7 +121,7 @@ exports.createAdminSession = onCall(
 exports.getCrossAcademyConflictNotices = onCall({ region: 'us-central1' }, async request => {
   const academy = sanitizeAcademy(request.data?.academy);
   const isAuthenticatedStaff = request.auth && isAuthorizedForCrossAcademyConflicts(request.auth.token, academy);
-  const isScopedSgl = isAuthorizedSglCode(request.data?.code, academy, seniorCode);
+  const isScopedSgl = isAuthorizedSglCode(request.data?.code, academy, seniorCode, scopedSeniorCode);
   if (!isAuthenticatedStaff && !isScopedSgl) {
     throw new HttpsError('permission-denied', 'Academy-scoped administrator authentication is required.');
   }
@@ -157,10 +157,10 @@ exports.getNotificationHistory = onCall({ region: 'us-central1' }, async request
   // Only student credentials need current cycle dates; staff never fetch another academy here.
   const normalized = typeof code === 'string' ? code.replace(/\s+/g, '').toUpperCase() : '';
   const isStudent = academy === 'BLC' && /^(?:BLC)?\d{4}$/.test(normalized)
-    && normalized !== seniorCode && normalized !== `BLC${seniorCode}`;
+    && !isAuthorizedSglCode(normalized, academy, seniorCode, scopedSeniorCode);
   const schedules = isStudent ? (await getDatabase().ref('schedules').once('value')).val() : null;
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const reader = resolveHistoryReader({ token: request.auth?.token, code, academy, seniorCode, schedules, today });
+  const reader = resolveHistoryReader({ token: request.auth?.token, code, academy, seniorCode, scopedSeniorCode, schedules, today });
   if (!reader) throw new HttpsError('permission-denied', 'Please sign in again to view notifications.');
   const cursor = request.data?.cursor;
   if (cursor && (!Number.isSafeInteger(cursor.createdAt) || typeof cursor.id !== 'string' || !/^[a-f0-9]{64}$/.test(cursor.id))) {

@@ -24,13 +24,13 @@ const isAuthorizedForCrossAcademyConflicts = (claims, academy) =>
   (claims?.admin === true && claims.scope === academy)
   || (claims?.ncoaManager === true && claims.scope === 'NCOA');
 
-const isAuthorizedSglCode = (code, academy, seniorCode) => {
+const isAuthorizedSglCode = (code, academy, seniorCode, scopedSeniorCode) => {
   const normalized = typeof code === 'string' ? code.replace(/\s+/g, '').toUpperCase() : '';
   const expected = typeof seniorCode === 'string' ? seniorCode.replace(/\s+/g, '').toUpperCase() : '';
-  return Boolean(expected && (
-    (academy === 'BLC' && normalized === expected)
-    || normalized === `${academy}${expected}`
-  ));
+  const scoped = typeof scopedSeniorCode === 'string' ? scopedSeniorCode.replace(/\s+/g, '').toUpperCase() : '';
+  if (!['BLC', 'KTA'].includes(academy)) return false;
+  return Boolean((expected && academy === 'BLC' && normalized === expected)
+    || (scoped && normalized === `${academy}${scoped}`));
 };
 
 const getCrossAcademyConflictNotices = (academy, ownScheduleData, otherScheduleData, dates) => {

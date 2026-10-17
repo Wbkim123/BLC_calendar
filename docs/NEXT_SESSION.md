@@ -1,5 +1,15 @@
+## Production SGL reader repair prepared, not deployed (2026-10-17)
+
+- User confirmed BLC's location had changed, resolving the reported date's missing-marker concern, and explicitly requested pushing the repair. Preparing a scoped master push. Firebase deployment remains separate and pending; push alone does not fix the live SGL reader endpoints.
+- Active worktree remains mobile-audit-20261013, HEAD 6ec443d. Confirmed real academy-prefixed SGL logins receive 403 from BOTH production conflict/history endpoints: backend config only represented the legacy BLC credential. Previous diagnostic incorrectly tested legacy-derived prefixed credentials instead of released scoped SGL credentials.
+- Local fix adds separate scoped reader configuration, shares the authorization predicate between both functions, preserves bare legacy BLC access and academy boundaries. All 20 backend tests pass, including handler-level reciprocal AUD overlap and configuration parity. No frontend change; prior frontend/build verification applies.
+- Fresh manager/Chief production authentication and both read endpoints succeeded for both academies. Recent iPhone logs include signed successful queries and unsigned 403 queries; these are not sufficient to attribute every report to the same role/session.
+- Read-only verification of the reported production date found BLC 13:00-14:30 in MPR and KTA 14:00-15:00 in AUD, so no shared-room conflict currently exists there. Asked whether the phone's normal-login view also shows MPR; do not alter production schedule data to manufacture a conflict.
+- Pending explicit authorization to deploy ONLY getCrossAcademyConflictNotices and getNotificationHistory, then repeat scripts/verify-staff-readers.cjs with real scoped credentials. No push/deploy performed. New diagnostic scripts never log credentials or returned schedule/history payloads. Preserve unrelated dirty files and prior local handoff notes.
+
 ## App update guidance master push authorized (2026-10-17)
 
+- Push completed: `6ec443d` fast-forwarded remote master from `64dc372`. CI completion/store availability remain unverified. This post-push status note is local to avoid another CI-triggering docs-only commit.
 - User explicitly requested pushing this feature to master. Preparing the scoped feature commit and normal fast-forward push; existing master CI remains enabled. Earlier local-only status below describes the pre-push state.
 - Final recheck: all 32 frontend suites / 158 tests and TypeScript passed, including a new regression proving a newer announcement prompts after the previous version was snoozed. Production build already passed for unchanged runtime source.
 - Store availability is not automatically discovered: each public release requires publishing the platform-specific Remote Config metadata described in APP_UPDATES.md. No Remote Config publication or physical-device validation has occurred. Existing users must first install a native build containing this feature.
