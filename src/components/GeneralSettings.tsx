@@ -5,6 +5,7 @@ import { AcademyId } from '../types/academy';
 import type { AccessLevel } from '../types/academy';
 import { isAdPrivacyOptionsRequired, showAdPrivacyOptions } from './AdMobBanner';
 import NotificationPrompt from './NotificationPrompt';
+import { UpdateSettingsCard } from '../features/app-update/AppUpdateProvider';
 
 interface Props {
   role: UserRole;
@@ -133,6 +134,7 @@ export default function GeneralSettings({
             </div>
 
             <div className="space-y-3">
+              <UpdateSettingsCard />
               {testMode && testSessionControl}
 
               {academyControl && allAcademies && (

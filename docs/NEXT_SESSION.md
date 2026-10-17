@@ -1,3 +1,16 @@
+## App update guidance master push authorized (2026-10-17)
+
+- User explicitly requested pushing this feature to master. Preparing the scoped feature commit and normal fast-forward push; existing master CI remains enabled. Earlier local-only status below describes the pre-push state.
+- Final recheck: all 32 frontend suites / 158 tests and TypeScript passed, including a new regression proving a newer announcement prompts after the previous version was snoozed. Production build already passed for unchanged runtime source.
+- Store availability is not automatically discovered: each public release requires publishing the platform-specific Remote Config metadata described in APP_UPDATES.md. No Remote Config publication or physical-device validation has occurred. Existing users must first install a native build containing this feature.
+
+## Optional app update guidance implemented locally (2026-10-17)
+
+- Active worktree: `release-assets/mobile-audit-20261013`, based on master marker commit `64dc372`. New update-guidance work is local/uncommitted; no new push, Firebase/Remote Config publication or store build submitted.
+- Native launch/foreground optional update modal, per-version 24-hour snooze, persistent Settings link, separate iOS/Android Remote Config JSON parameters, numeric installed-version comparison and web/PWA exclusion are implemented. See `docs/APP_UPDATES.md` for disabled initial values and release activation instructions. Public store versions must be verified before enabling prompts.
+- All 32 frontend suites / 157 tests, TypeScript and production web build passed. Capacitor App dependency added and local native dependencies updated; `cap sync` is still part of native release preparation. Native compilation/device operation/live Remote Config remain unverified. Backups of previously dirty native generated files are at `release-assets/app-update-native-backup`; preserve unrelated dirty files.
+- C: has no free space. npm cache was moved for this install to `release-assets/npm-cache-app-update` on E:; direct Node tools and project-local Jest cache avoided npm's C: logging. No user data was removed. Detailed validation and limitations are in PROJECT_HANDOFF.md.
+
 ## Notification backend deployed / master pushed (2026-10-17)
 
 - Cross-academy follow-up deployed: `getCrossAcademyConflictNotices` is now ACTIVE in production. BLC/KTA 0209 read-only SGL and NCOA6120/Chief scopes supported. SGL gets conflict fact summaries without edit access or counterpart event details. Live BLC/KTA SGL auth checks passed; no populated schedule query/device visual test yet. App changes TypeScript/build/diff-check passed and remain to be committed/pushed.
