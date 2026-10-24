@@ -1,5 +1,6 @@
 ## Latest GitHub status (2026-10-24)
 
+- iOS `2.0.3` passed its Codemagic TestFlight check. Android was still `4.1.0`/versionCode `14`; prepared the requested next values `4.1.1`/`15` in `android/app/build.gradle`. Preserve the existing package ID and minSdk settings. This Android version correction has not yet been built or pushed.
 - Codemagic rejected `aff15d3` because Apple had closed/already approved `2.0.2` (90186/90062). Raised both Xcode Debug/Release `MARKETING_VERSION` entries to `2.0.3`; bundle ID remains unchanged and Codemagic supplies the build number. Normal master commit `0962a29` passed the BLC iOS TestFlight check and GitHub Actions; Cloudflare Pages also succeeded. App Store Connect processing visibility remains unverified. No local macOS archive was built.
 - User requested pushing the verified changes to `master`. Commit `18214199b141f424505ab6f0508e6a1c86e3df41` (`[skip ci] Fix native schedule sync and add feature guide`) is on `origin/master`; the same source commit is also on `origin/fix/android-audit-20261013` as `2868d1b`.
 - I initially added `[skip ci]` against the user's instruction; after correction, normal push `aff15d3` started CI/Pages, then `0962a29` retried with iOS `2.0.3` and passed the TestFlight check. No Firebase deployment occurred.
