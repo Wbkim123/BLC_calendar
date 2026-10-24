@@ -6,6 +6,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import App from './App';
 import { TV_ACCESS_CODES } from './features/auth/tvAccessCodes';
+import { tourStorageKey } from './features/feature-tour/policy';
 
 const mockDay = (cycleName: string, date: string) => ({ cycleName, date, dayLabel: 'Training', events: [] });
 let mockDatabase: Record<string, unknown> = {};
@@ -39,7 +40,7 @@ jest.mock('./notifications', () => ({
   createAdminSession: async () => undefined,
   prepareNotificationEnvironment: async () => undefined,
   disableNotifications: async () => undefined,
-  getAdminIdToken: async () => null,
+  getAdminIdToken: async () => 'synthetic-id-token',
   getCrossAcademyConflictNotices: async () => [],
   isPhoneDevice: () => false,
   listenForForegroundNotifications: async () => () => undefined
@@ -50,14 +51,21 @@ jest.mock('./features/ads/appOpen', () => ({
 jest.mock('./components/GeneralSettings', () => ({ __esModule: true, default: ({ onLogout }: any) => <button onClick={onLogout}>Logout</button> }));
 jest.mock('./components/NotificationPrompt', () => () => null);
 jest.mock('./components/ScheduleImportModal', () => () => null);
-jest.mock('./components/ScheduleNotificationModal', () => () => null);
+jest.mock('./components/ScheduleNotificationModal', () => () => <div>Notification chooser</div>);
 jest.mock('./components/Calendar', () => () => <div>Calendar screen</div>);
-jest.mock('./components/DailyView', () => ({ __esModule: true, default: ({ schedule, onBack, viewControls }: any) => (
-  <div>{viewControls}<div>Events {schedule.cycleName}</div>{onBack && <button onClick={onBack}>Calendar</button>}</div>
+jest.mock('./components/DailyView', () => ({ __esModule: true, default: ({ schedule, onBack, viewControls, onSave, onCreateEvent, onDeleteEvent }: any) => (
+  <div>{viewControls}<div>Events {schedule.cycleName}</div>{onBack && <button onClick={onBack}>Calendar</button>}
+    {schedule.events.map((event: any) => <div key={event.id}>{event.eventName}</div>)}
+    <button onClick={() => onSave(schedule.date, { ...schedule.events[0], eventName: 'Updated event' })}>Test save</button>
+    <button onClick={() => onCreateEvent(schedule.date, { id: 'new-event', eventName: 'Created event', time: '1100-1200', location: 'CR', uniform: 'ACU' })}>Test create</button>
+    <button onClick={() => onDeleteEvent(schedule.date, schedule.events[0].id)}>Test delete</button>
+  </div>
 ) }));
 
 beforeEach(() => {
+  Object.defineProperty(window, 'crypto', { configurable: true, value: { getRandomValues: (values: Uint32Array) => values.fill(1) } });
   window.localStorage.clear();
+  window.localStorage.setItem(tourStorageKey(), 'seen');
   jest.clearAllMocks();
   mockPlatform = 'web';
   jest.mocked(signOut).mockReset().mockResolvedValue(undefined);
@@ -76,6 +84,122 @@ const loginTv = async (academy: 'BLC' | 'KTA') => {
 };
 
 describe('website TV integration', () => {
+  const prepareNativeChief = (platform: string, academy = 'BLC') => {
+    mockPlatform = platform;
+    mockRealtimeEnabled = false;
+    const today = new Date();
+    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const path = academy === 'BLC' ? 'schedules' : 'academies/kta/schedules';
+    mockDatabase[path] = [{ ...mockDay('Test cycle', date), events: [
+      { id: 'event', eventName: 'Original event', time: '0900-1000', location: 'CR', uniform: 'ACU' }
+    ] }];
+    localStorage.setItem('blc_calendar_login', JSON.stringify({ role: 'ADMIN', profile: {
+      role: 'ADMIN', accessLevel: 'SCHEDULE_IMPORTER', academy, scope: academy,
+      permissions: ['schedule.read', 'schedule.write', 'schedule.import', 'location.manage']
+    } }));
+    return path;
+  };
+
+  it.each(['ios', 'android'])('reflects confirmed event edits, additions and deletion on %s without realtime delivery', async platform => {
+    prepareNativeChief(platform);
+    render(<App />);
+    await screen.findByText('Original event');
+    fireEvent.click(screen.getByText('Test save'));
+    await screen.findByText('Updated event');
+    expect(screen.queryByText('Original event')).toBeNull();
+    expect(screen.getByText('Notification chooser')).toBeTruthy();
+    fireEvent.click(screen.getByText('Test create'));
+    await screen.findByText('Created event');
+    fireEvent.click(screen.getByText('Test delete'));
+    await waitFor(() => expect(screen.queryByText('Updated event')).toBeNull());
+    expect(screen.getByText('Created event')).toBeTruthy();
+  });
+
+  it.each(['ios', 'android'])('automatically introduces features to an existing saved Chief login after updating on %s', async platform => {
+    prepareNativeChief(platform);
+    localStorage.removeItem(tourStorageKey());
+    render(<App />);
+    await screen.findByRole('dialog', { name: 'Your day, at a glance' });
+    fireEvent.click(screen.getByRole('button', { name: 'Skip guide' }));
+    expect(localStorage.getItem(tourStorageKey())).toBe('seen');
+    expect(screen.getByText('Original event')).toBeTruthy();
+  });
+
+  it('does not update the schedule or offer notifications after a rejected save', async () => {
+    prepareNativeChief('android');
+    const originalRead = global.fetch;
+    global.fetch = jest.fn((input, init) => init?.method === 'PATCH'
+      ? Promise.resolve({ ok: false, status: 403 } as Response) : originalRead(input, init));
+    const alert = jest.spyOn(window, 'alert').mockImplementation(() => undefined);
+    try {
+      render(<App />);
+      await screen.findByText('Original event');
+      fireEvent.click(screen.getByText('Test save'));
+      await waitFor(() => expect(alert).toHaveBeenCalled());
+      expect(screen.getByText('Original event')).toBeTruthy();
+      expect(screen.queryByText('Notification chooser')).toBeNull();
+    } finally { alert.mockRestore(); }
+  });
+
+  it('writes the actual event database key after sparse events are normalized for display', async () => {
+    const path = prepareNativeChief('android');
+    const day = (mockDatabase[path] as any[])[0];
+    mockDatabase[path] = { 'day-key': { ...day, events: { 'event-key': day.events[0] } } };
+    render(<App />);
+    await screen.findByText('Original event');
+    fireEvent.click(screen.getByText('Test save'));
+    await screen.findByText('Updated event');
+    const write = jest.mocked(global.fetch).mock.calls.find(([, options]) => options?.method === 'PATCH');
+    expect(Object.keys(JSON.parse(String(write?.[1]?.body)))).toEqual(['schedules/day-key/events/event-key']);
+  });
+
+  it('discards an old HTTPS response that arrives after a confirmed save', async () => {
+    const path = prepareNativeChief('ios');
+    render(<App />);
+    await screen.findByText('Original event');
+    const stale = JSON.parse(JSON.stringify(mockDatabase[path]));
+    const originalRead = global.fetch;
+    let finishOldRead: (response: Response) => void = () => undefined;
+    let pauseRead = true;
+    global.fetch = jest.fn((input, init) => {
+      if (init?.method === 'PATCH') {
+        const day = (mockDatabase[path] as any[])[0];
+        mockDatabase[path] = [{ ...day, events: [{ ...day.events[0], eventName: 'Updated event' }] }];
+        return Promise.resolve({ ok: true, status: 200 } as Response);
+      }
+      if (String(input).endsWith('/schedules.json') && pauseRead) {
+        pauseRead = false;
+        return new Promise<Response>(resolve => { finishOldRead = resolve; });
+      }
+      return originalRead(input, init);
+    });
+    fireEvent(document, new Event('visibilitychange'));
+    fireEvent.click(screen.getByText('Test save'));
+    await screen.findByText('Updated event');
+    await act(async () => { finishOldRead({ ok: true, json: async () => stale } as Response); });
+    expect(screen.queryByText('Original event')).toBeNull();
+    expect(screen.getByText('Updated event')).toBeTruthy();
+  });
+
+  it('refreshes its own academy on native foreground and retains schedules on temporary read failure', async () => {
+    const path = prepareNativeChief('ios', 'KTA');
+    render(<App />);
+    await screen.findByText('Original event');
+    const day = (mockDatabase[path] as any[])[0];
+    mockDatabase[path] = [{ ...day, events: [{ ...day.events[0], eventName: 'Remote change' }] }];
+    fireEvent(document, new Event('visibilitychange'));
+    await screen.findByText('Remote change');
+    const requests = jest.mocked(global.fetch).mock.calls.map(([url]) => String(url));
+    expect(requests.some(url => url === 'https://example.invalid/schedules.json')).toBe(false);
+    jest.mocked(global.fetch).mockResolvedValue({ ok: false, status: 503 } as Response);
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      fireEvent(window, new Event('online'));
+      await screen.findByText(/Schedule refresh failed/);
+      expect(screen.getByText('Remote change')).toBeTruthy();
+    } finally { log.mockRestore(); }
+  });
+
   it.each(['ios', 'android'])('logs in again on %s without waiting on unused JS Auth', async platform => {
     mockPlatform = platform;
     jest.mocked(signOut).mockImplementation(() => new Promise(() => undefined));

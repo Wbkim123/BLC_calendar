@@ -18,3 +18,12 @@ test('academy-scoped Chief cannot switch academy', async () => {
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Open settings' })); });
   expect(screen.queryByRole('button', { name: 'Switch academy' })).toBeNull();
 });
+
+test('App guide closes Settings and opens the replay callback', async () => {
+  const openGuide = jest.fn();
+  render(<GeneralSettings {...base} role="VIEWER" onOpenAppGuide={openGuide} />);
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Open settings' })); });
+  fireEvent.click(screen.getByRole('button', { name: /App guide/ }));
+  expect(openGuide).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('button', { name: 'Close settings' })).toBeNull();
+});

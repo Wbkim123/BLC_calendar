@@ -77,6 +77,51 @@ test('enabling staging notifications never subscribes to a production audience',
 
 const fixtureToken = (claims: object) => `fixture.${window.btoa(JSON.stringify(claims))}.signature`;
 
+test.each(['android', 'ios'])('%s recovers rejected refresh credentials through the saved Chief login', async platform => {
+  jest.spyOn(Capacitor, 'getPlatform').mockReturnValue(platform);
+  selectStagingSession(false);
+  localStorage.setItem('blc_calendar_login', JSON.stringify({ code: 'synthetic-chief', profile: { accessLevel: 'SCHEDULE_IMPORTER', academy: 'BLC' } }));
+  localStorage.setItem('blc_admin_refresh_token', 'expired-fixture');
+  const renewed = fixtureToken({ admin: true, scope: 'BLC' });
+  fetchMock.mockResolvedValueOnce(reply({ error: { message: 'TOKEN_EXPIRED' } }, false))
+    .mockResolvedValueOnce(reply({ result: { token: 'custom-fixture' } }))
+    .mockResolvedValueOnce(reply({ idToken: renewed, refreshToken: 'new-fixture' }));
+  expect(await getAdminIdToken()).toBe(renewed);
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+});
+
+test('expired ID token without a refresh token is renewed instead of being sent to the database', async () => {
+  selectStagingSession(false);
+  localStorage.setItem('blc_calendar_login', JSON.stringify({ code: 'synthetic-chief', profile: { accessLevel: 'SCHEDULE_IMPORTER', academy: 'KTA' } }));
+  localStorage.setItem('blc_admin_id_token', fixtureToken({ admin: true, scope: 'KTA', exp: 1 }));
+  const renewed = fixtureToken({ admin: true, scope: 'KTA' });
+  fetchMock.mockResolvedValueOnce(reply({ result: { token: 'custom-fixture' } }))
+    .mockResolvedValueOnce(reply({ idToken: renewed }));
+  expect(await getAdminIdToken()).toBe(renewed);
+});
+
+test('concurrent auth requests share one refresh', async () => {
+  selectStagingSession(false);
+  localStorage.setItem('blc_admin_refresh_token', 'refresh-fixture');
+  const token = fixtureToken({ admin: true, scope: 'BLC' });
+  fetchMock.mockResolvedValueOnce(reply({ id_token: token }));
+  expect(await Promise.all([getAdminIdToken(), getAdminIdToken(), getAdminIdToken()])).toEqual([token, token, token]);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test('forced recovery works during a login with Keep Login disabled', async () => {
+  selectStagingSession(false);
+  const token = fixtureToken({ admin: true, scope: 'BLC' });
+  fetchMock.mockResolvedValueOnce(reply({ result: { token: 'custom-fixture' } }))
+    .mockResolvedValueOnce(reply({ idToken: token }));
+  await createAdminSession('synthetic-chief');
+  expect(localStorage.getItem('blc_calendar_login')).toBeNull();
+  fetchMock.mockResolvedValueOnce(reply({ result: { token: 'custom-renewal' } }))
+    .mockResolvedValueOnce(reply({ idToken: token }));
+  expect(await getAdminIdToken(true)).toBe(token);
+  expect(fetchMock).toHaveBeenCalledTimes(4);
+});
+
 test('failed native unsubscribe preserves registration and permits retry', async () => {
   selectStagingSession(false);
   fetchMock.mockResolvedValueOnce(reply({ result: { subscribed: true, topic: 'audience-blc-admin' } }));

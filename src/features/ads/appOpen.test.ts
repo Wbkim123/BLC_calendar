@@ -5,7 +5,6 @@ import {
   APP_OPEN_AD_COOLDOWN_MS,
   getAppOpenAdId,
   isAppOpenAdEligible,
-  resetAppOpenAdCooldown,
   showAppOpenAdIfEligible
 } from './appOpen';
 
@@ -18,7 +17,7 @@ jest.mock('@capacitor-community/admob', () => ({ AdMob: {
   showAppOpen: async () => undefined
 } }));
 
-beforeEach(() => { jest.restoreAllMocks(); localStorage.clear(); resetAppOpenAdCooldown(); });
+beforeEach(() => { jest.restoreAllMocks(); localStorage.clear(); });
 
 describe('App Open ad policy and cadence', () => {
   const now = 1_700_000_000_000;
@@ -56,6 +55,17 @@ describe('App Open ad policy and cadence', () => {
     expect(load).not.toHaveBeenCalled();
   });
 
+  it('does not present an ad if the feature guide opens while the ad is loading', async () => {
+    const guide = document.createElement('div');
+    guide.dataset.featureTour = 'true';
+    jest.spyOn(AdMob, 'loadAppOpen').mockImplementationOnce(async () => { document.body.appendChild(guide); });
+    const show = jest.spyOn(AdMob, 'showAppOpen');
+    try {
+      expect(await showAppOpenAdIfEligible()).toBe(false);
+      expect(show).not.toHaveBeenCalled();
+    } finally { guide.remove(); }
+  });
+
   it('waits 30 minutes after an ad is closed while the app remains open', async () => {
     const clock = jest.spyOn(Date, 'now').mockReturnValue(now);
     expect(await showAppOpenAdIfEligible()).toBe(true);
@@ -70,23 +80,39 @@ describe('App Open ad policy and cadence', () => {
     expect(await showAppOpenAdIfEligible()).toBe(true);
   });
 
-  it('clears the foreground cooldown when the app is backgrounded so resume can show immediately', async () => {
+  it('retains the cooldown on foreground resume', async () => {
     expect(await showAppOpenAdIfEligible()).toBe(true);
     expect(await showAppOpenAdIfEligible()).toBe(false);
 
-    resetAppOpenAdCooldown();
-
-    expect(await showAppOpenAdIfEligible()).toBe(true);
+    expect(await showAppOpenAdIfEligible(false, true)).toBe(false);
   });
 
-  it('does not persist App Open cooldown across app launches', async () => {
+  it('persists cooldown across app launches until 30 minutes have passed', async () => {
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(now);
     expect(await showAppOpenAdIfEligible()).toBe(true);
-    expect(localStorage.length).toBe(0);
+    let restartedShow = showAppOpenAdIfEligible;
+    jest.isolateModules(() => {
+      restartedShow = require('./appOpen').showAppOpenAdIfEligible;
+    });
+    clock.mockReturnValue(now + APP_OPEN_AD_COOLDOWN_MS - 1);
+    expect(await restartedShow()).toBe(false);
+    clock.mockReturnValue(now + APP_OPEN_AD_COOLDOWN_MS);
+    expect(await restartedShow()).toBe(true);
   });
 
   it('waits 30 minutes between App Open ads', () => {
     expect(isAppOpenAdEligible(now - APP_OPEN_AD_COOLDOWN_MS + 1, now)).toBe(false);
     expect(isAppOpenAdEligible(now - APP_OPEN_AD_COOLDOWN_MS, now)).toBe(true);
+  });
+
+  it('keeps a session cooldown when storage writes fail', async () => {
+    jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage full'); });
+    let isolatedShow = showAppOpenAdIfEligible;
+    jest.isolateModules(() => {
+      isolatedShow = require('./appOpen').showAppOpenAdIfEligible;
+    });
+    expect(await isolatedShow()).toBe(true);
+    expect(await isolatedShow(false, true)).toBe(false);
   });
 
   it('uses platform-specific Google demo units in test mode', () => {

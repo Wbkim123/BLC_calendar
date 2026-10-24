@@ -1,4 +1,9 @@
-import { isStagingSession, selectStagingSession, stagingDatabaseUrl, getSessionGeneration, stagingAuth } from './staging';
+import { isStagingSession, selectStagingSession, stagingDatabaseUrl, stagingAuth } from './staging';
+import { requestNativeDatabaseWrite } from './features/schedule-sync/nativeWrite';
+import FeatureTour from './features/feature-tour/FeatureTour';
+import { FeatureTourPreviewRole, getFeatureTourPreviewRole } from './features/feature-tour/previewMode';
+import { useFeatureTour } from './features/feature-tour/useFeatureTour';
+import { useAppUpdatePromptOpen } from './features/app-update/AppUpdateProvider';
 import { canUseWebsite } from './features/auth/webAccess';
 import { chooseAutoTvSchedule, chooseTvSchedule } from './features/tv/tvSchedules';
 import TvScheduleControls from './features/tv/TvScheduleControls';
@@ -26,7 +31,6 @@ import type { CrossAcademyConflictCheckStatus, CrossAcademyConflictNotice } from
 import NcoaChatbot from './features/chatbot/NcoaChatbot';
 import {
   isAppOpenAdShowing,
-  resetAppOpenAdCooldown,
   showAppOpenAdIfEligible
 } from './features/ads/appOpen';
 import { mockSchedules } from './data/mockData';
@@ -52,7 +56,6 @@ const LEGACY_06_26_CYCLE = '06-26';
 const LOGIN_STORAGE_KEY = 'blc_calendar_login';
 const DISPLAY_MODE_STORAGE_KEY = 'blc_calendar_display_mode';
 const DARK_MODE_STORAGE_KEY = 'blc_calendar_dark_mode';
-const DATABASE_WRITE_TIMEOUT_MS = 15000;
 
 export type DisplayMode = 'auto' | 'tv';
 
@@ -120,42 +123,6 @@ const getScheduleEndDateTime = (schedule?: DailySchedule | null) => {
   return endDate;
 };
 
-const requestNativeDatabaseWrite = async (
-  path: string,
-  method: 'PATCH' | 'PUT' | 'DELETE',
-  value?: unknown
-) => {
-  const staging = isStagingSession();
-  const generation = getSessionGeneration();
-  const idToken = await getAdminIdToken();
-  if (generation !== getSessionGeneration()) throw new Error('Session changed.');
-  if (!idToken) throw new Error('Administrator authentication is required. Log out and sign in again.');
-  const abortController = new AbortController();
-  const timeoutId = window.setTimeout(() => abortController.abort(), DATABASE_WRITE_TIMEOUT_MS);
-  try {
-    const normalizedPath = path.replace(/^\/+|\/+$/g, '');
-    const response = await fetch(staging ? stagingDatabaseUrl(normalizedPath, idToken) : getDatabaseRestUrl(normalizedPath, idToken), {
-      method,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: method === 'DELETE' ? undefined : JSON.stringify(value),
-      signal: abortController.signal
-    });
-    if (generation !== getSessionGeneration()) throw new Error('Session changed.');
-    if (response.ok && staging) window.dispatchEvent(new Event('staging-data-changed'));
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        throw new Error('Your session cannot edit this academy. Sign out, then sign in with your academy Chief account and try again.');
-      }
-      const responseError = await response.json().catch(() => null) as { error?: string } | null;
-      throw new Error(responseError?.error || `Database update failed (${response.status})`);
-    }
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-};
-
 const updateDatabaseValues = async (updates: Record<string, unknown>, readOnlyTestSession = false) => {
   assertTestSessionWriteAllowed(readOnlyTestSession, isStagingSession());
   if (!Capacitor.isNativePlatform() && !isStagingSession()) {
@@ -216,7 +183,7 @@ const buildEventPreview = (event: TrainingEvent, fields: string[]) => {
   );
 };
 
-function App() {
+function AppApplication() {
   const getSavedProfile = (): AccessProfile | null => {
     if (typeof window === 'undefined') return null;
     try {
@@ -302,6 +269,10 @@ function App() {
   const [notificationOnboardingComplete, setNotificationOnboardingComplete] = useState(() =>
     typeof window !== 'undefined' && window.localStorage.getItem('blc_notification_onboarding_dismissed') === 'true'
   );
+  const updatePromptOpen = useAppUpdatePromptOpen();
+  const featureTour = useFeatureTour(Boolean(role && accessProfile && !isTvDisplay),
+    isLoading || (Boolean(apiError) && schedules.length === 0) || updatePromptOpen || isImportModalOpen || Boolean(pendingNotification));
+  const tourShownThisSession = useRef(false);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('auto');
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -310,6 +281,18 @@ function App() {
   const hasAutoSelectedTodayRef = useRef(false);
   const logoutCleanupRef = useRef<Promise<unknown>>(Promise.resolve());
   const scheduleDatabaseKeyByDateRef = useRef<Map<string, string>>(new Map());
+  const eventDatabaseKeysRef = useRef(new Map<string, Map<string, string>>());
+  const recordScheduleKeys = (entries: Array<[string, DailySchedule]>) => {
+    const days = entries.filter(([, day]) => Boolean(day?.date));
+    scheduleDatabaseKeyByDateRef.current = new Map(days.map(([key, day]) => [day.date, key]));
+    eventDatabaseKeysRef.current = new Map(days.map(([, day]) => {
+      const keys = new Map<string, string>();
+      Object.entries(day.events || {}).forEach(([key, event]) => {
+        if (event?.id && !keys.has(event.id)) keys.set(event.id, key);
+      });
+      return [day.date, keys];
+    }));
+  };
 
   const normalizeScheduleEvents = (events: TrainingEvent[] | Record<string, TrainingEvent> | undefined) => {
     const values = Array.isArray(events) ? events : Object.values(events || {});
@@ -553,7 +536,7 @@ function App() {
           if (controller.signal.aborted) return;
           const entries = Object.entries((values[0] || {}) as Record<string, DailySchedule>)
             .filter(([, day]) => Boolean(day?.date));
-          scheduleDatabaseKeyByDateRef.current = new Map(entries.map(([key, day]) => [day.date, key]));
+          recordScheduleKeys(entries);
           setSchedules(entries.map(([, day]) => ({ ...day, events: normalizeScheduleEvents(day.events) }))
             .sort((a, b) => a.date.localeCompare(b.date)));
           setLocations(values[1] ? Object.values(values[1]) as string[] : academyConfig.defaultLocations);
@@ -584,78 +567,107 @@ function App() {
     const schedulesRef = ref(db, schedulesPath);
     const locationsRef = ref(db, locationsPath);
     const uniformsRef = ref(db, uniformsPath);
+    const nativeHttpsSync = Capacitor.isNativePlatform() && !useFirebaseEmulators;
     let receivedSchedules = false;
+    let scheduleRevision = 0;
+    let httpsLoading = false;
     const loadingTimeout = window.setTimeout(() => {
       if (receivedSchedules) return;
       setApiError('Unable to connect to the schedule database. Check your internet connection and try again.');
       setIsLoading(false);
     }, 15000);
 
-    // Bootstrap through ordinary HTTPS because Firebase's realtime transport
-    // can fail to establish inside an iOS WKWebView.
+    // Native reads and writes use HTTPS consistently: WebView realtime
+    // connections can silently stop delivering changes after app suspension.
     const abortController = new AbortController();
-    const fetchDatabaseValue = async (path: string) => {
+    const fetchDatabaseValue = async (path: string, signal: AbortSignal) => {
       const response = await fetch(getDatabaseRestUrl(path), {
         cache: 'no-store',
-        signal: abortController.signal
+        signal
       });
       if (!response.ok) throw new Error(`Database request failed (${response.status})`);
       return response.json();
     };
 
-    Promise.all([
-      fetchDatabaseValue(schedulesPath),
-      fetchDatabaseValue(locationsPath).catch(() => null),
-      fetchDatabaseValue(uniformsPath).catch(() => null)
-    ]).then(([scheduleData, locationData, uniformData]) => {
-      if (abortController.signal.aborted || receivedSchedules) return;
-      const rawEntries = scheduleData && typeof scheduleData === 'object'
-        ? Object.entries(scheduleData as Record<string, DailySchedule>)
-        : academy === 'BLC' && useFirebaseEmulators
-          ? mockSchedules.map((schedule, index) => [String(index), schedule] as const)
-          : [];
-      scheduleDatabaseKeyByDateRef.current = new Map(
-        rawEntries
-          .filter((entry): entry is [string, DailySchedule] => Boolean(entry[1]?.date))
-          .map(([key, day]) => [day.date, key])
-      );
-      const rawSchedules = rawEntries.map(([, day]) => day);
-      const initialSchedules = rawSchedules
-        .filter((day): day is DailySchedule => Boolean(day && typeof day === 'object' && day.date))
-        .map(day => ({
-          ...day,
-          notes: day.notes || '',
-          notesHighlighted: Boolean(day.notesHighlighted),
-          sglNotes: day.sglNotes || '',
-          sglNotesHighlighted: Boolean(day.sglNotesHighlighted),
-          events: normalizeScheduleEvents(day.events)
-        }))
-        .sort((a, b) => a.date.localeCompare(b.date));
+    const loadViaHttps = () => {
+      if (httpsLoading || abortController.signal.aborted) return;
+      httpsLoading = true;
+      const revision = scheduleRevision;
+      const requestController = new AbortController();
+      const abortRequest = () => requestController.abort();
+      abortController.signal.addEventListener('abort', abortRequest);
+      const requestTimeout = window.setTimeout(abortRequest, 15000);
+      void Promise.all([
+        fetchDatabaseValue(schedulesPath, requestController.signal),
+        fetchDatabaseValue(locationsPath, requestController.signal).catch(() => null),
+        fetchDatabaseValue(uniformsPath, requestController.signal).catch(() => null)
+      ]).then(([scheduleData, locationData, uniformData]) => {
+        if (abortController.signal.aborted || requestController.signal.aborted || revision !== scheduleRevision || (!nativeHttpsSync && receivedSchedules)) return;
+        const rawEntries = scheduleData && typeof scheduleData === 'object'
+          ? Object.entries(scheduleData as Record<string, DailySchedule>)
+          : academy === 'BLC' && useFirebaseEmulators
+            ? mockSchedules.map((schedule, index) => [String(index), schedule] as const)
+            : [];
+        recordScheduleKeys(rawEntries.map(([key, day]) => [key, day]));
+        const rawSchedules = rawEntries.map(([, day]) => day);
+        const initialSchedules = rawSchedules
+          .filter((day): day is DailySchedule => Boolean(day && typeof day === 'object' && day.date))
+          .map(day => ({
+            ...day,
+            notes: day.notes || '',
+            notesHighlighted: Boolean(day.notesHighlighted),
+            sglNotes: day.sglNotes || '',
+            sglNotesHighlighted: Boolean(day.sglNotesHighlighted),
+            events: normalizeScheduleEvents(day.events)
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date));
 
-      receivedSchedules = true;
-      window.clearTimeout(loadingTimeout);
-      setSchedules(initialSchedules);
-      setLocations(locationData
-        ? (Array.isArray(locationData) ? locationData : Object.values(locationData)) as string[]
-        : academyConfig.defaultLocations);
-      setUniforms(uniformData
-        ? (Array.isArray(uniformData) ? uniformData : Object.values(uniformData)) as string[]
-        : academyConfig.defaultUniforms);
-      setApiError(null);
-      setIsLoading(false);
-    }).catch(error => {
-      if (abortController.signal.aborted) return;
-      console.error('Initial database HTTPS load failed:', error);
-      if (!receivedSchedules) {
         window.clearTimeout(loadingTimeout);
-        setApiError('Unable to load schedules. Check your connection and try again.');
+        setSchedules(initialSchedules);
+        if (locationData || !receivedSchedules) setLocations(locationData
+          ? (Array.isArray(locationData) ? locationData : Object.values(locationData)) as string[]
+          : academyConfig.defaultLocations);
+        if (uniformData || !receivedSchedules) setUniforms(uniformData
+          ? (Array.isArray(uniformData) ? uniformData : Object.values(uniformData)) as string[]
+          : academyConfig.defaultUniforms);
+        receivedSchedules = true;
+        setApiError(null);
         setIsLoading(false);
-      }
-    });
+      }).catch(error => {
+        if (abortController.signal.aborted) return;
+        console.error('Initial database HTTPS load failed:', error);
+        if (!receivedSchedules) {
+          window.clearTimeout(loadingTimeout);
+          setApiError('Unable to load schedules. Check your connection and try again.');
+          setIsLoading(false);
+        } else if (nativeHttpsSync) {
+          setApiError('Schedule refresh failed. Showing the last loaded schedule; changes may be missing. Reconnect to refresh.');
+        }
+      }).finally(() => {
+        httpsLoading = false;
+        window.clearTimeout(requestTimeout);
+        abortController.signal.removeEventListener('abort', abortRequest);
+        if (revision !== scheduleRevision && !abortController.signal.aborted) loadViaHttps();
+      });
+    };
+    loadViaHttps();
+    const refreshVisible = () => {
+      if (document.visibilityState === 'visible') loadViaHttps();
+    };
+    const confirmedWrite = () => { scheduleRevision++; };
+    const uncertainWrite = () => { scheduleRevision++; refreshVisible(); };
+    const refreshTimer = nativeHttpsSync ? window.setInterval(refreshVisible, 30000) : undefined;
+    if (nativeHttpsSync) {
+      document.addEventListener('visibilitychange', refreshVisible);
+      window.addEventListener('online', refreshVisible);
+      window.addEventListener('blc-schedule-notification', refreshVisible);
+      window.addEventListener('schedule-write-confirmed', confirmedWrite);
+      window.addEventListener('schedule-write-uncertain', uncertainWrite);
+    }
 
     // 사이클 제목 감시
     // 스케줄 감시
-    const unsubSchedules = onValue(schedulesRef, (snapshot) => {
+    const unsubSchedules = nativeHttpsSync ? () => undefined : onValue(schedulesRef, (snapshot) => {
       if (abortController.signal.aborted) return;
       receivedSchedules = true;
       window.clearTimeout(loadingTimeout);
@@ -665,11 +677,7 @@ function App() {
       if (data) {
         const scheduleEntries = Object.entries(data as Record<string, DailySchedule>)
           .filter((entry): entry is [string, DailySchedule] => Boolean(entry[1]?.date));
-        scheduleDatabaseKeyByDateRef.current = new Map(
-          scheduleEntries
-            .filter((entry): entry is [string, DailySchedule] => Boolean(entry[1]?.date))
-            .map(([key, day]) => [day.date, key])
-        );
+        recordScheduleKeys(scheduleEntries);
         let schedulesArray = scheduleEntries.map(([, day]) => day);
         
         let normalizedLegacyCycle = false;
@@ -737,7 +745,7 @@ function App() {
     });
 
     // 위치 데이터 감시
-    const unsubLocations = onValue(locationsRef, (snapshot) => {
+    const unsubLocations = nativeHttpsSync ? () => undefined : onValue(locationsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const locsArray = Array.isArray(data) ? data : Object.values(data);
@@ -748,7 +756,7 @@ function App() {
     });
 
     // 복장 데이터 감시
-    const unsubUniforms = onValue(uniformsRef, (snapshot) => {
+    const unsubUniforms = nativeHttpsSync ? () => undefined : onValue(uniformsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const unisArray = Array.isArray(data) ? data : Object.values(data);
@@ -763,6 +771,12 @@ function App() {
     return () => {
       abortController.abort();
       window.clearTimeout(loadingTimeout);
+      window.clearInterval(refreshTimer);
+      document.removeEventListener('visibilitychange', refreshVisible);
+      window.removeEventListener('online', refreshVisible);
+      window.removeEventListener('blc-schedule-notification', refreshVisible);
+      window.removeEventListener('schedule-write-confirmed', confirmedWrite);
+      window.removeEventListener('schedule-write-uncertain', uncertainWrite);
       unsubSchedules();
       unsubLocations();
       unsubUniforms();
@@ -827,7 +841,8 @@ function App() {
   // 새로운 위치 추가 함수 (Firebase에 직접 반영)
   const addLocation = (loc: string) => {
     if (loc && !locations.includes(loc)) {
-      setDatabaseValue(getDatabasePath('locations'), [...locations, loc], isTestMode).catch(err => {
+      setDatabaseValue(getDatabasePath('locations'), [...locations, loc], isTestMode)
+      .then(() => setLocations(current => current.includes(loc) ? current : [...current, loc])).catch(err => {
         alert("Failed to add location: " + err.message);
       });
     }
@@ -836,7 +851,8 @@ function App() {
   // 새로운 복장 추가 함수 (Firebase에 직접 반영)
   const addUniform = (uni: string) => {
     if (uni && !uniforms.includes(uni)) {
-      setDatabaseValue(getDatabasePath('uniforms'), [...uniforms, uni], isTestMode).catch(err => {
+      setDatabaseValue(getDatabasePath('uniforms'), [...uniforms, uni], isTestMode)
+      .then(() => setUniforms(current => current.includes(uni) ? current : [...current, uni])).catch(err => {
         alert("Failed to add uniform: " + err.message);
       });
     }
@@ -902,14 +918,18 @@ function App() {
     if (dayIndex !== -1 && dayKey !== undefined) {
       const currentEvents = schedules[dayIndex].events || [];
       const eventIndex = currentEvents.findIndex(ev => ev.id === updatedEvent.id);
-      if (eventIndex !== -1) {
+      const eventKey = eventDatabaseKeysRef.current.get(dateStr)?.get(updatedEvent.id);
+      if (eventIndex !== -1 && eventKey !== undefined) {
         const originalEvent = currentEvents[eventIndex];
         const changedFields = (['time', 'eventName', 'location', 'uniform', 'highlighted'] as const)
           .filter(field => originalEvent[field] !== updatedEvent[field]);
         const updates: any = {};
-        updates[getScheduleUpdatePath(`schedules/${dayKey}/events/${eventIndex}`)] = updatedEvent;
-        updateDatabaseValues(updates, isTestMode)
+        updates[getScheduleUpdatePath(`schedules/${dayKey}/events/${eventKey}`)] = updatedEvent;
+        return updateDatabaseValues(updates, isTestMode)
           .then(() => {
+            updateScheduleLocally(dateStr, day => ({
+              ...day, events: day.events.map(event => event.id === updatedEvent.id ? updatedEvent : event)
+            }));
             queueScheduleNotification(
               dateStr,
               'Event updated',
@@ -918,12 +938,15 @@ function App() {
               buildEventPreview(updatedEvent, changedFields),
               updatedEvent.eventName
             );
+            return true;
           })
           .catch(err => {
             alert("Failed to save changes: " + err.message);
+            return false;
           });
       }
     }
+    return Promise.resolve(false);
   };
 
   const handleSaveDayNotes = (dateStr: string, notes: string) => {
@@ -1044,8 +1067,10 @@ function App() {
       const currentEvents = schedules[dayIndex].events || [];
       const updates: any = {};
       updates[getScheduleUpdatePath(`schedules/${dayKey}/events`)] = [...currentEvents, newEvent];
-      updateDatabaseValues(updates, isTestMode)
+      return updateDatabaseValues(updates, isTestMode)
         .then(() => {
+          eventDatabaseKeysRef.current.set(dateStr, new Map([...currentEvents, newEvent].map((event, index) => [event.id, String(index)])));
+          updateScheduleLocally(dateStr, day => ({ ...day, events: [...currentEvents, newEvent] }));
           queueScheduleNotification(
             dateStr,
             'Event added',
@@ -1054,11 +1079,14 @@ function App() {
             buildEventPreview(newEvent, ['time', 'eventName', 'location', 'uniform']),
             newEvent.eventName
           );
+          return true;
         })
         .catch(err => {
           alert("Failed to add event: " + err.message);
+          return false;
         });
     }
+    return Promise.resolve(false);
   };
 
   // 이벤트 삭제 함수
@@ -1070,8 +1098,10 @@ function App() {
       const updatedEvents = currentEvents.filter(ev => ev.id !== eventId);
       const updates: any = {};
       updates[getScheduleUpdatePath(`schedules/${dayKey}/events`)] = updatedEvents;
-      updateDatabaseValues(updates, isTestMode)
+      return updateDatabaseValues(updates, isTestMode)
         .then(() => {
+          eventDatabaseKeysRef.current.set(dateStr, new Map(updatedEvents.map((event, index) => [event.id, String(index)])));
+          updateScheduleLocally(dateStr, day => ({ ...day, events: updatedEvents }));
           const deletedEvent = currentEvents.find(ev => ev.id === eventId);
           queueScheduleNotification(
             dateStr,
@@ -1081,11 +1111,14 @@ function App() {
             deletedEvent ? `DELETED: ${truncateNotificationPreview(deletedEvent.eventName)}` : 'Event deleted',
             deletedEvent?.eventName
           );
+          return true;
         })
         .catch(err => {
           alert("Failed to delete event: " + err.message);
+          return false;
         });
     }
+    return Promise.resolve(false);
   };
 
   // 스케줄 대량 임포트 함수
@@ -1124,7 +1157,10 @@ function App() {
     updatedSchedules.sort((a, b) => a.date.localeCompare(b.date));
 
     setDatabaseValue(getDatabasePath('schedules'), updatedSchedules, isTestMode)
-      .then(() => setSchedules(updatedSchedules))
+      .then(() => {
+        recordScheduleKeys(updatedSchedules.map((day, index) => [String(index), day]));
+        setSchedules(updatedSchedules);
+      })
       .catch(err => {
         alert("Failed to import schedules: " + err.message);
       });
@@ -1134,6 +1170,7 @@ function App() {
   const handleResetSchedules = () => {
     if (window.confirm("Are you sure you want to CLEAR ALL schedules from the database?")) {
       removeDatabaseValue(getDatabasePath('schedules'), isTestMode).then(() => {
+        recordScheduleKeys([]);
         setSchedules([]);
       }).catch(err => {
         alert("Failed to reset schedules: " + err.message);
@@ -1146,7 +1183,10 @@ function App() {
     if (window.confirm(`Are you sure you want to delete ALL schedules for cycle [${targetCycle}]?`)) {
       const updatedSchedules = schedules.filter(s => s.cycleName !== targetCycle);
       setDatabaseValue(getDatabasePath('schedules'), updatedSchedules, isTestMode)
-        .then(() => setSchedules(updatedSchedules))
+        .then(() => {
+          recordScheduleKeys(updatedSchedules.map((day, index) => [String(index), day]));
+          setSchedules(updatedSchedules);
+        })
         .catch(err => {
           alert("Failed to delete cycle: " + err.message);
         });
@@ -1360,6 +1400,8 @@ function App() {
   };
 
   useEffect(() => {
+    if (featureTour.pending) tourShownThisSession.current = true;
+    if (tourShownThisSession.current) return;
     if (!role || isTvDisplay || !Capacitor.isNativePlatform()) return;
 
     let wasVisible = document.visibilityState === 'visible';
@@ -1369,7 +1411,6 @@ function App() {
     const initialOpenTimer = window.setTimeout(showIfDue, 300);
     const handleVisibilityChange = () => {
       const isVisible = document.visibilityState === 'visible';
-      if (!isVisible) resetAppOpenAdCooldown();
       if (isVisible && !wasVisible && !isAppOpenAdShowing()) showIfDue(true);
       wasVisible = isVisible;
     };
@@ -1379,7 +1420,7 @@ function App() {
       window.clearTimeout(initialOpenTimer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [role, isTvDisplay, isTestMode]);
+  }, [role, isTvDisplay, isTestMode, featureTour.pending]);
 
   const handleAcademyChange = (nextAcademy: AcademyId) => {
     if (accessProfile?.scope !== 'NCOA' || nextAcademy === academy) return;
@@ -1526,7 +1567,7 @@ function App() {
     );
   }
 
-  if (apiError) {
+  if (apiError && schedules.length === 0) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-red-900 text-white p-6 text-center">
         <h1 className="text-2xl font-bold mb-4">API Connection Error</h1>
@@ -1552,6 +1593,13 @@ function App() {
   if (!role) {
     return <Login onLogin={handleLogin} webOnly={!Capacitor.isNativePlatform()} emulatorMode={useFirebaseEmulators} />;
   }
+
+  const scheduleSyncWarning = apiError ? (
+    <div role="status" className="rounded-xl border border-amber-500 bg-amber-50 p-3 text-sm text-amber-950">
+      {apiError}
+      <button className="ml-3 font-bold underline" onClick={() => window.dispatchEvent(new Event('online'))}>Refresh</button>
+    </div>
+  ) : null;
 
   const foregroundNotificationToast = foregroundNotification ? (
     <div className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-[80] rounded-2xl border-2 border-blue-300 bg-white shadow-2xl ring-4 ring-blue-100 sm:left-auto sm:right-4 sm:w-96">
@@ -1590,7 +1638,10 @@ function App() {
     </button>
     </div>
   ) : null;
-  const notificationOnboarding = !useFirebaseEmulators && role && isTrackingAuthorizationResolved && !notificationOnboardingComplete && isPhoneDevice() ? (
+  const featureTourModal = featureTour.open && accessProfile ? (
+    <FeatureTour key={`${accessProfile.accessLevel}-${academy}`} profile={accessProfile} onClose={featureTour.dismiss} />
+  ) : null;
+  const notificationOnboarding = !featureTour.pending && !updatePromptOpen && !useFirebaseEmulators && role && isTrackingAuthorizationResolved && !notificationOnboardingComplete && isPhoneDevice() ? (
     <NotificationOnboarding
       role={role}
       academy={academy}
@@ -1631,6 +1682,7 @@ function App() {
       darkMode={darkMode}
       onDarkModeChange={handleDarkModeChange}
       onLogout={handleLogout}
+      onOpenAppGuide={!isTvDisplay && accessProfile ? featureTour.replay : undefined}
       onDeleteCycle={handleDeleteCycle}
       onResetSchedules={handleResetSchedules}
       testMode={isTestMode}
@@ -1668,6 +1720,8 @@ function App() {
     return (
       <>
       {foregroundNotificationToast}
+      {scheduleSyncWarning}
+      {featureTourModal}
       {notificationOnboarding}
       {testModeBadge}
       {emulatorBadge}
@@ -1736,6 +1790,8 @@ function App() {
   return (
     <>
       {foregroundNotificationToast}
+      {scheduleSyncWarning}
+      {featureTourModal}
       {notificationOnboarding}
       {testModeBadge}
       {emulatorBadge}
@@ -1798,6 +1854,43 @@ function App() {
       <NcoaChatbot academy={academy} role={role} cycleName={role === 'STUDENT' ? studentCycleName : activeCycleName} />
     </>
   );
+}
+
+function FeatureTourPreview({ initialRole }: { initialRole: FeatureTourPreviewRole }) {
+  const profiles: Record<FeatureTourPreviewRole, AccessProfile> = {
+    student: { role: 'STUDENT', accessLevel: 'STUDENT', academy: 'BLC', scope: 'BLC', permissions: ['schedule.read'], studentCycleName: 'PREVIEW' },
+    chief: { role: 'ADMIN', accessLevel: 'SCHEDULE_IMPORTER', academy: 'BLC', scope: 'BLC', permissions: ['schedule.read', 'schedule.write', 'schedule.import', 'location.manage'] },
+    sgl: { role: 'VIEWER', accessLevel: 'SENIOR', academy: 'KTA', scope: 'KTA', permissions: ['schedule.read'] },
+    commander: { role: 'VIEWER', accessLevel: 'NCOA_MANAGER', academy: 'BLC', scope: 'NCOA', permissions: ['schedule.read', 'conflict.resolve'] }
+  };
+  const [role, setRole] = useState(initialRole);
+  const [open, setOpen] = useState(true);
+  return <main className="min-h-screen bg-[var(--soft-bg,#f2f4f6)] p-3 pt-4 text-[#191f28] sm:p-8">
+    <header className="settings-card mx-auto max-w-xl rounded-3xl p-5">
+      <div className="text-xs font-black uppercase tracking-widest text-blue-800">Local preview · sample screen</div>
+      <h1 className="mt-2 text-2xl font-black">App guide</h1>
+      <p className="mt-2 text-sm text-gray-600">This preview uses sample content only. It does not connect to Firebase or edit schedules.</p>
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {(['student', 'chief', 'sgl', 'commander'] as const).map(option => <button key={option} type="button"
+          onClick={() => { setRole(option); setOpen(true); }} className={`min-h-11 rounded-xl px-3 text-xs font-black capitalize ${role === option ? 'bg-blue-900 text-white' : 'bg-slate-100 text-slate-700'}`}>
+          {option}
+        </button>)}
+      </div>
+      {!open && <button type="button" onClick={() => setOpen(true)} className="mt-4 min-h-11 w-full rounded-xl bg-blue-900 px-4 text-sm font-bold text-white">Open app guide again</button>}
+    </header>
+    <div className="settings-card mx-auto mt-5 max-w-xl rounded-3xl p-5 opacity-70" aria-hidden="true">
+      <div className="text-xs font-bold text-slate-500">SAMPLE CALENDAR</div>
+      <div className="mt-4 grid grid-cols-7 gap-2 text-center text-xs font-semibold text-slate-500">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, index) => <span key={index}>{day}</span>)}</div>
+      <div className="mt-2 grid grid-cols-7 gap-2">{Array.from({ length: 28 }, (_, index) => <span key={index} className="flex aspect-square items-center justify-center rounded-lg bg-slate-50 text-xs text-slate-500">{index + 1}</span>)}</div>
+    </div>
+    {open && <FeatureTour key={role} profile={profiles[role]} onClose={() => setOpen(false)} />}
+  </main>;
+}
+
+function App() {
+  const previewRole = getFeatureTourPreviewRole();
+  if (previewRole) return <FeatureTourPreview initialRole={previewRole} />;
+  return <AppApplication />;
 }
 
 export default App;

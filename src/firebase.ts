@@ -4,6 +4,7 @@ import { connectAuthEmulator, getAuth } from "firebase/auth";
 import { connectFunctionsEmulator, getFunctions } from "firebase/functions";
 import { Capacitor } from "@capacitor/core";
 import { assertSafeFirebaseEnvironment } from './firebaseEnvironment';
+import { getFeatureTourPreviewRole } from './features/feature-tour/previewMode';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDNjoIVSKyIRjFm7LQD-yH7pemRZ7c_nyc",
@@ -17,12 +18,14 @@ const firebaseConfig = {
 };
 
 export const useFirebaseEmulators = process.env.REACT_APP_USE_FIREBASE_EMULATORS === 'true';
+const featureTourPreview = Boolean(getFeatureTourPreviewRole());
+const firebaseEmulatorMode = useFirebaseEmulators || featureTourPreview;
 const emulatorProjectId = process.env.REACT_APP_FIREBASE_EMULATOR_PROJECT || 'demo-blc-calendar';
 const emulatorHost = process.env.REACT_APP_FIREBASE_EMULATOR_HOST || '127.0.0.1';
 
 assertSafeFirebaseEnvironment({
   nodeEnv: process.env.NODE_ENV || 'production',
-  useEmulators: useFirebaseEmulators,
+  useEmulators: firebaseEmulatorMode,
   projectId: emulatorProjectId,
   emulatorHost
 });
@@ -33,12 +36,20 @@ if (useFirebaseEmulators) {
   firebaseConfig.databaseURL = `http://${emulatorHost}:9000?ns=${emulatorProjectId}`;
 }
 
+if (featureTourPreview) {
+  // The preview must never initialize the real production Firebase project.
+  firebaseConfig.apiKey = 'demo-key-not-for-use';
+  firebaseConfig.authDomain = 'demo-feature-tour.firebaseapp.com';
+  firebaseConfig.projectId = 'demo-feature-tour';
+  firebaseConfig.databaseURL = 'http://127.0.0.1:9000?ns=demo-feature-tour';
+}
+
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getDatabase(app);
 export const functions = getFunctions(app, 'us-central1');
 
-if (useFirebaseEmulators) {
+if (firebaseEmulatorMode) {
   connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
   connectDatabaseEmulator(db, emulatorHost, 9000);
   connectFunctionsEmulator(functions, emulatorHost, 5001);
@@ -46,12 +57,14 @@ if (useFirebaseEmulators) {
 
 export const firebaseDatabaseUrl = useFirebaseEmulators
   ? `http://${emulatorHost}:9000`
+  : featureTourPreview ? 'http://127.0.0.1:9000'
   : firebaseConfig.databaseURL;
 
 export const getDatabaseRestUrl = (path: string, idToken?: string | null) => {
   const normalizedPath = path.replace(/^\/+|\/+$/g, '');
   const url = new URL(`${firebaseDatabaseUrl}/${normalizedPath}.json`);
   if (useFirebaseEmulators) url.searchParams.set('ns', emulatorProjectId);
+  if (featureTourPreview) url.searchParams.set('ns', 'demo-feature-tour');
   if (idToken) url.searchParams.set('auth', idToken);
   return url.toString();
 };
