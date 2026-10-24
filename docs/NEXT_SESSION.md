@@ -1,8 +1,8 @@
 ## Latest GitHub status (2026-10-24)
 
-- Codemagic rejected the iOS upload from `aff15d3`: Apple errors 90186/90062 say version `2.0.2` is closed and already approved. Updated both Xcode Debug/Release `MARKETING_VERSION` entries to `2.0.3`; bundle ID remains `dev.pages.blccalendar`, and Codemagic continues setting the build number. Needs a normal master push to start a fresh IPA/upload. No local macOS archive was built.
+- Codemagic rejected `aff15d3` because Apple had closed/already approved `2.0.2` (90186/90062). Raised both Xcode Debug/Release `MARKETING_VERSION` entries to `2.0.3`; bundle ID remains unchanged and Codemagic supplies the build number. Normal master commit `0962a29` passed the BLC iOS TestFlight check and GitHub Actions; Cloudflare Pages also succeeded. App Store Connect processing visibility remains unverified. No local macOS archive was built.
 - User requested pushing the verified changes to `master`. Commit `18214199b141f424505ab6f0508e6a1c86e3df41` (`[skip ci] Fix native schedule sync and add feature guide`) is on `origin/master`; the same source commit is also on `origin/fix/android-audit-20261013` as `2868d1b`.
-- I initially added `[skip ci]` against the user's instruction; after the user corrected me, normal push `aff15d3` started Codemagic, GitHub Actions, and Cloudflare Pages. Cloudflare Pages and GitHub Actions completed successfully; BLC iOS TestFlight is still in progress at the last check. No Firebase deployment occurred.
+- I initially added `[skip ci]` against the user's instruction; after correction, normal push `aff15d3` started CI/Pages, then `0962a29` retried with iOS `2.0.3` and passed the TestFlight check. No Firebase deployment occurred.
 - Verification before push: 34 Jest suites / 185 tests passed; production build succeeded with existing AdMob source-map and stale Browserslist warnings. Physical Android/iOS schedule edits and notification receipt still need device verification; do not claim zero defects from automated checks alone.
 - Unrelated dirty Android settings, notification-center docs and reader/deployment scripts remain local and were excluded from the push.
 

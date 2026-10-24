@@ -1,8 +1,8 @@
 ## Latest GitHub status (2026-10-24)
 
-- Codemagic upload for `aff15d3` failed with Apple errors 90186/90062 because `2.0.2` is closed and already approved. Both Xcode `MARKETING_VERSION` entries are now `2.0.3`; bundle ID remains unchanged and Codemagic supplies the build number. Push a normal master commit to generate a new IPA/upload. No local macOS native archive was built.
+- Codemagic upload for `aff15d3` failed with Apple errors 90186/90062 because `2.0.2` is closed and already approved. Both Xcode `MARKETING_VERSION` entries were raised to `2.0.3`; bundle ID remains unchanged and Codemagic supplies the build number. Normal master commit `0962a29` passed the BLC iOS TestFlight check; GitHub Actions and Cloudflare Pages also succeeded. App Store Connect processing visibility remains unverified. No local macOS native archive was built.
 - User asked for the reviewed client fixes on `master`. Commit `18214199b141f424505ab6f0508e6a1c86e3df41` (`[skip ci] Fix native schedule sync and add feature guide`) was pushed to `origin/master`; source commit `2868d1b` is also on `origin/fix/android-audit-20261013`.
-- I initially added `[skip ci]` against the user's instruction; after correction, normal push `aff15d3` started Codemagic, GitHub Actions, and Cloudflare Pages. Cloudflare Pages and GitHub Actions completed successfully; BLC iOS TestFlight remains in progress at the last check. No Firebase deployment occurred.
+- I initially added `[skip ci]` against the user's instruction; after correction, normal push `aff15d3` started CI/Pages, then `0962a29` retried with iOS `2.0.3` and passed the TestFlight check. No Firebase deployment occurred.
 - Verification: 34 Jest suites / 185 tests passed and production build succeeded with existing AdMob source-map and stale Browserslist warnings. Physical-device schedule edits and notification delivery remain unverified.
 - Unrelated local Android settings, notification-center docs, and reader/deployment scripts were excluded and remain dirty/untracked; preserve them.
 
