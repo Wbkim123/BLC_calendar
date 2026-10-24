@@ -21,14 +21,14 @@ interface Props {
   role: UserRole;
   onBack?: () => void;
   viewControls?: React.ReactNode;
-  onSave: (dateStr: string, updatedEvent: TrainingEvent) => void;
+  onSave: (dateStr: string, updatedEvent: TrainingEvent) => void | Promise<boolean>;
   onSaveDayLabel: (dateStr: string, dayLabel: string) => void;
   onSaveNotes: (dateStr: string, notes: string) => void;
   onToggleNotesHighlight: (dateStr: string) => void;
   onSaveSglNotes: (dateStr: string, notes: string) => void;
   onToggleSglNotesHighlight: (dateStr: string) => void;
-  onCreateEvent: (dateStr: string, newEvent: TrainingEvent) => void;
-  onDeleteEvent: (dateStr: string, eventId: string) => void;
+  onCreateEvent: (dateStr: string, newEvent: TrainingEvent) => void | Promise<boolean>;
+  onDeleteEvent: (dateStr: string, eventId: string) => void | Promise<boolean>;
   canDismissKtaConflicts?: boolean;
   onDismissKtaConflict?: (dateStr: string, conflictKey: string) => void;
   locations: string[];
@@ -77,6 +77,8 @@ export default function DailyView({
 }: Props) {
   const dismissedConflictStorageKey = getDismissedConflictStorageKey(schedule.academy, schedule.date);
   const [editingEvent, setEditingEvent] = useState<TrainingEvent | null>(null);
+  const [eventSaving, setEventSaving] = useState(false);
+  const eventSavingRef = useRef(false);
   const [editingDayLabel, setEditingDayLabel] = useState(false);
   const [dayLabelDraft, setDayLabelDraft] = useState(schedule.dayLabel);
   const [editingNotes, setEditingNotes] = useState<'public' | 'sgl' | null>(null);
@@ -158,20 +160,37 @@ export default function DailyView({
   };
   // -------------------------
 
-  const handleSave = (updated: TrainingEvent) => {
-    if (isCreating) {
-      onCreateEvent(schedule.date, updated);
-      setIsCreating(false);
-    } else {
-      onSave(schedule.date, updated);
+  const handleSave = async (updated: TrainingEvent) => {
+    if (eventSavingRef.current) return;
+    eventSavingRef.current = true;
+    setEventSaving(true);
+    try {
+      const saved = await (isCreating ? onCreateEvent(schedule.date, updated) : onSave(schedule.date, updated));
+      if (saved !== false) {
+        setIsCreating(false);
+        setEditingEvent(null);
+      }
+    } catch {
+      window.alert('Unable to save this event. Your changes are still in the editor. Please try again.');
+    } finally {
+      eventSavingRef.current = false;
+      setEventSaving(false);
     }
-    setEditingEvent(null);
   };
 
-  const handleDelete = (eventId: string) => {
+  const handleDelete = async (eventId: string) => {
+    if (eventSavingRef.current) return;
     if (window.confirm("Are you sure you want to delete this event?")) {
-      onDeleteEvent(schedule.date, eventId);
-      setEditingEvent(null);
+      eventSavingRef.current = true;
+      setEventSaving(true);
+      try {
+        if (await onDeleteEvent(schedule.date, eventId) !== false) setEditingEvent(null);
+      } catch {
+        window.alert('Unable to delete this event. Please try again.');
+      } finally {
+        eventSavingRef.current = false;
+        setEventSaving(false);
+      }
     }
   };
 
@@ -583,6 +602,7 @@ export default function DailyView({
                       setEditingEvent(ev);
                       setIsCreating(false);
                     }}
+                    aria-label={`Edit ${ev.eventName}`}
                     className="bg-blue-50 text-blue-700 p-1.5 lg:p-2 rounded-lg hover:bg-blue-100 transition-colors shrink-0"
                   >
                     <svg className="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
@@ -792,7 +812,8 @@ export default function DailyView({
       {/* 수정 모달창 (editingEvent가 있을 때만 렌더링) */}
       {editingEvent && (
         <EditModal 
-          event={editingEvent} 
+          event={editingEvent}
+          saving={eventSaving}
           isCreating={isCreating}
           onClose={() => {
             setEditingEvent(null);
@@ -883,7 +904,8 @@ function EditModal({
   uniforms, 
   onAddLocation, 
   onAddUniform,
-  academy
+  academy,
+  saving = false
 }: { 
   event: TrainingEvent, 
   isCreating: boolean,
@@ -895,6 +917,7 @@ function EditModal({
   onAddLocation: (loc: string) => void,
   onAddUniform: (uni: string) => void,
   academy?: 'BLC' | 'KTA'
+  saving?: boolean
 }) {
   const [formData, setFormData] = useState<TrainingEvent>(event);
   const [showAddLoc, setShowAddLoc] = useState(false);
@@ -1049,13 +1072,14 @@ function EditModal({
         <div className="p-4 bg-gray-50 flex flex-col gap-3 shrink-0">
           <div className="flex gap-3">
             <button onClick={onClose} className="flex-1 py-3 bg-gray-200 text-gray-700 font-bold rounded-xl active:bg-gray-300">Cancel</button>
-            <button onClick={() => onSave(formData)} className="flex-1 py-3 bg-blue-700 text-white font-bold rounded-xl active:bg-blue-800 shadow-md">
-              {isCreating ? "Create Event" : "Save Changes"}
+            <button disabled={saving} onClick={() => onSave(formData)} className="flex-1 py-3 bg-blue-700 text-white font-bold rounded-xl active:bg-blue-800 shadow-md disabled:opacity-50">
+              {saving ? 'Saving...' : isCreating ? "Create Event" : "Save Changes"}
             </button>
           </div>
           {!isCreating && (
             <button 
               onClick={() => onDelete(event.id)}
+              disabled={saving}
               className="w-full py-2 text-red-600 font-bold text-sm hover:bg-red-50 rounded-lg transition-colors"
             >
               Delete Event

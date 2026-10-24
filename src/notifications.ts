@@ -23,6 +23,8 @@ const functionBaseUrl = () => `https://us-central1-${isStagingSession() ? stagin
 const activeFunctions = () => isStagingSession() ? stagingFunctions : functions;
 const isNativePlatform = () => Capacitor.isNativePlatform();
 const NATIVE_NOTIFICATION_TIMEOUT_MS = 15000;
+let nativeLogin: { code: string; generation: number } | null = null;
+let nativeTokenRequest: { generation: number; forceRenew: boolean; promise: Promise<string | null> } | null = null;
 
 const withNativeNotificationTimeout = <T>(promise: Promise<T>, operation: string): Promise<T> => {
   let timeoutId: number;
@@ -194,7 +196,10 @@ export async function createAdminSession(code: string) {
     window.localStorage.setItem(authStorageKey(ADMIN_ID_TOKEN_KEY), authPayload.idToken);
     if (authPayload.refreshToken) {
       window.localStorage.setItem(authStorageKey(ADMIN_REFRESH_TOKEN_KEY), authPayload.refreshToken);
+    } else {
+      window.localStorage.removeItem(authStorageKey(ADMIN_REFRESH_TOKEN_KEY));
     }
+    nativeLogin = { code, generation };
     return;
   }
 
@@ -238,32 +243,49 @@ export async function getCrossAcademyConflictNotices(academy: AcademyId, dates: 
 }
 
 export const clearAdminSessionToken = () => {
+  nativeLogin = null;
+  nativeTokenRequest = null;
   window.localStorage.removeItem(authStorageKey(ADMIN_ID_TOKEN_KEY));
   window.localStorage.removeItem(authStorageKey(ADMIN_REFRESH_TOKEN_KEY));
   window.localStorage.removeItem('staging_push_ready');
 };
 
-export const getAdminIdToken = async () => {
+const resolveAdminIdToken = async (forceRenew = false) => {
   if (isNativePlatform()) {
     const generation = getSessionGeneration();
-    const token = await refreshNativeAdminIdToken();
-    if (isStagingSession()) return token;
+    if (isStagingSession()) return refreshNativeAdminIdToken();
     // A remembered Chief profile can outlive the server's authorization rollout.
     // Renew that session through the server; never add claims on the client.
     let saved: { code?: string; testMode?: boolean; profile?: { accessLevel?: string; academy?: string } } | null = null;
     try { saved = JSON.parse(window.localStorage.getItem('blc_calendar_login') || 'null'); } catch { /* no saved login */ }
     const scope = saved?.profile?.accessLevel === 'SCHEDULE_IMPORTER' ? saved.profile.academy : null;
-    if (!saved?.code || saved.testMode || (scope !== 'BLC' && scope !== 'KTA')) return token;
+    const recoveryCode = nativeLogin?.generation === generation ? nativeLogin.code : saved?.testMode ? null : saved?.code;
+    let token: string | null = null;
+    try {
+      token = await refreshNativeAdminIdToken();
+    } catch (error) {
+      // Invalidated refresh credentials need a new server-authenticated session.
+      // Network failures are surfaced without repeatedly attempting sign-in.
+      if (!recoveryCode || !/TOKEN_EXPIRED|INVALID_REFRESH_TOKEN|INVALID_GRANT|USER_NOT_FOUND/i.test(String((error as Error).message))) throw error;
+      forceRenew = true;
+    }
+    if (generation !== getSessionGeneration()) throw new Error('Session changed.');
     const hasExpectedClaims = (value: string | null) => {
       try {
         const encoded = (value || '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
         const claims = JSON.parse(window.atob(encoded));
-        return claims.admin === true && claims.scope === scope;
+        if (typeof claims.exp === 'number' && claims.exp * 1000 <= Date.now() + 60000) return false;
+        if (scope === 'BLC' || scope === 'KTA') return claims.admin === true && claims.scope === scope;
+        return claims.admin === true || claims.ncoaManager === true;
       } catch { return false; }
     };
-    if (hasExpectedClaims(token)) return token;
+    if (!forceRenew && hasExpectedClaims(token)) return token;
+    if (!recoveryCode) {
+      if (!token) return null;
+      throw new Error('Your sign-in has expired. Please sign out and sign in again.');
+    }
     if (generation !== getSessionGeneration()) throw new Error('Session changed.');
-    await createAdminSession(saved.code);
+    await createAdminSession(recoveryCode);
     if (generation !== getSessionGeneration()) throw new Error('Session changed.');
     const renewed = window.localStorage.getItem(authStorageKey(ADMIN_ID_TOKEN_KEY));
     if (!hasExpectedClaims(renewed)) throw new Error('permission-denied');
@@ -278,6 +300,26 @@ export const getAdminIdToken = async () => {
   const currentUser = selectedAuth.currentUser;
   if (!currentUser) return null;
   return currentUser.getIdToken();
+};
+
+// Conflict/history reads and writes can request auth together. Share renewal so
+// a late refresh cannot replace the credentials from a newer sign-in.
+export const getAdminIdToken = (forceRenew = false): Promise<string | null> => {
+  if (!isNativePlatform()) return resolveAdminIdToken(forceRenew);
+  const generation = getSessionGeneration();
+  if (nativeTokenRequest?.generation === generation) {
+    const pending = nativeTokenRequest;
+    if (!forceRenew || pending.forceRenew) return pending.promise;
+    return pending.promise.then(() => {
+      if (generation !== getSessionGeneration()) throw new Error('Session changed.');
+      return getAdminIdToken(true);
+    });
+  }
+  const promise = resolveAdminIdToken(forceRenew).finally(() => {
+    if (nativeTokenRequest?.promise === promise) nativeTokenRequest = null;
+  });
+  nativeTokenRequest = { generation, forceRenew, promise };
+  return promise;
 };
 
 export async function sendScheduleNotification(details: {

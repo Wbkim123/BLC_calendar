@@ -1,5 +1,24 @@
+## Feature guide for existing and new users (2026-10-23)
+
+- Added a local 4–6 card App guide modal in this worktree. Existing saved logins and new users see it once after installing the feature-containing update. The per-device marker is keyed by guide revision, independent of app build number; closing, skipping or finishing marks the revision seen. Settings > App guide replays it. TV profiles are excluded.
+- Content follows AccessProfile/permissions: calendar/search/notifications/settings/help, Chief edit/import, SGL conflict notices, and read-only Commander academy switching. Students receive assigned-cycle guidance only. No login codes or schedule payloads in guide content.
+- Guide waits for loading/update/import/save-notification modals, defers notification onboarding and suppresses App Open ads for a session that needs/replays the guide. An ad already loading checks the guide before presentation. The guide does not depend on ad consent/SDK success. Includes focus containment/Escape, dismiss controls, dark theme and native-banner/safe-area spacing.
+- The tour modal now follows the app's existing soft-modal design: navy header, light gray surface, blue accents and soft card shadows. The local role preview uses the same app surface/card tokens. Jest 34 suites / 185 tests and production build pass; build only reports known AdMob source-map and stale Browserslist warnings.
+- All 34 suites / 185 frontend tests, TypeScript, production build and whitespace checks passed. Known build warnings only. Physical-device appearance and native build/install remain unverified. No GitHub push, server/config deployment or store release; earlier save/auth and 30-minute popup changes remain local and preserved.
+- Guide source: src/features/feature-tour. For a future materially changed guide, update FEATURE_TOUR_REVISION in policy.ts to prompt existing users once again. No Remote Config publication is required for this bundled guide. Storage unavailable: dismissal persists within the current App session only.
+
+## Schedule save and native synchronization repair (2026-10-23)
+
+- Active source remains this worktree. Local popup-ad cooldown changes from this session are preserved alongside the new schedule repair; no push/deploy/native release authorized or performed for either change.
+- User reports Android Chief save-permission denial and unavailable conflict check; iOS notification history exists while Event View stays stale, with edits visible later. Confirmed client gap: native REST event edits/additions/deletions did not update local schedule state and depended on a realtime connection, while HTTPS fallback loaded only once.
+- Native production now uses HTTPS reads on initial load, foreground/online/notification, and every 30 seconds while visible. Confirmed writes update local state immediately; old in-flight reads cannot roll back those writes. Failed refresh retains the last schedule with a warning. Web realtime and staging isolation remain. Native metadata/bulk replacements also maintain local state/database keys; edits retain the original event database key after normalization.
+- Native auth recovers expired/rejected refresh credentials using the existing authenticated login, validates academy claims, shares concurrent token renewal, and supports Keep Login disabled via session memory. Writes retry once only after explicit 401/403 rejection, never on ambiguous network/timeout failure. Session generation guards and academy rules remain. Editors keep drafts on failure and prevent duplicate submission.
+- Verification: 33 Jest suites / 176 tests, TypeScript and production build passed. Build has only existing AdMob source-map/Browserslist/Node warnings. Production rules were read and match the local academy-scoped rules; fresh and refreshed Chief/manager auth and both reader endpoints succeeded, scoped SGL readers succeeded. No production schedule writes or push sends.
+- Android screenshot's exact historical session/build remains unverified. User was asked for both installed versions/install sources and iOS editing role, without asking for credentials. Current live checks cannot prove historical Firebase billing causality or actual device success. No native compilation/device install/store verification performed. Next: separately authorized client release and both-phone save/reopen/cross-device verification. Do not repeat live production edits without authorization.
+
 ## Mobile version push authorized (2026-10-17)
 
+- Completed: 032c466 pushed to origin/master and verified remotely. iOS 2.0.2; Android 4.1.0 / 14. CI/store upload completion remains unverified. This post-push note stays local.
 - User explicitly approved master push/rebuild for iOS 2.0.2 and requested Android versionCode 14 / versionName 4.1.0. Both native settings are prepared; application/bundle ID unchanged. Preparing scoped commit and master push with existing Codemagic CI enabled.
 - Version settings and whitespace checked; runtime source unchanged. No new native compilation or store acceptance verified locally. Android store upload is not part of the existing iOS-only Codemagic workflow. Remote Config announcements remain disabled/unpublished by this work until public store availability.
 
@@ -194,6 +213,12 @@
 
 # Resume here — 2026-10-04
 
+## Local feature-tour preview (2026-10-24)
+
+- Active source worktree is this folder. Development server is running at localhost:3000; route `/?previewFeatureTour=student`, `chief`, `sgl`, or `commander` opens the guide on a sample calendar. HTTP 200 and `npx.cmd tsc --noEmit` verified.
+- The local preview is gated to development builds on localhost/127.0.0.1/::1 and mounts no real app/Firebase database session. Close/skip, select another role, and reopen. Use browser device emulation to check phone dimensions. Stop server with Ctrl+C in the running terminal when finished.
+- Preview harness is local/uncommitted; no backend, live schedule, push or release action.
+
 ## Mobile fixes pushed to GitHub (2026-10-08)
 
 - At user's explicit request, pushed the ten mobile source/test files to origin/master as 13231784a5a374d399d0c43aa791b91030e02f15, based on 6868e07. Remote master read back and matched.
@@ -277,3 +302,9 @@ This is the latest session checkpoint. It supersedes older status/checklist entr
 - Read-only Firebase CLI inspection: production createAdminSession is ACTIVE, nodejs22, gen2, us-central1. Its deployed secretEnvironmentVariables includes only ADMIN_ACCESS_CODE version 1, not NCOA_ACCESS_CODE. Latest local function source requires both; therefore the deployed configuration does not match the prepared authorization update.
 - Recent createAdminSession logs include billing-disabled failures on October 7 at 07:24:13, 13:50:57, and 13:53:52 UTC (16:24, 22:50, 22:53 KST). No post-restoration successful login was verified; ACTIVE alone does not prove invocation health.
 - Next: review/test the prepared Functions and Rules release, verify new secret metadata and required access, then obtain explicit deployment authorization before changing production. Secret creation alone did not deploy Functions. No secret values or tokens were read, no login requests sent, and no deployment or remote mutation performed during diagnosis.
+
+## Persistent popup ad cooldown (2026-10-23)
+
+- User requested fewer popup ads, with a 30-minute interval. App Open now persists the last close timestamp in device localStorage and no longer resets it on backgrounding. Launch/resume attempts respect the same 30-minute minimum; no timed automatic popup was added. Storage failures retain a session-only fallback.
+- Updated regression coverage for foreground resume, module restart, the exact 30-minute boundary and storage-write failure. Full Jest passed (32 suites / 158 tests), followed by the expanded ad suite (12 tests). Production build passed with known AdMob source-map, Browserslist and Node warnings; diff whitespace check passed.
+- Active source: release-assets/mobile-audit-20261013. Changes are local only; no push, deployment, native build or store upload. Installed users need a separately authorized native update. Physical-device verification remains pending; unrelated local modifications preserved.

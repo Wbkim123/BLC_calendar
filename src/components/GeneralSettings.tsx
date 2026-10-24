@@ -18,6 +18,7 @@ interface Props {
   darkMode: boolean;
   onDarkModeChange: (enabled: boolean) => void;
   onLogout: () => void;
+  onOpenAppGuide?: () => void;
   onDeleteCycle: (cycleName: string) => void;
   onResetSchedules: () => void;
   testMode?: boolean;
@@ -50,6 +51,7 @@ export default function GeneralSettings({
   darkMode,
   onDarkModeChange,
   onLogout,
+  onOpenAppGuide,
   onDeleteCycle,
   onResetSchedules,
   testMode = false,
@@ -135,6 +137,14 @@ export default function GeneralSettings({
 
             <div className="space-y-3">
               <UpdateSettingsCard />
+              {onOpenAppGuide && (
+                <button type="button" className="settings-card flex w-full items-center justify-between gap-4 rounded-2xl border border-blue-200 p-4 text-left"
+                  onClick={() => { setOpen(false); onOpenAppGuide(); }}>
+                  <span><span className="block text-sm font-black text-gray-900">App guide</span>
+                    <span className="block text-[11px] font-semibold text-gray-500">Explore the features available to you</span></span>
+                  <span className="text-xs font-black text-blue-800">VIEW</span>
+                </button>
+              )}
               {testMode && testSessionControl}
 
               {academyControl && allAcademies && (

@@ -4,6 +4,8 @@ import { dismissalKey, parseRelease, shouldRemind, STORE_URLS, StorePlatform, Up
 
 interface AvailableUpdate extends UpdateRelease { platform: StorePlatform; }
 const UpdateContext = createContext<AvailableUpdate | null>(null);
+const UpdatePromptContext = createContext(false);
+export const useAppUpdatePromptOpen = () => useContext(UpdatePromptContext);
 
 export function UpdateSettingsCard() {
   const update = useContext(UpdateContext);
@@ -73,7 +75,9 @@ export default function AppUpdateProvider({ children }: { children: ReactNode })
     setPrompt(false);
   };
   return <UpdateContext.Provider value={update}>
+    <UpdatePromptContext.Provider value={prompt && Boolean(update)}>
     {children}
+    </UpdatePromptContext.Provider>
     {prompt && update && <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm">
       <section role="dialog" aria-modal="true" aria-labelledby="app-update-title" aria-describedby="app-update-description"
         onKeyDown={event => {

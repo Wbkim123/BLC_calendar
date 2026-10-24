@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import DailyView from './DailyView';
 import { DailySchedule } from '../types/schedule';
 import { getScheduleConflicts } from '../features/schedule-conflicts/conflicts';
@@ -32,6 +32,27 @@ const baseProps = {
 
 describe('Event View conflict details', () => {
   beforeEach(() => window.localStorage.clear());
+
+  it('keeps the event editor and draft after a rejected save and prevents duplicate submissions', async () => {
+    let finishSave: (saved: boolean) => void = () => undefined;
+    const onSave = jest.fn(() => new Promise<boolean>(resolve => { finishSave = resolve; }));
+    const schedule: DailySchedule = {
+      academy: 'BLC', date: '2026-10-21', dayLabel: 'DAY 1', cycleName: 'cycle',
+      events: [event('a', '0900-1000', 'Original event', 'MPR')]
+    };
+    render(<DailyView {...baseProps} role="ADMIN" schedule={schedule} onSave={onSave} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Original event' }));
+    const input = screen.getByDisplayValue('Original event');
+    fireEvent.change(input, { target: { value: 'Draft event' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Saving...' }));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    await act(async () => finishSave(false));
+    expect(screen.getByDisplayValue('Draft event')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await act(async () => finishSave(true));
+    await waitFor(() => expect(screen.queryByText('Edit Event')).toBeNull());
+  });
 
   it('lists each overlapping event on the affected event cards', () => {
     const schedule: DailySchedule = {
