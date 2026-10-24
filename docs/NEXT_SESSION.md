@@ -1,3 +1,10 @@
+## Latest GitHub status (2026-10-24)
+
+- User requested pushing the verified changes to `master`. Commit `18214199b141f424505ab6f0508e6a1c86e3df41` (`[skip ci] Fix native schedule sync and add feature guide`) is on `origin/master`; the same source commit is also on `origin/fix/android-audit-20261013` as `2868d1b`.
+- `[skip ci]` was used per repository precedent to prevent the automatic Codemagic App Store Connect upload and Cloudflare Pages build/deploy. Neither was triggered. No Firebase deployment or native store submission occurred.
+- Verification before push: 34 Jest suites / 185 tests passed; production build succeeded with existing AdMob source-map and stale Browserslist warnings. Physical Android/iOS schedule edits and notification receipt still need device verification; do not claim zero defects from automated checks alone.
+- Unrelated dirty Android settings, notification-center docs and reader/deployment scripts remain local and were excluded from the push.
+
 ## Feature guide for existing and new users (2026-10-23)
 
 - Added a local 4–6 card App guide modal in this worktree. Existing saved logins and new users see it once after installing the feature-containing update. The per-device marker is keyed by guide revision, independent of app build number; closing, skipping or finishing marks the revision seen. Settings > App guide replays it. TV profiles are excluded.

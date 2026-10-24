@@ -1,3 +1,10 @@
+## Latest GitHub status (2026-10-24)
+
+- User asked for the reviewed client fixes on `master`. Commit `18214199b141f424505ab6f0508e6a1c86e3df41` (`[skip ci] Fix native schedule sync and add feature guide`) was pushed to `origin/master`; source commit `2868d1b` is also on `origin/fix/android-audit-20261013`.
+- The `[skip ci]` prefix follows repository precedent to avoid automatically uploading an iOS build through Codemagic or deploying Cloudflare Pages. Neither pipeline was started. No Firebase deployment or store submission occurred.
+- Verification: 34 Jest suites / 185 tests passed and production build succeeded with existing AdMob source-map and stale Browserslist warnings. Physical-device schedule edits and notification delivery remain unverified.
+- Unrelated local Android settings, notification-center docs, and reader/deployment scripts were excluded and remain dirty/untracked; preserve them.
+
 ## Feature guide rollout (2026-10-23)
 
 - User requested a tutorial modal introducing features, including automatic display to existing users after an update. Implemented src/features/feature-tour with bundled English copy matching the current UI, SVG feature icons, 4–6 steps, Back/Next/Got it, Close/Skip, progress indicators, keyboard focus containment/Escape, body-scroll restoration, dark mode, short-screen scrolling and native banner/safe-area spacing.
