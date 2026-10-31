@@ -1,0 +1,61 @@
+name: Update announcements
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Check only, or publish verified production release announcements
+        type: choice
+        default: check
+        options: [check, publish]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-update-announcements
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    if: github.ref == 'refs/heads/master' && vars.UPDATE_MONITOR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: update-announcements
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test monitor before accessing credentials
+        run: node --test scripts/update-announcements.test.cjs scripts/release-monitor/*.test.cjs
+      - name: Authenticate dedicated monitor identity without a stored key
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.UPDATE_MONITOR_WIF_PROVIDER }}
+          service_account: ${{ vars.UPDATE_MONITOR_SERVICE_ACCOUNT }}
+          project_id: blc-calendar-e302f
+          token_format: access_token
+          create_credentials_file: false
+          access_token_scopes: https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/androidpublisher
+      - name: Check stores and synchronize announcements
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          UPDATE_COUNTRIES: ${{ vars.UPDATE_MONITOR_COUNTRIES || 'US,KR' }}
+          REQUESTED_MODE: ${{ inputs.mode || 'publish' }}
+          PUBLISH_ENABLED: ${{ vars.UPDATE_MONITOR_PUBLISH_ENABLED }}
+        shell: bash
+        run: |
+          mode=--check
+          if [[ "$REQUESTED_MODE" == "publish" && "$PUBLISH_ENABLED" == "true" ]]; then
+            mode=--publish
+          fi
+          node scripts/release-monitor/run.cjs "$mode"

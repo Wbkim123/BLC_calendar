@@ -34,6 +34,7 @@
     "build": "cross-env CI=false react-scripts build",
     "test": "react-scripts test",
     "test:unit:ci": "react-scripts test --watchAll=false --runInBand",
+    "test:update-monitor": "node --test scripts/update-announcements.test.cjs scripts/release-monitor/policy.test.cjs scripts/release-monitor/run.test.cjs scripts/release-monitor/setup-identity.test.cjs",
     "emulators": "node scripts/firebase-emulators.cjs start",
     "test:emulator": "node scripts/firebase-emulators.cjs exec",
     "release:check": "node scripts/release-readiness.cjs",

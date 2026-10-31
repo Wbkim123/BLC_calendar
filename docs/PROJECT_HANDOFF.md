@@ -1,3 +1,9 @@
+## Update automation check rollout (2026-10-31)
+
+- User authorized pushing only release-monitor changes and running a GitHub check with automatic publication disabled. Isolated checkout `C:/Users/김원범/AppData/Local/Temp/blc-update-monitor-20261031` preserves the dirty original workspace. No unrelated source/native/test-setup changes are included.
+- Added hourly/manual workflow, Play published/completed gating with source version mapping, Apple US/KR public checks, scoped ETag-protected announcement synchronization, identity setup/diagnostic helpers and 25 tests. See `docs/UPDATE_AUTOMATION.md` for setup/limitations. Google identity setup is complete; owner reports Play app read access granted. Actual Play API verification is pending GitHub OIDC execution.
+- Existing 4.1.1/2.0.3 announcements remain active. `UPDATE_MONITOR_PUBLISH_ENABLED` must stay false in this rollout. No Firebase function/rule deploy, store release or automatic publication activation authorized here. Existing Codemagic on-master behavior may run on push. Record resulting commit/run status after checking.
+
 ## Latest GitHub status (2026-10-24)
 
 - iOS `2.0.3` passed the Codemagic TestFlight check. Android was bumped from `4.1.0`/14 to `4.1.1`/15 in commit `e75f3a9`, pushed normally to master. GitHub Actions and Cloudflare Pages are in progress. `codemagic.yaml` has only the iOS TestFlight workflow, so no Android AAB was built or uploaded.

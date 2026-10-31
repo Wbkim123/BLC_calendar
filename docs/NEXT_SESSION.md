@@ -1,3 +1,10 @@
+## Update automation check rollout (2026-10-31)
+
+- Owner authorized scoped master push and GitHub check-mode execution. Prepared from origin/master in `C:/Users/김원범/AppData/Local/Temp/blc-update-monitor-20261031`; original `E:/NCOA/BLC/blc_calendar` remains intentionally dirty and must not be reset. Its local handoff also contains the school-account independence plan.
+- Release monitor implementation, identity resource names, limitations and activation instructions are in `docs/UPDATE_AUTOMATION.md`. Dedicated Google service account and restricted OIDC provider already created/read-back verified; owner reports Play permission granted. Local impersonation failed before Play API access; GitHub is the intended verification path.
+- Existing manual announcement versions 4.1.1 / 2.0.3 are active. This rollout permits CHECK mode only. Keep `UPDATE_MONITOR_PUBLISH_ENABLED=false`; do not enable scheduled writes without explicit authorization after successful live verification.
+- Prior verification: 25 automation tests, full frontend 34 suites/185 tests and build with known warnings. GitHub environment/variables and live check results must be recorded after execution. A master push may also trigger the existing Codemagic iOS workflow.
+
 ## Latest GitHub status (2026-10-24)
 
 - iOS `2.0.3` passed its Codemagic TestFlight check. Android was bumped from `4.1.0`/14 to `4.1.1`/15 in commit `e75f3a9`, pushed normally to master. GitHub Actions and Cloudflare Pages are in progress. `codemagic.yaml` has only the iOS TestFlight workflow, so no Android AAB was built or uploaded.
