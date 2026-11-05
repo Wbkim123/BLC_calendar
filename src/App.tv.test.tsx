@@ -7,6 +7,19 @@ import { auth } from './firebase';
 import App from './App';
 import { TV_ACCESS_CODES } from './features/auth/tvAccessCodes';
 import { tourStorageKey } from './features/feature-tour/policy';
+import { setHistoryCredential } from './features/notification-center/api';
+import { selectStagingSession } from './staging';
+
+let mockSecureReads = false;
+let mockStagingSecureReads = false;
+const mockStagingRead = jest.fn<Promise<any>, [any, string, AbortSignal]>();
+const mockAuthorizedRead = jest.fn<Promise<any>, [string | null, string, AbortSignal]>();
+jest.mock('./features/schedule-sync/authorizedRead', () => ({
+  get secureScheduleReads() { return mockSecureReads; },
+  get secureStagingScheduleReads() { return mockSecureReads || mockStagingSecureReads; },
+  fetchAuthorizedStagingSchedules: (profile: any, token: string, signal: AbortSignal) => mockStagingRead(profile, token, signal),
+  fetchAuthorizedSchedules: (code: string | null, academy: string, signal: AbortSignal) => mockAuthorizedRead(code, academy, signal)
+}));
 
 const mockDay = (cycleName: string, date: string) => ({ cycleName, date, dayLabel: 'Training', events: [] });
 let mockDatabase: Record<string, unknown> = {};
@@ -67,6 +80,12 @@ beforeEach(() => {
   window.localStorage.clear();
   window.localStorage.setItem(tourStorageKey(), 'seen');
   jest.clearAllMocks();
+  mockSecureReads = false;
+  mockStagingSecureReads = false;
+  mockStagingRead.mockReset();
+  selectStagingSession(false);
+  mockAuthorizedRead.mockReset();
+  setHistoryCredential(null);
   mockPlatform = 'web';
   jest.mocked(signOut).mockReset().mockResolvedValue(undefined);
   mockRealtimeEnabled = true;
@@ -297,5 +316,115 @@ describe('website TV integration', () => {
     fireEvent.change(await screen.findByPlaceholderText('Enter Access Code'), { target: { value: 'NCOA6120' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'ENTER' })); });
     await screen.findByText('Calendar screen');
+  });
+});
+
+describe('server-authorized schedule rollout', () => {
+  it.each(['web', 'ios', 'android'])('keeps ordinary TV login on the existing path with staging-only enabled on %s', async platform => {
+    mockPlatform = platform;
+    mockStagingSecureReads = true;
+    render(<App />);
+    await loginTv('BLC');
+    await screen.findByText('Events BLC cycle');
+    expect(mockAuthorizedRead).not.toHaveBeenCalled();
+    expect(mockStagingRead).not.toHaveBeenCalled();
+  });
+
+  it.each([[false, false], [false, true], [true, true]])('routes a saved staging session with production=%s staging=%s', async (production, staging) => {
+    mockSecureReads = production;
+    mockStagingSecureReads = staging;
+    selectStagingSession(true);
+    localStorage.setItem('blc_calendar_login', JSON.stringify({
+      role: 'ADMIN', testMode: true, profile: {
+        role: 'ADMIN', accessLevel: 'MANAGER', academy: 'BLC', scope: 'NCOA', permissions: ['schedule.read']
+      }
+    }));
+    mockStagingRead.mockResolvedValue({ schedules: {}, locations: [], uniforms: [] });
+    render(<App />);
+    await waitFor(() => expect(screen.queryByText('Loading Data...')).toBeNull());
+    expect(screen.queryByText('API Connection Error')).toBeNull();
+    if (production || staging) {
+      await waitFor(() => expect(mockStagingRead).toHaveBeenCalled());
+      expect(mockStagingRead.mock.calls[0][1]).toBe('synthetic-id-token');
+    } else {
+      expect(mockStagingRead).not.toHaveBeenCalled();
+      expect(global.fetch).toHaveBeenCalled();
+    }
+    expect(mockAuthorizedRead).not.toHaveBeenCalled();
+  });
+
+  const profile = (accessLevel = 'TV_DISPLAY', academy = 'BLC') => ({
+    role: accessLevel === 'STUDENT' ? 'STUDENT' : accessLevel === 'SCHEDULE_IMPORTER' ? 'ADMIN' : 'VIEWER',
+    accessLevel, academy, scope: academy,
+    permissions: ['schedule.read'],
+    ...(accessLevel === 'STUDENT' ? { studentCycleName: 'Fixture cycle' } : {})
+  });
+  const result = (accessLevel = 'TV_DISPLAY', academy = 'BLC') => ({
+    profile: profile(accessLevel, academy),
+    schedules: { day: mockDay('Fixture cycle', '2099-01-01') },
+    locations: [], uniforms: []
+  });
+  const enterFixture = async () => {
+    fireEvent.change(await screen.findByPlaceholderText('Enter Access Code'), { target: { value: 'synthetic-fixture' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER' }));
+  };
+
+  it('loads no public schedules before login and uses the authorized endpoint for TV', async () => {
+    mockSecureReads = true;
+    mockAuthorizedRead.mockResolvedValue(result());
+    render(<App />);
+    await screen.findByPlaceholderText('Enter Access Code');
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(mockAuthorizedRead).not.toHaveBeenCalled();
+    await enterFixture();
+    await screen.findByText('Events Fixture cycle');
+    expect(mockAuthorizedRead).toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it.each(['STUDENT', 'SENIOR', 'SCHEDULE_IMPORTER'])('restores %s through the server without a public read', async accessLevel => {
+    mockSecureReads = true;
+    mockPlatform = 'android';
+    const data = result(accessLevel);
+    mockAuthorizedRead.mockResolvedValue(data);
+    localStorage.setItem('blc_calendar_login', JSON.stringify({
+      code: 'synthetic-fixture', role: data.profile.role, profile: data.profile
+    }));
+    render(<App />);
+    await waitFor(() => expect(mockAuthorizedRead).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('Loading Data...')).toBeNull());
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(screen.queryByText('API Connection Error')).toBeNull();
+  });
+
+  it('clears data when refresh fails and allows signing out without public fallback', async () => {
+    mockSecureReads = true;
+    mockAuthorizedRead.mockResolvedValue(result());
+    render(<App />);
+    await enterFixture();
+    await screen.findByText('Events Fixture cycle');
+    mockAuthorizedRead.mockRejectedValue(new Error('access expired'));
+    fireEvent(window, new Event('online'));
+    await screen.findByText('API Connection Error');
+    expect(screen.queryByText('Events Fixture cycle')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT & SIGN IN AGAIN' }));
+    await screen.findByPlaceholderText('Enter Access Code');
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('discards an authorized response arriving after logout', async () => {
+    mockSecureReads = true;
+    mockAuthorizedRead.mockResolvedValue(result());
+    render(<App />);
+    await enterFixture();
+    await screen.findByText('Events Fixture cycle');
+    let finish: (value: any) => void = () => undefined;
+    mockAuthorizedRead.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    fireEvent(window, new Event('online'));
+    fireEvent.click(screen.getByRole('button', { name: /logout/i }));
+    await screen.findByPlaceholderText('Enter Access Code');
+    await act(async () => { finish(result()); });
+    expect(screen.queryByText('Events Fixture cycle')).toBeNull();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

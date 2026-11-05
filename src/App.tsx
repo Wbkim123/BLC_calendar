@@ -1,3 +1,4 @@
+import { fetchAuthorizedSchedules, fetchAuthorizedStagingSchedules, secureScheduleReads, secureStagingScheduleReads } from './features/schedule-sync/authorizedRead';
 import { isStagingSession, selectStagingSession, stagingDatabaseUrl, stagingAuth } from './staging';
 import { requestNativeDatabaseWrite } from './features/schedule-sync/nativeWrite';
 import FeatureTour from './features/feature-tour/FeatureTour';
@@ -196,6 +197,7 @@ function AppApplication() {
       return null;
     }
   };
+  const [readSessionVersion, setReadSessionVersion] = useState(0);
   const [accessProfile, setAccessProfile] = useState<AccessProfile | null>(getSavedProfile);
   const [academy, setAcademy] = useState<AcademyId>(() => getSavedProfile()?.academy || 'BLC');
   const [role, setRole] = useState<UserRole>(() => {
@@ -382,6 +384,16 @@ function AppApplication() {
     const path = `${getAcademyConfig(otherAcademy).databasePrefix}schedules`;
     const loadOtherAcademy = async () => {
       try {
+        if (secureScheduleReads && !isTestMode && !useFirebaseEmulators) {
+          const controller = new AbortController();
+          const timeout = window.setTimeout(() => controller.abort(), 15000);
+          try {
+            const result = await fetchAuthorizedSchedules(getHistoryCredential(), otherAcademy, controller.signal);
+            if (!disposed) setCrossAcademySchedules(Object.values(result.schedules)
+              .map(day => ({ ...day, academy: otherAcademy, events: normalizeScheduleEvents(day.events) })));
+          } finally { window.clearTimeout(timeout); }
+          return;
+        }
         let url: string;
         if (isTestMode) {
           if (!isStagingSession()) return;
@@ -501,6 +513,62 @@ function AppApplication() {
   // 1. Firebase에서 실시간 데이터 불러오기
   useEffect(() => {
     const academyConfig = getAcademyConfig(academy);
+    if (secureScheduleReads && !isTestMode && !useFirebaseEmulators) {
+      setSchedules([]);
+      setLocations([]);
+      setUniforms([]);
+      scheduleDatabaseKeyByDateRef.current.clear();
+      if (!role) { setIsLoading(false); setApiError(null); return; }
+      let disposed = false;
+      let loading = false;
+      let revision = 0;
+      let controller = new AbortController();
+      const credential = getHistoryCredential();
+      setIsLoading(true);
+      const load = async () => {
+        if (loading || disposed) return;
+        loading = true;
+        const requestedRevision = revision;
+        controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 15000);
+        try {
+          const result = await fetchAuthorizedSchedules(credential, academy, controller.signal);
+          if (disposed || requestedRevision !== revision) return;
+          const entries = Object.entries(result.schedules);
+          recordScheduleKeys(entries);
+          setSchedules(entries.map(([, day]) => ({ ...day, events: normalizeScheduleEvents(day.events) }))
+            .sort((a, b) => a.date.localeCompare(b.date)));
+          setLocations(Object.values(result.locations));
+          setUniforms(Object.values(result.uniforms));
+          setAccessProfile(current => JSON.stringify(current) === JSON.stringify(result.profile) ? current : result.profile);
+          setStudentCycleName(result.profile.studentCycleName || null);
+          setApiError(null);
+        } catch {
+          if (!disposed && requestedRevision === revision) {
+            setSchedules([]);
+            setLocations([]);
+            setUniforms([]);
+            setApiError('Unable to verify schedule access. Check your connection or sign out and sign in again.');
+          }
+        } finally {
+          window.clearTimeout(timeout);
+          loading = false;
+          if (!disposed) setIsLoading(false);
+          if (!disposed && requestedRevision !== revision) void load();
+        }
+      };
+      const refresh = () => { if (document.visibilityState === 'visible') { revision++; void load(); } };
+      void load();
+      const timer = window.setInterval(refresh, 30000);
+      const events = ['online', 'blc-schedule-notification', 'schedule-write-confirmed', 'schedule-write-uncertain'];
+      events.forEach(event => window.addEventListener(event, refresh));
+      document.addEventListener('visibilitychange', refresh);
+      return () => {
+        disposed = true; controller.abort(); window.clearInterval(timer);
+        events.forEach(event => window.removeEventListener(event, refresh));
+        document.removeEventListener('visibilitychange', refresh);
+      };
+    }
     if (isTestMode) {
       setSchedules([]);
       setLocations([]);
@@ -519,6 +587,19 @@ function AppApplication() {
           if (!isStagingSession()) throw new Error('Staging session required.');
           const token = await getAdminIdToken();
           if (!token) throw new Error('Sign out and sign in to the test environment again.');
+          if (secureStagingScheduleReads) {
+            if (!accessProfile) throw new Error('Test role required.');
+            const result = await fetchAuthorizedStagingSchedules(accessProfile, token, controller.signal);
+            if (disposed || controller.signal.aborted) return;
+            const entries = Object.entries(result.schedules);
+            recordScheduleKeys(entries);
+            setSchedules(entries.map(([, day]) => ({ ...day, events: normalizeScheduleEvents(day.events) }))
+              .sort((a, b) => a.date.localeCompare(b.date)));
+            setLocations(Object.values(result.locations));
+            setUniforms(Object.values(result.uniforms));
+            setApiError(null);
+            return;
+          }
           const values = await Promise.all(['schedules', 'locations', 'uniforms'].map(async name => {
             const response = await fetch(stagingDatabaseUrl(`${academyConfig.databasePrefix}${name}`, token), {
               cache: 'no-store', signal: controller.signal
@@ -781,10 +862,10 @@ function AppApplication() {
       unsubLocations();
       unsubUniforms();
     };
-  }, [isTestMode, academy, role]);
+  }, [isTestMode, academy, role, readSessionVersion, accessProfile]);
 
   useEffect(() => {
-    if (role || schedules.length === 0 || typeof window === 'undefined') return;
+    if (secureScheduleReads || role || schedules.length === 0 || typeof window === 'undefined') return;
 
     try {
       const saved = window.localStorage.getItem(LOGIN_STORAGE_KEY);
@@ -1262,6 +1343,44 @@ function AppApplication() {
     }
     const requestedTestMode = code.trim() === '318709';
     const normalizedCode = normalizeAccessCode(code);
+    if (secureScheduleReads && !requestedTestMode) {
+      const selectedAcademy: AcademyId = normalizedCode.startsWith('KTA') ? 'KTA'
+        : normalizedCode.startsWith('NCOA') ? academy : 'BLC';
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 15000);
+      try {
+        const result = await fetchAuthorizedSchedules(normalizedCode, selectedAcademy, controller.signal);
+        const login = result.profile;
+        if (!Capacitor.isNativePlatform() && !canUseWebsite(login)) return false;
+        selectStagingSession(false);
+        if (login.requiresServerAuth) await createAdminSession(normalizedCode);
+        await prepareNotificationEnvironment(false);
+        setHistoryCredential(normalizedCode);
+        setSchedules([]);
+        setCrossAcademySchedules([]);
+        setApiError(null);
+        setRole(login.role);
+        setAccessProfile(login);
+        setAcademy(login.academy);
+        setStudentCycleName(login.studentCycleName || null);
+        setIsTestMode(false);
+        setTvCycle(null);
+        setSelectedDateId(null);
+        setPendingNotification(null);
+        setNotificationFocus(null);
+        setForegroundNotification(null);
+        hasAutoSelectedTodayRef.current = false;
+        if (rememberLogin) window.localStorage.setItem(LOGIN_STORAGE_KEY, JSON.stringify({
+          code: normalizedCode, role: login.role, profile: login
+        }));
+        else window.localStorage.removeItem(LOGIN_STORAGE_KEY);
+        setReadSessionVersion(value => value + 1);
+        window.dispatchEvent(new Event('ncoa-test-session-changed'));
+        return true;
+      } catch {
+        return false;
+      } finally { window.clearTimeout(timeout); }
+    }
     const isWeb = !Capacitor.isNativePlatform();
     const webProfile = resolveAccessCode(code, schedules, academy);
     if (isWeb && webProfile && !canUseWebsite(webProfile) && !requestedTestMode) return false;
@@ -1578,7 +1697,7 @@ function AppApplication() {
         >
           RETRY
         </button>
-        {isTestMode && (
+        {(isTestMode || secureScheduleReads) && (
           <button
             onClick={handleLogout}
             className="mt-3 rounded-lg border border-white px-5 py-2 font-bold text-white"

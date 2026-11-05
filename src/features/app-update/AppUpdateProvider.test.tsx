@@ -21,6 +21,10 @@ jest.mock('firebase/remote-config', () => ({
 }));
 const content = <AppUpdateProvider><div>Schedule remains available</div><UpdateSettingsCard /></AppUpdateProvider>;
 beforeEach(() => {
+  // CRA loads .env.test before Jest starts. That file intentionally enables
+  // Firebase emulators for the test app, but this suite verifies native store
+  // guidance and must exercise its native path independent of that setting.
+  process.env.REACT_APP_USE_FIREBASE_EMULATORS = 'false';
   localStorage.clear();
   mockPlatform = 'ios';
   mockRelease = JSON.stringify({ enabled: true, latestVersion: '2.1.0', notes: 'New schedule features' });

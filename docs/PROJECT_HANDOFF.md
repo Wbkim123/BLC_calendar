@@ -1,3 +1,19 @@
+## Isolated candidate validated (2026-11-05 KST, latest)
+
+- Branch codex/ios-staging-read-candidate-20261105, TEMP/blc-ios-staging-read-20261105, base 7c620a5. Candidate source is ready for a local commit; no external action authorized or executed.
+- Fresh npm ci --offline completed with existing lockfile and AdMob patch. Candidate with production flag false/staging flag true passed 35 suites/205 tests, TypeScript and web build. Known AdMob source-map warnings/toolchain notices only. No native archive/device test.
+- Baseline lockfile, Capacitor app ID, Xcode version/project, Firebase configuration/backend/rules unchanged. Initial byte comparison flagged Windows CRLF; normalized comparison passed. Existing automatic ios-testflight workflow preserved; manual candidate has no trigger/upload.
+- Scope: frontend read path, staging flag, regression tests, test emulator configuration plus its native-update-test isolation fix, minimal typecheck script, manual Codemagic workflow and documentation. Excludes backend candidates, backup material and local .env credentials. Native push/web push validation remains outside this test.
+- Next: before any branch push inspect Cloudflare preview settings (unverified). Then obtain explicit approval for exact candidate branch push and manual Codemagic workflow. TEST_BUILD_NUMBER must be checked against App Store Connect. TestFlight upload is separate; no iPhone-installable artifact produced yet.
+
+## Isolated iOS candidate in progress (2026-11-05 KST)
+
+- Created local branch codex/ios-staging-read-candidate-20261105 at TEMP/blc-ios-staging-read-20261105 from 7c620a5. Root remains dirty and unchanged except handoff. No push or remote build.
+- Candidate includes App authorized reads, two authorized-read modules/tests, App integration tests, manual workflow, minimal typecheck package script, emulator-only .env.test and its existing native update-test isolation fix. Excludes Firebase backend/rules, native generated changes, backups and credentials. Candidate validation/commit pending.
+- GitHub announcement workflow only schedule/manual with master guard; existing Codemagic push only master. Cloudflare dashboard preview-branch policy is NOT verified; branch push may create a web preview. Do not infer no external side effects from YAML alone.
+
+Full school-independence/backup history remains in the original root handoff; it is not copied into this narrow app candidate.
+
 ## Update automation check rollout (2026-10-31)
 
 - User authorized pushing only release-monitor changes and running a GitHub check with automatic publication disabled. Isolated checkout `C:/Users/김원범/AppData/Local/Temp/blc-update-monitor-20261031` preserves the dirty original workspace. No unrelated source/native/test-setup changes are included.
