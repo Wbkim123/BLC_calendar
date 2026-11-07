@@ -71,7 +71,7 @@ workflows:
         XCODE_SCHEME: "App"
         REACT_APP_SECURE_SCHEDULE_READS: "false"
         REACT_APP_STAGING_SECURE_SCHEDULE_READS: "true"
-        TEST_BUILD_NUMBER: "88"
+        TEST_BUILD_NUMBER: "89"
         BUILD_PATH: "build"
       node: 24
       xcode: latest
@@ -107,7 +107,7 @@ workflows:
           xcode-project build-ipa \
             --project "App.xcodeproj" \
             --scheme "$XCODE_SCHEME" \
-            --archive-flags "CURRENT_PROJECT_VERSION=$TEST_BUILD_NUMBER"
+            --archive-flags "CURRENT_PROJECT_VERSION=$TEST_BUILD_NUMBER MARKETING_VERSION=2.0.4"
     artifacts:
       - ios/App/build/ios/ipa/App.ipa
       - /tmp/xcodebuild_logs/*.log
