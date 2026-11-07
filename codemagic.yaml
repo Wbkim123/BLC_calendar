@@ -56,6 +56,68 @@ workflows:
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
 
+  ios-staging-read-upload:
+    name: NCOA iOS staging upload (manual, no store submission)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    # Manual only. Uploads to App Store Connect; no review submission.
+    integrations:
+      app_store_connect: codemagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: dev.pages.blccalendar
+      vars:
+        XCODE_SCHEME: "App"
+        REACT_APP_SECURE_SCHEDULE_READS: "false"
+        REACT_APP_STAGING_SECURE_SCHEDULE_READS: "true"
+        TEST_BUILD_NUMBER: "88"
+        BUILD_PATH: "build"
+      node: 24
+      xcode: latest
+    scripts:
+      - name: Check candidate settings
+        script: |
+          set -eu
+          test "$REACT_APP_SECURE_SCHEDULE_READS" = "false"
+          test "$REACT_APP_STAGING_SECURE_SCHEDULE_READS" = "true"
+          test "$BUILD_PATH" = "build"
+          # Supply an unused build number after checking App Store Connect.
+          case "${TEST_BUILD_NUMBER:-}" in
+            ''|*[!0-9]*) echo "Set TEST_BUILD_NUMBER to a verified unused positive integer."; exit 1 ;;
+          esac
+          test "$TEST_BUILD_NUMBER" -gt 0
+      - name: Install npm dependencies
+        script: npm ci
+      - name: Verify candidate source
+        script: |
+          set -eu
+          npm run typecheck
+          npm run test:unit:ci
+      - name: Build staging-only web app
+        script: npm run build
+      - name: Sync Capacitor iOS project
+        script: npx cap sync ios
+      - name: Apply App Store signing profile
+        script: xcode-project use-profiles
+      - name: Build signed candidate IPA
+        script: |
+          set -eu
+          cd "$CM_BUILD_DIR/ios/App"
+          xcode-project build-ipa \
+            --project "App.xcodeproj" \
+            --scheme "$XCODE_SCHEME" \
+            --archive-flags "CURRENT_PROJECT_VERSION=$TEST_BUILD_NUMBER"
+    artifacts:
+      - ios/App/build/ios/ipa/App.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false
+
   ios-testflight:
     name: BLC iOS TestFlight
     instance_type: mac_mini_m2
