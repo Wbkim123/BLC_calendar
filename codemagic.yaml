@@ -14,6 +14,7 @@ workflows:
         XCODE_SCHEME: "App"
         REACT_APP_SECURE_SCHEDULE_READS: "false"
         REACT_APP_STAGING_SECURE_SCHEDULE_READS: "true"
+        TEST_BUILD_NUMBER: "87"
         BUILD_PATH: "build"
       node: 24
       xcode: latest
