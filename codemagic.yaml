@@ -88,7 +88,19 @@ workflows:
           esac
           test "$TEST_BUILD_NUMBER" -gt 0
       - name: Install npm dependencies
-        script: npm ci
+        script: |
+          set -eu
+          # sharp 0.32.x supports local libvips prebuilds; retain its integrity checks.
+          test "$(uname -s)" = "Darwin"
+          test "$(uname -m)" = "arm64"
+          libvips_dir="$(mktemp -d)"
+          mkdir -p "$libvips_dir/v8.14.5"
+          curl --fail --location --show-error --silent \
+            --connect-timeout 30 --max-time 180 \
+            --retry 3 --retry-delay 5 --retry-max-time 780 \
+            --output "$libvips_dir/v8.14.5/libvips-8.14.5-darwin-arm64v8.tar.br" \
+            "https://github.com/lovell/sharp-libvips/releases/download/v8.14.5/libvips-8.14.5-darwin-arm64v8.tar.br"
+          npm_config_sharp_libvips_local_prebuilds="$libvips_dir" npm ci
       - name: Verify candidate source
         script: |
           set -eu
