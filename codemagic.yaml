@@ -97,7 +97,7 @@ workflows:
           mkdir -p "$libvips_dir/v8.14.5"
           curl --fail --location --show-error --silent \
             --connect-timeout 30 --max-time 180 \
-            --retry 3 --retry-delay 5 --retry-max-time 780 \
+            --retry 3 --retry-all-errors --retry-delay 15 --retry-max-time 780 \
             --output "$libvips_dir/v8.14.5/libvips-8.14.5-darwin-arm64v8.tar.br" \
             "https://github.com/lovell/sharp-libvips/releases/download/v8.14.5/libvips-8.14.5-darwin-arm64v8.tar.br"
           npm_config_sharp_libvips_local_prebuilds="$libvips_dir" npm ci
