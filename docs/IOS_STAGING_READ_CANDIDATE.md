@@ -1,3 +1,7 @@
+## Candidate dependency adjustment (2026-11-08)
+
+This candidate omits the development-only @capacitor/assets generator and its sharp dependency because repeated GitHub libvips downloads failed with HTTP504. The workflow uses the existing tracked iOS icons/splashes and never invokes asset generation. npm ci still runs normal lifecycle scripts, including patch-package. Runtime dependencies and remaining locked versions are unchanged. Original root-worktree asset-generation tooling remains available; review this candidate-specific tooling removal before merging into master. This does not remove or regenerate any native assets.
+
 # iOS Staging read candidate — 2026-11-05
 
 ## Prepared locally
